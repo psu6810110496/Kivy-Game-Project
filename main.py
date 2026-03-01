@@ -1,3 +1,86 @@
+Chap
+chappawit
+ไม่ระบุ
+
+LowP
+LowP — 23/2/2569 13:12
+Chap — 23/2/2569 13:12
+LowP
+LowP — 23/2/2569 13:12
+from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+
+GG kivy.txt
+6 KB
+Chap — 24/2/2569 0:43
+class DisplayClock:
+    def display_time(self, time):
+        print(f" {time.hour:02}:{time.min:02} ")
+
+
+class Clock:
+
+clock.txt
+1 KB
+Chap — 24/2/2569 19:52
+76561199177525377
+stream id
+LowP
+LowP — 24/2/2569 19:54
+Chap — 24/2/2569 20:17
+1217259649
+LowP
+LowP — 25/2/2569 14:04
+https://github.com/denisseai/Project-1-Alien-Invasion-Game
+GitHub
+GitHub - denisseai/Project-1-Alien-Invasion-Game: 2D shooting game ...
+2D shooting game in Pygame, which consists of levels of increasing difficulty- Following Python Crash Course, by Eric Matthes - denisseai/Project-1-Alien-Invasion-Game
+2D shooting game in Pygame, which consists of levels of increasing difficulty- Following Python Crash Course, by Eric Matthes - denisseai/Project-1-Alien-Invasion-Game
+Chap — 25/2/2569 14:11
+https://github.com/artemshchirov/pyzelda-rpg.git
+GitHub
+GitHub - artemshchirov/pyzelda-rpg: ⚔ Tiled Zelda style game writ...
+⚔ Tiled Zelda style game written in Python and Pygame. - artemshchirov/pyzelda-rpg
+⚔ Tiled Zelda style game written in Python and Pygame. - artemshchirov/pyzelda-rpg
+Chap — 22:21
+ประเภทไฟล์ที่แนบ: unknown
+พรี่เต2.aseprite
+4.49 KB
+LowP
+LowP — 23:14
+from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+
+message.txt
+7 KB
+LowP
+LowP — 23:50
+from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, Screen
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.button import Button
+from kivy.uix.label import Label
+
+message.txt
+9 KB
+﻿
+LowP
+LowP
+absolutly01not
+ 
+ 
+ 
+ 
+Want to know how it's like to hug
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -7,6 +90,7 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 from kivy.core.window import Window
 from kivy.uix.anchorlayout import AnchorLayout
+from kivy.uix.floatlayout import FloatLayout
 
 Window.size = (1280, 720)
 
@@ -31,37 +115,61 @@ class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         
-        # 1. ใช้ AnchorLayout เป็นฐานเพื่อกำหนดตำแหน่งของกลุ่มปุ่ม
-        # anchor_x='left', anchor_y='bottom' จะผลักเนื้อหาไปซ้ายล่าง
-        root_anchor = AnchorLayout(anchor_x='left', anchor_y='bottom', padding=50)
+        main_layout = FloatLayout()
+
+        # ปรับความกว้าง (width) ของ menu_group เพิ่มขึ้นเป็น 600 
+        # เพื่อให้พอดีกับชื่อเกมที่ยาวขึ้นในบรรทัดเดียว
+        menu_group = BoxLayout(
+            orientation='vertical',
+            spacing=30,
+            size_hint=(None, None),
+            size=(600, 450), 
+            pos_hint={'x': 0.1, 'top': 0.85}
+        )
+
+        # 1. Title (Single Line)
+        title_label = Label(
+            text="VAMPIRE SURVIVORS", # เอา \n ออกแล้ว
+            font_size=60,            # ปรับขนาดใหญ่ขึ้นได้เพราะพื้นที่แนวนอนเหลือเยอะ
+            bold=True,
+            halign='left',
+            valign='middle',
+            color=(1, 0.2, 0.2, 1),
+            size_hint=(1, None),
+            height=100
+        )
+        title_label.bind(size=title_label.setter('text_size'))
+
+        # 2. ปุ่ม Start (ปรับความกว้างให้สั้นกว่า Title เพื่อความสวยงาม)
+        btn_start = Button(
+            text="START SURVIVING",
+            font_size=24,
+            size_hint=(0.6, None),   # 0.6 คือกว้าง 60% ของ menu_group
+            height=70,
+            background_normal='',
+            background_color=(0.1, 0.6, 0.2, 1)
+        )
         
-        # 2. สร้าง BoxLayout สำหรับกลุ่มปุ่ม (เรียงตัวกันแนวตั้ง)
-        # กำหนด size_hint เพื่อไม่ให้ปุ่มขยายเต็มหน้าจอ
-        menu_box = BoxLayout(orientation='vertical', spacing=15, size_hint=(None, None), size=(300, 200))
-        
-        # สร้างปุ่มต่างๆ
-        btn_start = Button(text="START SURVIVING", font_size=20, background_color=(0.2, 0.8, 0.2, 1))
-        btn_quit = Button(text="QUIT GAME", font_size=20, background_color=(0.8, 0.2, 0.2, 1))
-        
-        # Bind events
+        # 3. ปุ่ม Quit
+        btn_quit = Button(
+            text="QUIT GAME",
+            font_size=24,
+            size_hint=(0.6, None),
+            height=70,
+            background_normal='',
+            background_color=(0.6, 0.1, 0.1, 1)
+        )
+
         btn_start.bind(on_press=lambda x: self.change_screen('char_select_screen'))
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
-        
-        # เพิ่มปุ่มลงในกล่องเมนู
-        menu_box.add_widget(btn_start)
-        menu_box.add_widget(btn_quit)
-        
-        # เพิ่มกล่องเมนูลงใน AnchorLayout
-        root_anchor.add_widget(menu_box)
-        
-        # 3. ส่วนของ Title (แยกออกมาให้อยู่กลางบน หรือตำแหน่งที่ต้องการ)
-        title_anchor = AnchorLayout(anchor_x='center', anchor_y='top', padding=100)
-        title_label = Label(text="VAMPIRE SURVIVORS", font_size=50, color=(1, 0, 0, 1))
-        title_anchor.add_widget(title_label)
-        
-        # เพิ่มทุกอย่างลงในหน้า Screen
-        self.add_widget(title_anchor)
-        self.add_widget(root_anchor)
+
+        # เพิ่มลง Layout
+        menu_group.add_widget(title_label)
+        menu_group.add_widget(btn_start)
+        menu_group.add_widget(btn_quit)
+
+        main_layout.add_widget(menu_group)
+        self.add_widget(main_layout)
 
     def change_screen(self, screen_name):
         self.manager.current = screen_name
