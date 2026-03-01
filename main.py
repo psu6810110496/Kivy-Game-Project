@@ -9,22 +9,18 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.popup import Popup
 from kivy.core.window import Window
-from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
+from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate, Rotate, Scale
 from kivy.clock import Clock
 from kivy.config import Config
 import random
-from kivy.graphics import Rotate, PushMatrix, PopMatrix, Scale
 
 # ต้องตั้งค่า Config ก่อน Import Window นะครับ
 Config.set('graphics', 'fullscreen', 'auto')
 Config.set('graphics', 'resizable', '0')
 
-Window.maximize()
-
 # ==========================================
 # 0. VFX
 # ==========================================
-
 class RainEffect(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -35,17 +31,12 @@ class RainEffect(Widget):
             Color(0.6, 0.6, 0.6, 0.4) 
             for _ in range(self.num_drops):
                 PushMatrix()
-                
-                # 1. มุมเอียงเป็นลบ (-20) เพื่อให้เม็ดเอียงชี้ไปทางขวา
                 rotation = Rotate(angle=20, origin=(0, 0)) 
-                
                 rect = Rectangle(
-                    # สุ่ม X เผื่อไปทางซ้ายนอกจอ เพราะฝนจะวิ่งจากซ้ายไปขวา
                     pos=(random.uniform(-Window.width * 0.5, Window.width), 
                          random.uniform(0, Window.height)), 
                     size=(2, random.uniform(10, 25))
                 )
-                
                 PopMatrix()
 
                 drop = {
@@ -60,19 +51,13 @@ class RainEffect(Widget):
     def update_rain(self, dt):
         for drop in self.drops:
             x, y = drop['rect'].pos
-            
-            # 2. ปรับให้ตกเฉียงขวา: y ลดลง (ลงล่าง), x เพิ่มขึ้น (ไปขวา)
             y -= drop['speed']
-            x += drop['speed'] * 0.4  # ปรับตัวคูณเพื่อเปลี่ยนความชัน
-            
+            x += drop['speed'] * 0.4 
             drop['rotation'].origin = (x, y)
 
-            # 3. ตรวจสอบขอบล่าง และขอบขวา
             if y < -30 or x > Window.width:
                 y = Window.height + random.uniform(10, 100)
-                # สุ่มเกิดใหม่จากทางซ้าย (รวมนอกจอฝั่งซ้าย) เพื่อให้เฉียงเข้าหาจอ
                 x = random.uniform(-Window.width * 0.5, Window.width)
-                
             drop['rect'].pos = (x, y)
 
 # ==========================================
@@ -94,19 +79,66 @@ class PlayerStats:
 class PlayerWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.canvas.clear()
+        
+        # --- 1. เตรียมรายชื่อไฟล์ Animation (เปลี่ยนชื่อไฟล์ตามที่คุณมีได้เลย) ---
+        self.anim_idle = ['PTTG1.png', 'PTTG2.png'] # ภาพตอนยืนนิ่ง 2 เฟรม
+        self.anim_walk = ['PT1.png', 'PT2.png', 'PT3.png', 'PT4.png', 'PT5.png', 'PT6.png', 'PT7.png'] # ภาพตอนเดิน
+        
+        # สถานะปัจจุบัน
+        self.current_anim = self.anim_idle
+        self.frame_index = 0
+        self.anim_timer = 0
+        self.anim_speed = 0.15 # ความเร็วในการเปลี่ยนภาพ (0.15 วินาทีต่อเฟรม)
+        self.is_facing_right = True # หันขวาอยู่หรือไม่
+        
         with self.canvas:
-            Color(0, 0.5, 1, 1) 
-            self.rect = Rectangle(pos=(2500, 2500), size=(50, 50))
+            # เก็บตัวแปรสีไว้เพื่อเปลี่ยนตอน Dash โดยไม่ต้อง clear canvas
+            self.color_inst = Color(1, 1, 1, 1) 
+            
+            self.rect = Rectangle(
+                source=self.current_anim[0],  
+                pos=(2500, 2500), 
+                size=(64, 64)  
+            )
+            
+        # สั่งรันอัปเดตแอนิเมชัน
+        Clock.schedule_interval(self.animate, 1.0/60.0)
+
+    def set_state(self, is_moving, facing_right=None):
+        # เปลี่ยนทิศทางการหันหน้า
+        if facing_right is not None:
+            self.is_facing_right = facing_right
+            
+        # เลือกชุดแอนิเมชัน
+        new_anim = self.anim_walk if is_moving else self.anim_idle
+        
+        # ถ้าระบบสั่งเปลี่ยนแอนิเมชัน ให้รีเซ็ตเฟรมกลับไปภาพที่ 0
+        if self.current_anim != new_anim:
+            self.current_anim = new_anim
+            self.frame_index = 0 
+
+    def animate(self, dt):
+        self.anim_timer += dt
+        if self.anim_timer >= self.anim_speed:
+            self.anim_timer = 0
+            # วนลูปเฟรมภาพ
+            self.frame_index = (self.frame_index + 1) % len(self.current_anim)
+            self.rect.source = self.current_anim[self.frame_index]
+            
+        # อัปเดตการหันหน้า (พลิกรูปซ้าย-ขวา ด้วย tex_coords)
+        if self.is_facing_right:
+            self.rect.tex_coords = (0, 1, 1, 1, 1, 0, 0, 0) # รูปปกติหันขวา
+        else:
+            self.rect.tex_coords = (1, 1, 0, 1, 0, 0, 1, 0) # พลิกรูปหันซ้าย
 
     def update_pos(self, new_pos):
         self.rect.pos = new_pos
-
 class LevelUpPopup(Popup):
     def __init__(self, game_screen, **kwargs):
         super().__init__(**kwargs)
         self.game_screen = game_screen
         self.title = "LEVEL UP! Choose your Upgrade:"
-        self.title_size = 24
         self.size_hint = (0.6, 0.5)
         self.auto_dismiss = False
         
@@ -166,7 +198,7 @@ class CountdownOverlay(Label):
         self.text = str(self.count)
         self.font_size = 200
         self.bold = True
-        self.color = (1, 0.8, 0, 1) # สีเหลืองทอง
+        self.color = (1, 0.8, 0, 1)
         self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
         Clock.schedule_interval(self.update_countdown, 1)
 
@@ -176,10 +208,10 @@ class CountdownOverlay(Label):
             self.text = str(self.count)
         elif self.count == 0:
             self.text = "SURVIVE!"
-            self.color = (1, 0.2, 0.2, 1) # สีแดง
+            self.color = (1, 0.2, 0.2, 1)
         else:
             Clock.unschedule(self.update_countdown)
-            self.callback() # เรียกให้เริ่มเกม
+            self.callback()
             if self.parent:
                 self.parent.remove_widget(self)
 
@@ -223,7 +255,6 @@ class MainMenuScreen(Screen):
         
         main_layout.add_widget(menu_group)
         self.add_widget(main_layout)
-        
         Window.bind(size=self._update_bg)
 
     def _update_bg(self, instance, value):
@@ -265,27 +296,23 @@ class GameScreen(Screen):
         self.player_stats = None 
         self.is_paused = False
         
-        # --- ตัวแปรสำหรับระบบ Dash ---
         self.is_dashing = False
         self.dash_cooldown = False
-        self.dash_speed_multiplier = 3.0 # ความเร็วจะเพิ่มเป็น 3 เท่าตอน Dash
-        self.dash_duration = 0.2         # พุ่งตัวเป็นเวลา 0.2 วินาที
-        self.dash_cooldown_time = 1.0    # รอ 1 วินาทีก่อน Dash ใหม่ได้
+        self.dash_speed_multiplier = 3.0 
+        self.dash_duration = 0.2 
+        self.dash_cooldown_time = 1.0 
         
-        # เก็บทิศทางล่าสุดที่เดิน เพื่อให้ Dash ไปทางนั้น
         self.last_dir_x = 0
-        self.last_dir_y = 0
+        self.last_dir_y = 1
         
         Window.bind(on_key_down=self._on_keydown)
         Window.bind(on_key_up=self._on_keyup)
 
         self.root_layout = FloatLayout()
-        
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000)) 
         with self.world_layout.canvas.before:
             PushMatrix()
-            self.zoom = Scale(0.85, 0.85, 1) 
-            
+            self.zoom = Scale(5, 5, 5) 
             self.camera = Translate(0, 0)
             Color(0.2, 0.2, 0.2, 1)
             for i in range(0, 5001, 100):
@@ -322,10 +349,8 @@ class GameScreen(Screen):
         if self.player_stats:
             self.is_paused = True 
             self.update_ui()
-            
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
-            
             Clock.schedule_interval(self.update_frame, 1.0/60.0)
 
     def start_actual_game(self):
@@ -349,33 +374,23 @@ class GameScreen(Screen):
         self.is_paused = False
         self.keys_pressed.clear()
 
-    # --- ฟังก์ชันเริ่มและจบ Dash ---
     def start_dash(self):
         if not self.dash_cooldown and not self.is_dashing:
-            # ตรวจสอบว่ามีทิศทางให้ Dash ไปไหม (ต้องมีการเดินอยู่ล่าสุด)
             if self.last_dir_x != 0 or self.last_dir_y != 0:
                 self.is_dashing = True
                 self.dash_cooldown = True
                 
-                # เปลี่ยนสีผู้เล่นเป็นสีเหลืองตอน Dash (ตัวอย่าง Effect)
-                self.player_widget.canvas.clear()
-                with self.player_widget.canvas:
-                    Color(1, 1, 0, 1) # สีเหลือง
-                    self.player_widget.rect = Rectangle(pos=self.player_pos, size=(50, 50))
+                # เปลี่ยนสีตัวละครเป็นออร่าสีเหลือง (โดยไม่ต้อง clear canvas)
+                self.player_widget.color_inst.rgba = (1, 1, 0, 1) 
                 
-                # ตั้งเวลาจบ Dash
                 Clock.schedule_once(self.end_dash, self.dash_duration)
-                # ตั้งเวลา Cooldown เสร็จ
                 Clock.schedule_once(self.reset_dash_cooldown, self.dash_cooldown_time)
 
     def end_dash(self, dt):
         self.is_dashing = False
-        # เปลี่ยนสีกลับเป็นสีฟ้า
-        self.player_widget.canvas.clear()
-        with self.player_widget.canvas:
-            Color(0, 0.5, 1, 1) # สีฟ้าเดิม
-            self.player_widget.rect = Rectangle(pos=self.player_pos, size=(50, 50))
-
+        # เปลี่ยนสีตัวละครกลับเป็นสีปกติ
+        self.player_widget.color_inst.rgba = (1, 1, 1, 1)
+        
     def reset_dash_cooldown(self, dt):
         self.dash_cooldown = False
 
@@ -383,46 +398,48 @@ class GameScreen(Screen):
         if not self.player_stats or self.is_paused:
             return
 
-        # 1. กำหนดความเร็ว (ถ้า Dash อยู่ก็คูณเพิ่ม)
         current_speed = self.player_stats.speed
         if self.is_dashing:
             current_speed *= self.dash_speed_multiplier
 
-        # 2. คำนวณทิศทางการเดิน
         dir_x, dir_y = 0, 0
         
-        # ถ้าไม่ได้ Dash อยู่ ให้รับค่าทิศทางจากปุ่มกดปกติ
         if not self.is_dashing:
             if 'w' in self.keys_pressed: dir_y += 1
             if 's' in self.keys_pressed: dir_y -= 1
             if 'a' in self.keys_pressed: dir_x -= 1
             if 'd' in self.keys_pressed: dir_x += 1
             
-            # เก็บค่าทิศทางล่าสุดไว้ใช้ตอนกด Dash
             if dir_x != 0 or dir_y != 0:
                 self.last_dir_x = dir_x
                 self.last_dir_y = dir_y
         else:
-            # ถ้ากำลัง Dash อยู่ บังคับให้พุ่งไปในทิศทางล่าสุดเท่านั้น
             dir_x = self.last_dir_x
             dir_y = self.last_dir_y
 
-        # 3. อัปเดตตำแหน่ง
-        # ถ้าเดินเฉียง ให้หารทแยงมุมเพื่อไม่ให้เร็วเกินไป (Normalize)
         if dir_x != 0 and dir_y != 0:
-            current_speed *= 0.7071 # ประมาณ 1/sqrt(2)
+            current_speed *= 0.7071 
             
-        # 🔥 บรรทัดที่หายไป: อัปเดตตำแหน่งแกน X และ Y ของผู้เล่น 🔥
         self.player_pos[0] += dir_x * current_speed
         self.player_pos[1] += dir_y * current_speed
             
         self.player_widget.update_pos(self.player_pos)
         
-        # อัปเดตจุดศูนย์กลางซูมให้ยึดกลางจอเสมอ
-        self.zoom.origin = (Window.width / 2, Window.height / 2)
+        # --- โค้ดที่เพิ่มเข้ามาใหม่: ควบคุม Animation ---
+        is_moving = (dir_x != 0 or dir_y != 0)
+        facing_right = None
+        if dir_x > 0:
+            facing_right = True
+        elif dir_x < 0:
+            facing_right = False
+            
+        self.player_widget.set_state(is_moving, facing_right)
+        # -----------------------------------------------
         
+        self.zoom.origin = (Window.width / 2, Window.height / 2)
         self.camera.x = (Window.width / 2) - self.player_pos[0] - 25
         self.camera.y = (Window.height / 2) - self.player_pos[1] - 25
+
     def gain_exp(self, instance):
         if self.player_stats:
             self.player_stats.exp += 35
@@ -434,15 +451,12 @@ class GameScreen(Screen):
             self.update_ui()
 
     def _on_keydown(self, window, key, scancode, codepoint, modifiers):
-        if key == 292: # F11
+        if key == 292: 
             Window.fullscreen = not Window.fullscreen
             return True
-            
-        # ตรวจจับปุ่ม Spacebar (keycode: 32) เพื่อเริ่ม Dash
-        if key == 32:
+        if key == 32: # Spacebar
             self.start_dash()
             return True
-        
         if codepoint: self.keys_pressed.add(codepoint.lower())
         if key == 27: 
             self.pause_game(None)
