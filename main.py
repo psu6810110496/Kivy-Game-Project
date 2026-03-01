@@ -9,140 +9,173 @@ from kivy.core.window import Window
 
 Window.size = (1280, 720)
 
+
 # ==========================================
-# หน้า 1: Main Menu (หน้าเมนูหลัก)
+# 1. Data Model (ตัวอย่างคลาสข้อมูลตัวละคร)
 # ==========================================
+class PlayerStats:
+    def __init__(self, name, hp, speed, damage):
+        self.name = name
+        self.hp = hp
+        self.max_hp = hp
+        self.speed = speed
+        self.damage = damage
+        self.level = 1
+        self.exp = 0
+
+
+# ==========================================
+# 2. UI Screens (View Layers)
+# ==========================================
+
+
 class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=50, spacing=20)
-        
-        title = Label(text="VAMPIRE SURVIVORS\n(Kivy Edition)", font_size=40, halign="center")
+        layout = BoxLayout(orientation="vertical", padding=50, spacing=20)
+
+        layout.add_widget(
+            Label(text="VAMPIRE SURVIVORS\nOOP EDITION", font_size=40, halign="center")
+        )
+
         btn_start = Button(text="START SURVIVING", font_size=24, size_hint=(1, 0.3))
+        btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
+
         btn_quit = Button(text="QUIT GAME", font_size=24, size_hint=(1, 0.3))
-        
-        btn_start.bind(on_press=self.start_game)
-        btn_quit.bind(on_press=self.quit_game)
-        
-        layout.add_widget(title)
+        btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
+
         layout.add_widget(btn_start)
         layout.add_widget(btn_quit)
         self.add_widget(layout)
-        
-    def start_game(self, instance):
-        # เปลี่ยนให้วาร์ปไปหน้า "เลือกตัวละคร" แทนที่จะเข้าเกมทันที
-        self.manager.current = 'char_select_screen'
-        
-    def quit_game(self, instance):
-        App.get_running_app().stop()
 
-# ==========================================
-# หน้า 1.5: Character Selection (หน้าเลือกตัวละคร) [เพิ่มใหม่!]
-# ==========================================
+    def change_screen(self, screen_name):
+        self.manager.current = screen_name
+
+
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=40, spacing=20)
-        
-        # ป้ายหัวข้อ
-        lbl_title = Label(text="SELECT YOUR HERO", font_size=36, size_hint=(1, 0.2))
-        
-        # กล่องแนวนอนสำหรับเรียงปุ่มตัวละคร 3 ตัว
-        char_layout = BoxLayout(orientation='horizontal', spacing=20, size_hint=(1, 0.8))
-        
-        # รายชื่อตัวละคร (เพื่อนสาย UI ไปเปลี่ยนชื่อและแต่งรูปเพิ่มได้)
-        characters = [
-            "The Survivor\n(Balanced)", 
-            "The Scavenger\n(High Speed)", 
-            "The Veteran\n(High HP)"
-        ]
-        
-        # สร้างปุ่ม 3 ปุ่มด้วยลูป
-        for char_name in characters:
-            btn_char = Button(text=char_name, font_size=20)
-            btn_char.bind(on_press=self.choose_character)
-            char_layout.add_widget(btn_char)
-            
-        layout.add_widget(lbl_title)
+        # ข้อมูลตัวละคร (จำลอง Database ย่อมๆ)
+        self.char_data = {
+            "Survivor": PlayerStats("The Survivor", 100, 5, 10),
+            "Scavenger": PlayerStats("The Scavenger", 70, 10, 5),
+            "Veteran": PlayerStats("The Veteran", 200, 2, 15),
+        }
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = BoxLayout(orientation="vertical", padding=40, spacing=20)
+        layout.add_widget(
+            Label(text="SELECT YOUR HERO", font_size=36, size_hint=(1, 0.2))
+        )
+
+        char_layout = BoxLayout(
+            orientation="horizontal", spacing=20, size_hint=(1, 0.8)
+        )
+
+        for name, stats in self.char_data.items():
+            btn = Button(text=f"{stats.name}\nHP: {stats.hp}\nSpeed: {stats.speed}")
+            # ส่ง object stats เข้าไปใน function เมื่อกดปุ่ม
+            btn.bind(on_press=lambda instance, s=stats: self.select_hero(s))
+            char_layout.add_widget(btn)
+
         layout.add_widget(char_layout)
         self.add_widget(layout)
-        
-    def choose_character(self, instance):
-        # โชว์ใน Console ว่าเลือกตัวไหนไป (เดี๋ยวค่อยส่งค่านี้ไปให้หน้า Game)
-        print(f"You selected: {instance.text}")
-        
-        # พอเลือกเสร็จ ก็เข้าหน้าเล่นเกม
-        self.manager.current = 'game_screen'
 
-# ==========================================
-# หน้า 2: Game Screen (หน้าเล่นเกมหลัก)
-# ==========================================
+    def select_hero(self, stats_obj):
+        # บันทึกตัวละครที่เลือกลงใน App (Global Storage ของแอปนี้)
+        App.get_running_app().current_player = stats_obj
+        self.manager.current = "game_screen"
+
+
 class GameScreen(Screen):
+    def on_enter(self):
+        # ดึงข้อมูลตัวละครที่เลือกมาจาก App
+        self.player = App.get_running_app().current_player
+        self.update_ui()
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
-        hud_layout = BoxLayout(orientation='vertical')
-        
-        top_bar = BoxLayout(size_hint=(1, 0.1))
-        self.exp_bar = ProgressBar(max=100, value=0)
+        self.layout = BoxLayout(orientation="vertical")
+
+        # HUD Section
+        self.top_bar = BoxLayout(size_hint=(1, 0.1))
         self.lbl_level = Label(text="LV: 1", size_hint=(0.2, 1))
-        top_bar.add_widget(self.lbl_level)
-        top_bar.add_widget(self.exp_bar)
-        
-        mid_space = Label(text="[ Game Area ]\n(เดี๋ยววาดตัวละครตรงนี้)", halign="center")
-        
-        btn_test_lvlup = Button(text="[TEST] Add EXP", size_hint=(1, 0.1))
-        btn_test_lvlup.bind(on_press=self.test_add_exp)
-        
-        hud_layout.add_widget(top_bar)
-        hud_layout.add_widget(mid_space)
-        hud_layout.add_widget(btn_test_lvlup)
-        
-        self.add_widget(hud_layout)
+        self.exp_bar = ProgressBar(max=100, value=0)
+        self.top_bar.add_widget(self.lbl_level)
+        self.top_bar.add_widget(self.exp_bar)
 
-    def test_add_exp(self, instance):
-        self.exp_bar.value += 35
-        if self.exp_bar.value >= 100:
-            self.exp_bar.value = 0 
-            self.manager.current = 'level_up_screen'
+        # Game Display Section
+        self.display_label = Label(text="Loading...", halign="center")
 
-# ==========================================
-# หน้า 3: Level Up Screen (หน้าอัปเกรด)
-# ==========================================
+        btn_test_exp = Button(text="[TEST] Kill Enemy (+35 EXP)", size_hint=(1, 0.1))
+        btn_test_exp.bind(on_press=self.gain_exp)
+
+        self.layout.add_widget(self.top_bar)
+        self.layout.add_widget(self.display_label)
+        self.layout.add_widget(btn_test_exp)
+        self.add_widget(self.layout)
+
+    def update_ui(self):
+        self.display_label.text = f"Hero: {self.player.name}\nHP: {self.player.hp}\nDamage: {self.player.damage}"
+        self.lbl_level.text = f"LV: {self.player.level}"
+
+    def gain_exp(self, instance):
+        self.player.exp += 35
+        self.exp_bar.value = self.player.exp
+
+        if self.player.exp >= 100:
+            self.player.level += 1
+            self.player.exp = 0
+            self.exp_bar.value = 0
+            self.manager.current = "level_up_screen"
+
+
 class LevelUpScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        layout = BoxLayout(orientation='vertical', padding=30, spacing=20)
-        
-        lbl_title = Label(text="LEVEL UP!\nChoose an Upgrade", font_size=30, size_hint=(1, 0.2))
-        
-        cards_layout = GridLayout(cols=3, spacing=10, size_hint=(1, 0.6))
-        
-        for i in range(1, 4):
-            btn_skill = Button(text=f"Skill Option {i}\n(Click to select)")
-            btn_skill.bind(on_press=self.select_skill)
-            cards_layout.add_widget(btn_skill)
-            
-        layout.add_widget(lbl_title)
-        layout.add_widget(cards_layout)
+        layout = BoxLayout(orientation="vertical", padding=30, spacing=20)
+        layout.add_widget(Label(text="LEVEL UP!", font_size=30, size_hint=(1, 0.2)))
+
+        self.cards_layout = GridLayout(cols=3, spacing=10, size_hint=(1, 0.6))
+
+        # รายการอัปเกรด
+        upgrades = ["+ Damage", "+ Max HP", "+ Speed"]
+        for upg in upgrades:
+            btn = Button(text=upg)
+            btn.bind(on_press=self.apply_upgrade)
+            self.cards_layout.add_widget(btn)
+
+        layout.add_widget(self.cards_layout)
         self.add_widget(layout)
-        
-    def select_skill(self, instance):
-        print(f"Player selected: {instance.text}")
-        self.manager.current = 'game_screen'
+
+    def apply_upgrade(self, instance):
+        player = App.get_running_app().current_player
+        if "+ Damage" in instance.text:
+            player.damage += 5
+        elif "+ Max HP" in instance.text:
+            player.hp += 20
+        elif "+ Speed" in instance.text:
+            player.speed += 2
+
+        self.manager.current = "game_screen"
+
 
 # ==========================================
-# ตัวจัดการแอปพลิเคชัน
+# 3. Application Controller
 # ==========================================
 class VampireApp(App):
     def build(self):
+        # สร้างตัวแปรไว้เก็บ Player ข้ามหน้าจอ
+        self.current_player = None
+
         sm = ScreenManager()
-        # ต้องแอดหน้า CharacterSelectScreen ลงไปในระบบด้วย
-        sm.add_widget(MainMenuScreen(name='main_menu'))
-        sm.add_widget(CharacterSelectScreen(name='char_select_screen'))
-        sm.add_widget(GameScreen(name='game_screen'))
-        sm.add_widget(LevelUpScreen(name='level_up_screen'))
+        sm.add_widget(MainMenuScreen(name="main_menu"))
+        sm.add_widget(CharacterSelectScreen(name="char_select_screen"))
+        sm.add_widget(GameScreen(name="game_screen"))
+        sm.add_widget(LevelUpScreen(name="level_up_screen"))
         return sm
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     VampireApp().run()
