@@ -13,7 +13,7 @@ from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
 from kivy.clock import Clock
 from kivy.config import Config
 import random
-from kivy.graphics import Rotate, PushMatrix, PopMatrix
+from kivy.graphics import Rotate, PushMatrix, PopMatrix, Scale
 
 # ต้องตั้งค่า Config ก่อน Import Window นะครับ
 Config.set('graphics', 'fullscreen', 'auto')
@@ -284,6 +284,8 @@ class GameScreen(Screen):
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000)) 
         with self.world_layout.canvas.before:
             PushMatrix()
+            self.zoom = Scale(0.85, 0.85, 1) 
+            
             self.camera = Translate(0, 0)
             Color(0.2, 0.2, 0.2, 1)
             for i in range(0, 5001, 100):
@@ -401,7 +403,7 @@ class GameScreen(Screen):
                 self.last_dir_x = dir_x
                 self.last_dir_y = dir_y
         else:
-            # ถ้ากำลัง Dash อยู่ บังคับให้พุ่งไปในทิศทางล่าสุดเท่านั้น (เปลี่ยนทิศกลางอากาศไม่ได้)
+            # ถ้ากำลัง Dash อยู่ บังคับให้พุ่งไปในทิศทางล่าสุดเท่านั้น
             dir_x = self.last_dir_x
             dir_y = self.last_dir_y
 
@@ -410,13 +412,17 @@ class GameScreen(Screen):
         if dir_x != 0 and dir_y != 0:
             current_speed *= 0.7071 # ประมาณ 1/sqrt(2)
             
+        # 🔥 บรรทัดที่หายไป: อัปเดตตำแหน่งแกน X และ Y ของผู้เล่น 🔥
         self.player_pos[0] += dir_x * current_speed
         self.player_pos[1] += dir_y * current_speed
-
+            
         self.player_widget.update_pos(self.player_pos)
+        
+        # อัปเดตจุดศูนย์กลางซูมให้ยึดกลางจอเสมอ
+        self.zoom.origin = (Window.width / 2, Window.height / 2)
+        
         self.camera.x = (Window.width / 2) - self.player_pos[0] - 25
         self.camera.y = (Window.height / 2) - self.player_pos[1] - 25
-
     def gain_exp(self, instance):
         if self.player_stats:
             self.player_stats.exp += 35
