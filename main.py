@@ -12,8 +12,8 @@ from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
 from kivy.clock import Clock
 from kivy.config import Config
-from kivy.graphics import Rotate, PushMatrix, PopMatrix
 import random
+from kivy.graphics import Rotate, PushMatrix, PopMatrix
 
 # ต้องตั้งค่า Config ก่อน Import Window นะครับ
 Config.set('graphics', 'fullscreen', 'auto')
@@ -158,7 +158,6 @@ class PausePopup(Popup):
         self.dismiss()
         self.game_screen.manager.current = 'main_menu'
 
-# --- ระบบนับถอยหลังที่เพิ่มเข้ามา ---
 class CountdownOverlay(Label):
     def __init__(self, callback, **kwargs):
         super().__init__(**kwargs)
@@ -192,7 +191,6 @@ class MainMenuScreen(Screen):
         super().__init__(**kwargs)
         main_layout = FloatLayout()
 
-        # 1. ใส่พื้นหลังก่อน
         with main_layout.canvas.before:
             Color(1, 1, 1, 1)
             self.bg_rect = Rectangle(
@@ -201,11 +199,9 @@ class MainMenuScreen(Screen):
                 size=Window.size
             )
         
-        # 2. ใส่ Effect ฝนตก (จะอยู่หน้า Background แต่อยู่หลังปุ่ม)
         self.rain = RainEffect()
         main_layout.add_widget(self.rain)
 
-        # 3. ใส่ UI เมนู
         menu_group = BoxLayout(
             orientation='vertical', spacing=45,
             size_hint=(None, None), size=(800, 600), 
@@ -269,6 +265,17 @@ class GameScreen(Screen):
         self.player_stats = None 
         self.is_paused = False
         
+        # --- ตัวแปรสำหรับระบบ Dash ---
+        self.is_dashing = False
+        self.dash_cooldown = False
+        self.dash_speed_multiplier = 3.0 # ความเร็วจะเพิ่มเป็น 3 เท่าตอน Dash
+        self.dash_duration = 0.2         # พุ่งตัวเป็นเวลา 0.2 วินาที
+        self.dash_cooldown_time = 1.0    # รอ 1 วินาทีก่อน Dash ใหม่ได้
+        
+        # เก็บทิศทางล่าสุดที่เดิน เพื่อให้ Dash ไปทางนั้น
+        self.last_dir_x = 0
+        self.last_dir_y = 0
+        
         Window.bind(on_key_down=self._on_keydown)
         Window.bind(on_key_up=self._on_keyup)
 
@@ -311,17 +318,16 @@ class GameScreen(Screen):
     def on_enter(self):
         self.player_stats = App.get_running_app().current_player
         if self.player_stats:
-            self.is_paused = True # หยุดเกมไว้ก่อนเพื่อนับถอยหลัง
+            self.is_paused = True 
             self.update_ui()
             
-            # สร้างตัวนับถอยหลัง
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
             
             Clock.schedule_interval(self.update_frame, 1.0/60.0)
 
     def start_actual_game(self):
-        self.is_paused = False # ปลดล็อคให้เดินได้เมื่อนับจบ
+        self.is_paused = False 
 
     def on_leave(self):
         Clock.unschedule(self.update_frame)
@@ -341,15 +347,71 @@ class GameScreen(Screen):
         self.is_paused = False
         self.keys_pressed.clear()
 
+    # --- ฟังก์ชันเริ่มและจบ Dash ---
+    def start_dash(self):
+        if not self.dash_cooldown and not self.is_dashing:
+            # ตรวจสอบว่ามีทิศทางให้ Dash ไปไหม (ต้องมีการเดินอยู่ล่าสุด)
+            if self.last_dir_x != 0 or self.last_dir_y != 0:
+                self.is_dashing = True
+                self.dash_cooldown = True
+                
+                # เปลี่ยนสีผู้เล่นเป็นสีเหลืองตอน Dash (ตัวอย่าง Effect)
+                self.player_widget.canvas.clear()
+                with self.player_widget.canvas:
+                    Color(1, 1, 0, 1) # สีเหลือง
+                    self.player_widget.rect = Rectangle(pos=self.player_pos, size=(50, 50))
+                
+                # ตั้งเวลาจบ Dash
+                Clock.schedule_once(self.end_dash, self.dash_duration)
+                # ตั้งเวลา Cooldown เสร็จ
+                Clock.schedule_once(self.reset_dash_cooldown, self.dash_cooldown_time)
+
+    def end_dash(self, dt):
+        self.is_dashing = False
+        # เปลี่ยนสีกลับเป็นสีฟ้า
+        self.player_widget.canvas.clear()
+        with self.player_widget.canvas:
+            Color(0, 0.5, 1, 1) # สีฟ้าเดิม
+            self.player_widget.rect = Rectangle(pos=self.player_pos, size=(50, 50))
+
+    def reset_dash_cooldown(self, dt):
+        self.dash_cooldown = False
+
     def update_frame(self, dt):
         if not self.player_stats or self.is_paused:
             return
 
-        step = self.player_stats.speed
-        if 'w' in self.keys_pressed: self.player_pos[1] += step
-        if 's' in self.keys_pressed: self.player_pos[1] -= step
-        if 'a' in self.keys_pressed: self.player_pos[0] -= step
-        if 'd' in self.keys_pressed: self.player_pos[0] += step
+        # 1. กำหนดความเร็ว (ถ้า Dash อยู่ก็คูณเพิ่ม)
+        current_speed = self.player_stats.speed
+        if self.is_dashing:
+            current_speed *= self.dash_speed_multiplier
+
+        # 2. คำนวณทิศทางการเดิน
+        dir_x, dir_y = 0, 0
+        
+        # ถ้าไม่ได้ Dash อยู่ ให้รับค่าทิศทางจากปุ่มกดปกติ
+        if not self.is_dashing:
+            if 'w' in self.keys_pressed: dir_y += 1
+            if 's' in self.keys_pressed: dir_y -= 1
+            if 'a' in self.keys_pressed: dir_x -= 1
+            if 'd' in self.keys_pressed: dir_x += 1
+            
+            # เก็บค่าทิศทางล่าสุดไว้ใช้ตอนกด Dash
+            if dir_x != 0 or dir_y != 0:
+                self.last_dir_x = dir_x
+                self.last_dir_y = dir_y
+        else:
+            # ถ้ากำลัง Dash อยู่ บังคับให้พุ่งไปในทิศทางล่าสุดเท่านั้น (เปลี่ยนทิศกลางอากาศไม่ได้)
+            dir_x = self.last_dir_x
+            dir_y = self.last_dir_y
+
+        # 3. อัปเดตตำแหน่ง
+        # ถ้าเดินเฉียง ให้หารทแยงมุมเพื่อไม่ให้เร็วเกินไป (Normalize)
+        if dir_x != 0 and dir_y != 0:
+            current_speed *= 0.7071 # ประมาณ 1/sqrt(2)
+            
+        self.player_pos[0] += dir_x * current_speed
+        self.player_pos[1] += dir_y * current_speed
 
         self.player_widget.update_pos(self.player_pos)
         self.camera.x = (Window.width / 2) - self.player_pos[0] - 25
@@ -366,9 +428,13 @@ class GameScreen(Screen):
             self.update_ui()
 
     def _on_keydown(self, window, key, scancode, codepoint, modifiers):
-        # กด F11 เพื่อสลับ Full Screen
         if key == 292: # F11
             Window.fullscreen = not Window.fullscreen
+            return True
+            
+        # ตรวจจับปุ่ม Spacebar (keycode: 32) เพื่อเริ่ม Dash
+        if key == 32:
+            self.start_dash()
             return True
         
         if codepoint: self.keys_pressed.add(codepoint.lower())
