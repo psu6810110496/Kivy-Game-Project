@@ -12,12 +12,56 @@ from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
 from kivy.clock import Clock
 from kivy.config import Config
+import random
 
 # ต้องตั้งค่า Config ก่อน Import Window นะครับ
-Config.set('graphics', 'fullscreen', 'auto')
-Config.set('graphics', 'resizable', '0')
+Config.set("graphics", "fullscreen", "auto")
+Config.set("graphics", "resizable", "0")
 
 Window.maximize()
+
+# ==========================================
+# 0. VFX
+# ==========================================
+
+
+class RainEffect(Widget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.drops = []
+        self.num_drops = 100  # จำนวนเม็ดฝน
+
+        with self.canvas:
+            Color(0.7, 0.7, 1, 0.5)  # สีฟ้าอ่อนจางๆ (RGBA)
+            for _ in range(self.num_drops):
+                # สุ่มตำแหน่งเริ่มต้น (x, y) และความเร็ว (speed)
+                drop = {
+                    "rect": Rectangle(
+                        pos=(
+                            random.uniform(0, Window.width),
+                            random.uniform(0, Window.height),
+                        ),
+                        size=(2, random.uniform(10, 25)),
+                    ),
+                    "speed": random.uniform(5, 12),
+                }
+                self.drops.append(drop)
+
+        Clock.schedule_interval(self.update_rain, 1 / 60.0)
+
+    def update_rain(self, dt):
+        for drop in self.drops:
+            x, y = drop["rect"].pos
+            # เลื่อนฝนลงมาตามความเร็ว
+            y -= drop["speed"]
+
+            # ถ้าตกเลยขอบจอ ให้กลับไปเริ่มข้างบนใหม่แบบสุ่ม x
+            if y < -30:
+                y = Window.height + random.uniform(10, 100)
+                x = random.uniform(0, Window.width)
+
+            drop["rect"].pos = (x, y)
+
 
 # ==========================================
 # 1. Data Model
@@ -32,6 +76,7 @@ class PlayerStats:
         self.level = 1
         self.exp = 0
 
+
 # ==========================================
 # 2. Widgets & Popups
 # ==========================================
@@ -39,11 +84,12 @@ class PlayerWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         with self.canvas:
-            Color(0, 0.5, 1, 1) 
+            Color(0, 0.5, 1, 1)
             self.rect = Rectangle(pos=(2500, 2500), size=(50, 50))
 
     def update_pos(self, new_pos):
         self.rect.pos = new_pos
+
 
 class LevelUpPopup(Popup):
     def __init__(self, game_screen, **kwargs):
@@ -53,27 +99,31 @@ class LevelUpPopup(Popup):
         self.title_size = 24
         self.size_hint = (0.6, 0.5)
         self.auto_dismiss = False
-        
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=20)
+
+        layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         cards_layout = GridLayout(cols=3, spacing=15)
-        
+
         upgrades = ["+ Damage", "+ Max HP", "+ Speed"]
         for upg in upgrades:
             btn = Button(text=upg, font_size=20)
             btn.bind(on_press=self.apply_upgrade)
             cards_layout.add_widget(btn)
-            
+
         layout.add_widget(cards_layout)
         self.content = layout
 
     def apply_upgrade(self, instance):
         player = App.get_running_app().current_player
         if player:
-            if "+ Damage" in instance.text: player.damage += 5
-            elif "+ Max HP" in instance.text: player.hp += 20
-            elif "+ Speed" in instance.text: player.speed += 2
+            if "+ Damage" in instance.text:
+                player.damage += 5
+            elif "+ Max HP" in instance.text:
+                player.hp += 20
+            elif "+ Speed" in instance.text:
+                player.speed += 2
         self.game_screen.resume_game()
         self.dismiss()
+
 
 class PausePopup(Popup):
     def __init__(self, game_screen, **kwargs):
@@ -82,14 +132,14 @@ class PausePopup(Popup):
         self.title = "GAME PAUSED"
         self.size_hint = (0.4, 0.4)
         self.auto_dismiss = False
-        
-        layout = BoxLayout(orientation='vertical', padding=20, spacing=15)
+
+        layout = BoxLayout(orientation="vertical", padding=20, spacing=15)
         btn_resume = Button(text="RESUME", size_hint=(1, 0.5))
         btn_menu = Button(text="RETURN TO MENU", size_hint=(1, 0.5))
-        
+
         btn_resume.bind(on_press=self.resume)
         btn_menu.bind(on_press=self.go_to_menu)
-        
+
         layout.add_widget(btn_resume)
         layout.add_widget(btn_menu)
         self.content = layout
@@ -100,7 +150,8 @@ class PausePopup(Popup):
 
     def go_to_menu(self, instance):
         self.dismiss()
-        self.game_screen.manager.current = 'main_menu'
+        self.game_screen.manager.current = "main_menu"
+
 
 # --- ระบบนับถอยหลังที่เพิ่มเข้ามา ---
 class CountdownOverlay(Label):
@@ -111,8 +162,8 @@ class CountdownOverlay(Label):
         self.text = str(self.count)
         self.font_size = 200
         self.bold = True
-        self.color = (1, 0.8, 0, 1) # สีเหลืองทอง
-        self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
+        self.color = (1, 0.8, 0, 1)  # สีเหลืองทอง
+        self.pos_hint = {"center_x": 0.5, "center_y": 0.5}
         Clock.schedule_interval(self.update_countdown, 1)
 
     def update_countdown(self, dt):
@@ -121,12 +172,13 @@ class CountdownOverlay(Label):
             self.text = str(self.count)
         elif self.count == 0:
             self.text = "SURVIVE!"
-            self.color = (1, 0.2, 0.2, 1) # สีแดง
+            self.color = (1, 0.2, 0.2, 1)  # สีแดง
         else:
             Clock.unschedule(self.update_countdown)
-            self.callback() # เรียกให้เริ่มเกม
+            self.callback()  # เรียกให้เริ่มเกม
             if self.parent:
                 self.parent.remove_widget(self)
+
 
 # ==========================================
 # 3. UI Screens
@@ -136,36 +188,65 @@ class MainMenuScreen(Screen):
         super().__init__(**kwargs)
         main_layout = FloatLayout()
 
+        # 1. ใส่พื้นหลังก่อน
         with main_layout.canvas.before:
             Color(1, 1, 1, 1)
             self.bg_rect = Rectangle(
-                source='MenuTest.png', 
-                pos=(0, 0),
-                size=Window.size
+                source="MenuTest.png", pos=(0, 0), size=Window.size
             )
-        
-        Window.bind(size=self._update_bg)
 
+        # 2. ใส่ Effect ฝนตก (จะอยู่หน้า Background แต่อยู่หลังปุ่ม)
+        self.rain = RainEffect()
+        main_layout.add_widget(self.rain)
+
+        # 3. ใส่ UI เมนู
         menu_group = BoxLayout(
-            orientation='vertical', spacing=45,
-            size_hint=(None, None), size=(800, 600), 
-            pos_hint={'x': 0.1, 'top': 0.9} 
+            orientation="vertical",
+            spacing=45,
+            size_hint=(None, None),
+            size=(800, 600),
+            pos_hint={"x": 0.1, "top": 0.9},
         )
 
-        title_label = Label(text="VAMPIRE SURVIVORS", font_size=70, bold=True, halign='left', valign='middle', size_hint=(1, None), height=150)
-        title_label.bind(size=title_label.setter('text_size'))
+        title_label = Label(
+            text="VAMPIRE SURVIVORS",
+            font_size=70,
+            bold=True,
+            halign="left",
+            valign="middle",
+            size_hint=(1, None),
+            height=150,
+        )
+        title_label.bind(size=title_label.setter("text_size"))
 
-        btn_start = Button(text="START SURVIVING", font_size=26, size_hint=(0.4, None), height=80, pos_hint={'center_x': 0.33}, background_color=(1,1,1,0.8))
-        btn_quit = Button(text="QUIT GAME", font_size=26, size_hint=(0.4, None), height=80, pos_hint={'center_x': 0.33}, background_color=(1,1,1,0.8))
+        btn_start = Button(
+            text="START SURVIVING",
+            font_size=26,
+            size_hint=(0.4, None),
+            height=80,
+            pos_hint={"center_x": 0.33},
+            background_color=(1, 1, 1, 0.8),
+        )
+        btn_quit = Button(
+            text="QUIT GAME",
+            font_size=26,
+            size_hint=(0.4, None),
+            height=80,
+            pos_hint={"center_x": 0.33},
+            background_color=(1, 1, 1, 0.8),
+        )
 
-        btn_start.bind(on_press=lambda x: self.change_screen('char_select_screen'))
+        btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
 
         menu_group.add_widget(title_label)
         menu_group.add_widget(btn_start)
         menu_group.add_widget(btn_quit)
+
         main_layout.add_widget(menu_group)
         self.add_widget(main_layout)
+
+        Window.bind(size=self._update_bg)
 
     def _update_bg(self, instance, value):
         self.bg_rect.size = value
@@ -174,71 +255,85 @@ class MainMenuScreen(Screen):
     def change_screen(self, screen_name):
         self.manager.current = screen_name
 
+
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.char_data = {
             "Survivor": PlayerStats("Survivor", 100, 5, 10),
             "Scavenger": PlayerStats("Scavenger", 70, 10, 5),
-            "Veteran": PlayerStats("Veteran", 200, 2, 15)
+            "Veteran": PlayerStats("Veteran", 200, 2, 15),
         }
-        layout = BoxLayout(orientation='vertical', padding=50, spacing=20)
+        layout = BoxLayout(orientation="vertical", padding=50, spacing=20)
         layout.add_widget(Label(text="SELECT YOUR CHARACTER", font_size=30))
-        
+
         chars = BoxLayout(spacing=20)
         for name, stats in self.char_data.items():
             btn = Button(text=f"{name}\nHP: {stats.hp}\nSPD: {stats.speed}")
             btn.bind(on_press=lambda inst, s=stats: self.select_char(s))
             chars.add_widget(btn)
-        
+
         layout.add_widget(chars)
         self.add_widget(layout)
 
     def select_char(self, stats):
         App.get_running_app().current_player = stats
-        self.manager.current = 'game_screen'
+        self.manager.current = "game_screen"
+
 
 class GameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.keys_pressed = set()
         self.player_pos = [2500, 2500]
-        self.player_stats = None 
+        self.player_stats = None
         self.is_paused = False
-        
+
         Window.bind(on_key_down=self._on_keydown)
         Window.bind(on_key_up=self._on_keyup)
 
         self.root_layout = FloatLayout()
-        
-        self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000)) 
+
+        self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
         with self.world_layout.canvas.before:
             PushMatrix()
             self.camera = Translate(0, 0)
             Color(0.2, 0.2, 0.2, 1)
             for i in range(0, 5001, 100):
-                Rectangle(pos=(0, i), size=(5000, 1)) 
-                Rectangle(pos=(i, 0), size=(1, 5000)) 
+                Rectangle(pos=(0, i), size=(5000, 1))
+                Rectangle(pos=(i, 0), size=(1, 5000))
         with self.world_layout.canvas.after:
             PopMatrix()
-            
+
         self.player_widget = PlayerWidget()
         self.world_layout.add_widget(self.player_widget)
         self.root_layout.add_widget(self.world_layout)
 
         self.hud = FloatLayout(size_hint=(1, 1))
-        top_ui = BoxLayout(size_hint=(0.8, 0.05), pos_hint={'center_x': 0.5, 'top': 0.98}, spacing=10)
+        top_ui = BoxLayout(
+            size_hint=(0.8, 0.05), pos_hint={"center_x": 0.5, "top": 0.98}, spacing=10
+        )
         self.lbl_level = Label(text="LV: 1", size_hint=(0.1, 1), bold=True)
         self.exp_bar = ProgressBar(max=100, value=0)
         top_ui.add_widget(self.lbl_level)
         top_ui.add_widget(self.exp_bar)
         self.hud.add_widget(top_ui)
-        
-        btn_pause = Button(text="||", size_hint=(None, None), size=(50, 50), pos_hint={'right': 0.98, 'top': 0.98})
+
+        btn_pause = Button(
+            text="||",
+            size_hint=(None, None),
+            size=(50, 50),
+            pos_hint={"right": 0.98, "top": 0.98},
+        )
         btn_pause.bind(on_press=self.pause_game)
         self.hud.add_widget(btn_pause)
 
-        btn_test = Button(text="+EXP", size_hint=(None, None), size=(80, 40), pos_hint={'right': 0.98, 'y': 0.02})
+        btn_test = Button(
+            text="+EXP",
+            size_hint=(None, None),
+            size=(80, 40),
+            pos_hint={"right": 0.98, "y": 0.02},
+        )
         btn_test.bind(on_press=self.gain_exp)
         self.hud.add_widget(btn_test)
 
@@ -248,17 +343,17 @@ class GameScreen(Screen):
     def on_enter(self):
         self.player_stats = App.get_running_app().current_player
         if self.player_stats:
-            self.is_paused = True # หยุดเกมไว้ก่อนเพื่อนับถอยหลัง
+            self.is_paused = True  # หยุดเกมไว้ก่อนเพื่อนับถอยหลัง
             self.update_ui()
-            
+
             # สร้างตัวนับถอยหลัง
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
-            
-            Clock.schedule_interval(self.update_frame, 1.0/60.0)
+
+            Clock.schedule_interval(self.update_frame, 1.0 / 60.0)
 
     def start_actual_game(self):
-        self.is_paused = False # ปลดล็อคให้เดินได้เมื่อนับจบ
+        self.is_paused = False  # ปลดล็อคให้เดินได้เมื่อนับจบ
 
     def on_leave(self):
         Clock.unschedule(self.update_frame)
@@ -283,10 +378,14 @@ class GameScreen(Screen):
             return
 
         step = self.player_stats.speed
-        if 'w' in self.keys_pressed: self.player_pos[1] += step
-        if 's' in self.keys_pressed: self.player_pos[1] -= step
-        if 'a' in self.keys_pressed: self.player_pos[0] -= step
-        if 'd' in self.keys_pressed: self.player_pos[0] += step
+        if "w" in self.keys_pressed:
+            self.player_pos[1] += step
+        if "s" in self.keys_pressed:
+            self.player_pos[1] -= step
+        if "a" in self.keys_pressed:
+            self.player_pos[0] -= step
+        if "d" in self.keys_pressed:
+            self.player_pos[0] += step
 
         self.player_widget.update_pos(self.player_pos)
         self.camera.x = (Window.width / 2) - self.player_pos[0] - 25
@@ -304,30 +403,34 @@ class GameScreen(Screen):
 
     def _on_keydown(self, window, key, scancode, codepoint, modifiers):
         # กด F11 เพื่อสลับ Full Screen
-        if key == 292: # F11
+        if key == 292:  # F11
             Window.fullscreen = not Window.fullscreen
             return True
-        
-        if codepoint: self.keys_pressed.add(codepoint.lower())
-        if key == 27: 
+
+        if codepoint:
+            self.keys_pressed.add(codepoint.lower())
+        if key == 27:
             self.pause_game(None)
-            return True 
+            return True
 
     def _on_keyup(self, window, key, scancode):
         try:
             key_char = chr(key).lower()
             if key_char in self.keys_pressed:
                 self.keys_pressed.remove(key_char)
-        except: pass
+        except:
+            pass
+
 
 class VampireApp(App):
     def build(self):
-        self.current_player = None 
+        self.current_player = None
         sm = ScreenManager()
-        sm.add_widget(MainMenuScreen(name='main_menu'))
-        sm.add_widget(CharacterSelectScreen(name='char_select_screen'))
-        sm.add_widget(GameScreen(name='game_screen'))
+        sm.add_widget(MainMenuScreen(name="main_menu"))
+        sm.add_widget(CharacterSelectScreen(name="char_select_screen"))
+        sm.add_widget(GameScreen(name="game_screen"))
         return sm
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     VampireApp().run()
