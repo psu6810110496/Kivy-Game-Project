@@ -12,12 +12,68 @@ from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
 from kivy.clock import Clock
 from kivy.config import Config
+from kivy.graphics import Rotate, PushMatrix, PopMatrix
+import random
 
 # ต้องตั้งค่า Config ก่อน Import Window นะครับ
 Config.set('graphics', 'fullscreen', 'auto')
 Config.set('graphics', 'resizable', '0')
 
 Window.maximize()
+
+# ==========================================
+# 0. VFX
+# ==========================================
+
+class RainEffect(Widget):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.drops = []
+        self.num_drops = 100 
+        
+        with self.canvas:
+            Color(0.6, 0.6, 0.6, 0.4) 
+            for _ in range(self.num_drops):
+                PushMatrix()
+                
+                # 1. มุมเอียงเป็นลบ (-20) เพื่อให้เม็ดเอียงชี้ไปทางขวา
+                rotation = Rotate(angle=20, origin=(0, 0)) 
+                
+                rect = Rectangle(
+                    # สุ่ม X เผื่อไปทางซ้ายนอกจอ เพราะฝนจะวิ่งจากซ้ายไปขวา
+                    pos=(random.uniform(-Window.width * 0.5, Window.width), 
+                         random.uniform(0, Window.height)), 
+                    size=(2, random.uniform(10, 25))
+                )
+                
+                PopMatrix()
+
+                drop = {
+                    'rect': rect,
+                    'rotation': rotation,
+                    'speed': random.uniform(7, 15)
+                }
+                self.drops.append(drop)
+        
+        Clock.schedule_interval(self.update_rain, 1/60.0)
+
+    def update_rain(self, dt):
+        for drop in self.drops:
+            x, y = drop['rect'].pos
+            
+            # 2. ปรับให้ตกเฉียงขวา: y ลดลง (ลงล่าง), x เพิ่มขึ้น (ไปขวา)
+            y -= drop['speed']
+            x += drop['speed'] * 0.4  # ปรับตัวคูณเพื่อเปลี่ยนความชัน
+            
+            drop['rotation'].origin = (x, y)
+
+            # 3. ตรวจสอบขอบล่าง และขอบขวา
+            if y < -30 or x > Window.width:
+                y = Window.height + random.uniform(10, 100)
+                # สุ่มเกิดใหม่จากทางซ้าย (รวมนอกจอฝั่งซ้าย) เพื่อให้เฉียงเข้าหาจอ
+                x = random.uniform(-Window.width * 0.5, Window.width)
+                
+            drop['rect'].pos = (x, y)
 
 # ==========================================
 # 1. Data Model
@@ -136,6 +192,7 @@ class MainMenuScreen(Screen):
         super().__init__(**kwargs)
         main_layout = FloatLayout()
 
+        # 1. ใส่พื้นหลังก่อน
         with main_layout.canvas.before:
             Color(1, 1, 1, 1)
             self.bg_rect = Rectangle(
@@ -144,8 +201,11 @@ class MainMenuScreen(Screen):
                 size=Window.size
             )
         
-        Window.bind(size=self._update_bg)
+        # 2. ใส่ Effect ฝนตก (จะอยู่หน้า Background แต่อยู่หลังปุ่ม)
+        self.rain = RainEffect()
+        main_layout.add_widget(self.rain)
 
+        # 3. ใส่ UI เมนู
         menu_group = BoxLayout(
             orientation='vertical', spacing=45,
             size_hint=(None, None), size=(800, 600), 
@@ -164,8 +224,11 @@ class MainMenuScreen(Screen):
         menu_group.add_widget(title_label)
         menu_group.add_widget(btn_start)
         menu_group.add_widget(btn_quit)
+        
         main_layout.add_widget(menu_group)
         self.add_widget(main_layout)
+        
+        Window.bind(size=self._update_bg)
 
     def _update_bg(self, instance, value):
         self.bg_rect.size = value
