@@ -24,11 +24,10 @@ class GameScreen(Screen):
         
         self.is_dashing = False
         self.dash_cooldown = False
-        self.dash_duration = 0.5
-        self.last_dir_x = 0
-        self.last_dir_y = 0
         self.dash_duration = 0.2
         self.dash_cooldown_time = 1.0
+        self.last_dir_x = 0
+        self.last_dir_y = 0
 
         self.joy_x = self.joy_y = self.joy_right_x = self.joy_right_y = 0.0
         self.joy_lt_pressed = False
@@ -36,6 +35,7 @@ class GameScreen(Screen):
 
         # ตัวแปรเก็บสถานะ Popup
         self.active_pause_popup = None
+        self.countdown = None
 
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
@@ -46,7 +46,7 @@ class GameScreen(Screen):
         # 🌟 ปรับขนาดภาพแมพตรงนี้ (ยิ่งเลขมาก ภาพยิ่งซูมใหญ่ขึ้น)
         map_scale = 3.0
 
-        # 🌟 แยกคำนวณสเกลแกน X และ Y (สร้างตัวแปร u_scale และ v_scale)
+        # 🌟 แยกคำนวณสเกลแกน X และ Y
         u_scale = 5000 / (map_texture.width * map_scale)
         v_scale = 5000 / (map_texture.height * map_scale)
 
@@ -65,14 +65,15 @@ class GameScreen(Screen):
             Color(0, 0, 0, 0.85)
             Rectangle(pos=(-3000, -3000), size=(3000, 11000))  # หมอกซ้าย
             Rectangle(pos=(5000, -3000), size=(3000, 11000))  # หมอกขวา
-            Rectangle(pos=(0, -3000), size=(5000, 3000))  # หมอกล่าง
-            Rectangle(pos=(0, 5000), size=(5000, 3000))  # หมอกบน
+            Rectangle(pos=(0, -3000), size=(5000, 3000))      # หมอกล่าง
+            Rectangle(pos=(0, 5000), size=(5000, 3000))       # หมอกบน
 
         with self.world_layout.canvas.after:
             PopMatrix()
         
-        # สร้างตัวแปร player_widget ทิ้งไว้ก่อน (ยังไม่ต้องผูกปุ่มที่นี่ เพื่อแก้บั๊ก Ghost Input)
+        # สร้างตัวแปร player_widget ทิ้งไว้ก่อน
         self.player_widget = None
+        self.player_stats = None
         
         self.root_layout.add_widget(self.world_layout)
 
@@ -80,17 +81,49 @@ class GameScreen(Screen):
         self.root_layout.add_widget(self.hud)
         self.add_widget(self.root_layout)
 
+    def _reset_state(self):
+        """Reset ทุก state กลับค่าเริ่มต้น เรียกทุกครั้งก่อนเริ่มเกมใหม่"""
+        self.player_pos = [2500, 2500]
+        self.is_paused = False
+        self.facing_right = True
+        self.is_left_clicked = False
+
+        self.is_dashing = False
+        self.dash_cooldown = False
+        self.last_dir_x = 0
+        self.last_dir_y = 0
+
+        self.joy_x = self.joy_y = self.joy_right_x = self.joy_right_y = 0.0
+        self.joy_lt_pressed = False
+
+        self.keys_pressed.clear()
+
+        # Reset กล้องกลับตำแหน่งเริ่มต้น
+        self.camera.x = 0
+        self.camera.y = 0
 
     def on_enter(self):
         # 1. ดึงข้อมูลตัวละครที่เลือกมาจากหน้าจอที่แล้ว
         self.player_stats = kivy.app.App.get_running_app().current_player
         
         if self.player_stats:
-            # 2. ถ้ายืนยันว่าเลือกตัวละครแล้ว ให้ "ลบตัวเก่าทิ้ง" (ถ้ามี)
-            if self.player_widget:
-                self.world_layout.remove_widget(self.player_widget)
+            # 2. Reset ทุก state กลับค่าเริ่มต้น
+            self._reset_state()
 
-            # 3. แล้ว "สร้างตัวใหม่" ขึ้นมาทับเสมอ!
+            # 3. ปิด Pause Popup เก่า ถ้ายังค้างอยู่
+            if self.active_pause_popup:
+                self.active_pause_popup.dismiss()
+                self.active_pause_popup = None
+
+            # 4. ลบ Countdown เก่าออก ถ้ายังค้างอยู่
+            if self.countdown and self.countdown.parent:
+                self.root_layout.remove_widget(self.countdown)
+            self.countdown = None
+
+            # 5. ลบ PlayerWidget เก่าออก แล้วสร้างใหม่
+            if self.player_widget and self.player_widget.parent:
+                self.world_layout.remove_widget(self.player_widget)
+            
             self.player_widget = PlayerWidget(
                 idle_frames=self.player_stats.idle_frames,
                 walk_frames=self.player_stats.walk_frames,
@@ -98,27 +131,29 @@ class GameScreen(Screen):
             )
             self.world_layout.add_widget(self.player_widget)
 
-            # เซ็ตอัประบบเริ่มเกม
-            self.is_paused = True
+            # 6. อัปเดต HUD
             self.hud.update_ui(self.player_stats)
+
+            # 7. เริ่ม Countdown แล้วค่อยเริ่มเกมจริง
+            self.is_paused = True
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
             
-            # เคลียร์ปุ่มเก่าและเริ่มจับการกดปุ่ม
-            self.keys_pressed.clear()
+            # 8. Unbind ก่อนเสมอ เพื่อป้องกัน Ghost Input แล้วค่อย Bind ใหม่
+            Window.unbind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
+            Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
             Window.bind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
             Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
             
-            # เริ่ม Game Loop
-            Clock.unschedule(self.update_frame) 
+            # 9. เริ่ม Game Loop ใหม่
+            Clock.unschedule(self.update_frame)
             Clock.schedule_interval(self.update_frame, 1.0 / 60.0)
 
     def on_leave(self):
-        # ฟังก์ชันนี้จะทำงานตอนกด Pause ออกไปเมนูหลัก ป้องกันเกมแครช
+        # หยุด Game Loop และ Unbind input ทั้งหมดตอนออกจากหน้านี้
         Clock.unschedule(self.update_frame)
         Window.unbind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
-
 
     def start_actual_game(self): 
         self.is_paused = False
@@ -178,12 +213,9 @@ class GameScreen(Screen):
         new_x = self.player_pos[0] + (dir_x * speed)
         new_y = self.player_pos[1] + (dir_y * speed)
 
-        # --- [🌟 ส่วนที่แก้ไขเพิ่มเติม: ลดขนาด Hitbox ขอบแมพ] ---
-        # เปลี่ยนระยะชนขอบจาก 50 เหลือ 20 ตัวละครจะเดินชิดหมอกได้แนบเนียนขึ้น
         hitbox_radius = 20
         self.player_pos[0] = max(hitbox_radius, min(new_x, 5000 - hitbox_radius))
         self.player_pos[1] = max(hitbox_radius, min(new_y, 5000 - hitbox_radius))
-        # ---------------------------------------------------
 
         self.player_widget.update_pos(self.player_pos)
 
@@ -206,7 +238,6 @@ class GameScreen(Screen):
         )
 
         self.zoom.origin = (Window.width / 2, Window.height / 2)
-        # ใช้ 32 เพื่อให้กล้องอยู่กลางตัวละครพอดี
         self.camera.x = (Window.width / 2) - self.player_pos[0] - 32 
         self.camera.y = (Window.height / 2) - self.player_pos[1] - 32
 
