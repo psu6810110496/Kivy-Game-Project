@@ -35,21 +35,29 @@ class GameScreen(Screen):
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
 
-        # --- [ส่วนที่จัดการรูปภาพพื้นหลัง (Map)] ---
         map_texture = CoreImage("assets/maps/map.jpg").texture
         map_texture.wrap = "repeat"
-        map_texture.uvsize = (5000 / map_texture.width, 5000 / map_texture.height)
+
+        # 🌟 ปรับขนาดภาพแมพตรงนี้ (ยิ่งเลขมาก ภาพยิ่งซูมใหญ่ขึ้น)
+        # 🌟 ปรับขนาดภาพแมพตรงนี้ (ยิ่งเลขมาก ภาพยิ่งซูมใหญ่ขึ้น)
+        map_scale = 3.0
+
+        # 🌟 แยกคำนวณสเกลแกน X และ Y (สร้างตัวแปร u_scale และ v_scale)
+        u_scale = 5000 / (map_texture.width * map_scale)
+        v_scale = 5000 / (map_texture.height * map_scale)
+
+        # 🌟 ใส่เครื่องหมายลบ (-) ที่หน้า v_scale เพื่อพลิกภาพกลับด้าน (แกน Y)
+        map_texture.uvsize = (u_scale, -v_scale)
 
         with self.world_layout.canvas.before:
             PushMatrix()
             self.zoom = Scale(2, 2, 2)
             self.camera = Translate(0, 0)
 
-            # วาดภาพพื้นหลังให้เต็มแผนที่ 5000x5000
             Color(1, 1, 1, 1)
             Rectangle(pos=(0, 0), size=(5000, 5000), texture=map_texture)
 
-            # วาดหมอก (Dark Void) รอบแมพ (พื้นที่กั้นขอบ)
+            # วาดหมอก (Dark Void) รอบแมพ
             Color(0, 0, 0, 0.85)
             Rectangle(pos=(-3000, -3000), size=(3000, 11000))  # หมอกซ้าย
             Rectangle(pos=(5000, -3000), size=(3000, 11000))  # หมอกขวา
@@ -124,12 +132,14 @@ class GameScreen(Screen):
             dir_x /= mag
             dir_y /= mag
 
-        # --- [ส่วนที่แก้ไขเพิ่มเติม: กำแพงล่องหนกันเดินทะลุแมพ] ---
         new_x = self.player_pos[0] + (dir_x * speed)
         new_y = self.player_pos[1] + (dir_y * speed)
 
-        self.player_pos[0] = max(50, min(new_x, 4950))
-        self.player_pos[1] = max(50, min(new_y, 4950))
+        # --- [🌟 ส่วนที่แก้ไขเพิ่มเติม: ลดขนาด Hitbox ขอบแมพ] ---
+        # เปลี่ยนระยะชนขอบจาก 50 เหลือ 20 ตัวละครจะเดินชิดหมอกได้แนบเนียนขึ้น
+        hitbox_radius = 20
+        self.player_pos[0] = max(hitbox_radius, min(new_x, 5000 - hitbox_radius))
+        self.player_pos[1] = max(hitbox_radius, min(new_y, 5000 - hitbox_radius))
         # ---------------------------------------------------
 
         self.player_widget.update_pos(self.player_pos)
