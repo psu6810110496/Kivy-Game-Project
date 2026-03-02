@@ -95,8 +95,8 @@ class PlayerWidget(Widget):
         self.canvas.clear()
         
         # --- 1. เตรียมรายชื่อไฟล์ Animation ---
-        self.anim_idle = ['idleM01.png', 'idleM02.png'] # ภาพตอนยืนนิ่ง
-        self.anim_walk = ['W01.png', 'W02.png', 'W03.png', 'W04.png'] # ภาพตอนเดิน
+        self.anim_idle = ['assets/Monkey/IdleM/IdleM01.png', 'assets/Monkey/IdleM/IdleM02.png'] # ภาพตอนยืนนิ่ง
+        self.anim_walk = ['assets/Monkey/WalkM/W01.png', 'assets/Monkey/WalkM/W02.png', 'assets/Monkey/WalkM/W03.png', 'assets/Monkey/WalkM/W04.png'] # ภาพตอนเดิน
         
         # --- 2. กำหนดความเร็วแยกกัน (วินาทีต่อเฟรม) ---
         self.idle_speed = 0.5   
@@ -274,7 +274,7 @@ class MainMenuScreen(Screen):
         with main_layout.canvas.before:
             Color(1, 1, 1, 1)
             self.bg_rect = Rectangle(
-                source='MenuTest.png', 
+                source='assets/Menu/MenuTest.png', 
                 pos=(0, 0),
                 size=Window.size
             )
