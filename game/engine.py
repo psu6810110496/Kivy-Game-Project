@@ -182,7 +182,7 @@ class GameScreen(Screen):
 
         # --- [เพิ่มส่วนนี้: สั่งให้ศัตรูทุกตัวเดินตามผู้เล่นในทุกๆ เฟรม] ---
         for enemy in self.enemies:
-            enemy.update_movement(self.player_pos)
+            enemy.update_movement(self.player_pos, self.enemies)
         # ----------------------------------------------------------
 
         if not self.is_left_clicked and not self.joy_lt_pressed:
