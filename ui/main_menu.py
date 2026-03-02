@@ -10,111 +10,130 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 import random
 
+
 # --- คลาสเอฟเฟกต์ฝนตก ---
 class RainEffect(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.drops = []
-        self.num_drops = 100 
-        
+        self.num_drops = 150  # เพิ่มจำนวนเม็ดฝนให้ดูสมจริงขึ้น
+
         with self.canvas:
-            Color(0.6, 0.6, 0.6, 0.4) 
+            # ใช้สีขาว/ฟ้าเทา โปร่งแสงนิดๆ ให้ดูเป็นเม็ดฝน
+            Color(0.7, 0.8, 0.9, 0.4)
             for _ in range(self.num_drops):
-                # สร้างเม็ดฝนแนวตั้ง
                 rect = Rectangle(
-                    # สุ่ม X เผื่อไปทางซ้าย เพราะฝนวิ่งเฉียงไปทางขวา
-                    pos=(random.uniform(-Window.width * 0.5, Window.width), 
-                         random.uniform(0, Window.height)), 
-                    size=(2, random.uniform(10, 25))
+                    pos=(
+                        random.uniform(-Window.width * 0.5, Window.width),
+                        random.uniform(0, Window.height),
+                    ),
+                    size=(1.5, random.uniform(15, 35)),  # ปรับเม็ดฝนให้เรียวยาวขึ้น
                 )
-                
-                drop = {
-                    'rect': rect,
-                    'speed': random.uniform(7, 15)
-                }
+
+                drop = {"rect": rect, "speed": random.uniform(12, 22)}  # ความเร็วในการตก
                 self.drops.append(drop)
-        
-        Clock.schedule_interval(self.update_rain, 1/60.0)
+
+        Clock.schedule_interval(self.update_rain, 1 / 60.0)
 
     def update_rain(self, dt):
         for drop in self.drops:
-            x, y = drop['rect'].pos
-            
-            # ปรับให้ตกเฉียงขวา: y ลดลง (ลง), x เพิ่มขึ้น (ไปขวา)
-            y -= drop['speed']
-            x += drop['speed'] * 0.4  # ปรับตัวคูณเพื่อเปลี่ยนความชัน
-            
-            # ตรวจสอบขอบล่าง และขอบขวา
-            if y < -30 or x > Window.width:
+            x, y = drop["rect"].pos
+
+            y -= drop["speed"]
+            x += drop["speed"] * 0.15  # ปรับความเฉียงของฝนให้ดูพอดี
+
+            if y < -50 or x > Window.width:
                 y = Window.height + random.uniform(10, 100)
-                # สุ่มเกิดใหม่จากทางซ้าย เพื่อให้เฉียงเข้าหาจอ
-                x = random.uniform(-Window.width * 0.5, Window.width)
-                
-            drop['rect'].pos = (x, y)
+                x = random.uniform(-Window.width * 0.2, Window.width)
+
+            drop["rect"].pos = (x, y)
+
 
 # --- คลาสหน้าจอเมนูหลัก ---
 class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        # 1. จัดการรูปพื้นหลังให้อยู่บนสุดของ Screen และปรับตาม Window
+        with self.canvas.before:
+            Color(1, 1, 1, 1)  # ตั้งเป็นสีขาวล้วนเพื่อไม่ให้สีรูปเพี้ยน
+            self.bg_rect = Rectangle(
+                source="assets/Menu/MenuTest.png", pos=self.pos, size=Window.size
+            )
+
+        # ผูกการอัปเดตขนาดให้เท่ากับ Window เสมอ ไม่ว่าจะย่อหรือขยายจอ
+        self.bind(pos=self._update_bg, size=self._update_bg)
+
         main_layout = FloatLayout()
 
-        # 1. จัดการรูปพื้นหลังให้เต็มจอเสมอ
-        with main_layout.canvas.before:
-            Color(1, 1, 1, 1)
-            self.bg_rect = Rectangle(
-                source='assets/Menu/MenuTest.png', 
-                pos=(0, 0),
-                size=self.size
-            )
-        
-        # ผูกขนาดของ Rectangle เข้ากับ main_layout โดยตรง
-        main_layout.bind(size=self._update_bg, pos=self._update_bg)
-        
         # 2. เพิ่มเอฟเฟกต์ฝน
         self.rain = RainEffect()
         main_layout.add_widget(self.rain)
 
-        # 3. จัดวางเมนู
+        # 3. จัดวางกรอบเมนู (ขยับมาอยู่ตรงกลางแนวตั้ง)
         menu_group = BoxLayout(
-            orientation='vertical', spacing=45,
-            size_hint=(None, None), size=(800, 600), 
-            pos_hint={'x': 0.1, 'top': 0.9} 
+            orientation="vertical",
+            spacing=30,
+            size_hint=(None, None),
+            size=(600, 450),
+            pos_hint={"x": 0.1, "center_y": 0.5},
         )
 
+        # ปรับสี Title ให้เข้ากับธีมบรรยากาศฝนตก (สีฟ้าอ่อนอมเทา)
         title_label = Label(
-            text="VAMPIRE SURVIVORS", font_size=70, bold=True, 
-            halign='left', valign='middle', size_hint=(1, None), height=150
+            text="APOCALITE",
+            font_size=80,
+            bold=True,
+            color=(0.8, 0.9, 1, 0.9),
+            outline_width=4,
+            outline_color=(0, 0, 0, 1),  # <--- เพิ่มขอบดำตรงนี้
+            # font_name='assets/fonts/pixel_font.ttf', # <--- ถ้ามีไฟล์ฟอนต์ Pixel ให้เอา # ออกแล้วแก้ Path
+            halign="left",
+            valign="middle",
+            size_hint=(1, None),
+            height=120,
         )
-        title_label.bind(size=title_label.setter('text_size'))
+        title_label.bind(size=title_label.setter("text_size"))
 
-        # 4. จัดวางปุ่มให้อยู่ทางซ้ายภายในเมนู
-        btn_layout = BoxLayout(orientation='vertical', spacing=20, size_hint=(None, None), size=(400, 200))
-        
+        # 4. ปุ่มเข้ากับธีมฝน (Rain Theme: กระจกโปร่งแสงสีเข้ม)
+        btn_layout = BoxLayout(
+            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 180)
+        )
+
         btn_start = Button(
-            text="START SURVIVING", font_size=26, 
-            size_hint=(None, None), size=(350, 80),
-            background_color=(1,1,1,0.8)
+            text="START SURVIVING",
+            font_size=22,
+            bold=True,
+            size_hint=(None, None),
+            size=(350, 70),
+            background_normal="",  # ต้องมีบรรทัดนี้ ไม่งั้นปุ่มจะเป็นก้อนสีขาว
+            background_color=(0.1, 0.15, 0.2, 0.85),  # สีเทาเข้มอมฟ้า โปร่งแสง
+            color=(0.9, 0.95, 1, 1),
         )
         btn_quit = Button(
-            text="QUIT GAME", font_size=26, 
-            size_hint=(None, None), size=(350, 80),
-            background_color=(1,1,1,0.8)
+            text="QUIT GAME",
+            font_size=22,
+            bold=True,
+            size_hint=(None, None),
+            size=(350, 70),
+            background_normal="",
+            background_color=(0.05, 0.08, 0.1, 0.85),  # สีดำเทา โปร่งแสง
+            color=(0.7, 0.75, 0.8, 1),
         )
 
-        btn_start.bind(on_press=lambda x: self.change_screen('char_select_screen'))
+        btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
 
         btn_layout.add_widget(btn_start)
         btn_layout.add_widget(btn_quit)
-        
+
         menu_group.add_widget(title_label)
-        menu_group.add_widget(btn_layout) 
-        
+        menu_group.add_widget(btn_layout)
+
         main_layout.add_widget(menu_group)
         self.add_widget(main_layout)
-        
 
-    # 5. ฟังก์ชันอัปเดตขนาดพื้นหลัง
+    # 5. ฟังก์ชันอัปเดตขนาดพื้นหลังให้ติดหนึบกับหน้าจอ
     def _update_bg(self, instance, value):
         self.bg_rect.pos = instance.pos
         self.bg_rect.size = instance.size
