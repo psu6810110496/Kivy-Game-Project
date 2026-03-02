@@ -54,6 +54,12 @@ class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # --- [ระบบ Joy Navigation] ---
+        self.selectable_buttons = [] 
+        self.selected_index = 0      
+        self.joy_cooldown = False    
+        # ---------------------------
+
         # 1. จัดการรูปพื้นหลังให้อยู่บนสุดของ Screen และปรับตาม Window
         with self.canvas.before:
             Color(1, 1, 1, 1)  # ตั้งเป็นสีขาวล้วนเพื่อไม่ให้สีรูปเพี้ยน
@@ -127,6 +133,11 @@ class MainMenuScreen(Screen):
         btn_layout.add_widget(btn_start)
         btn_layout.add_widget(btn_quit)
 
+        # --- [เก็บปุ่มลงใน List สำหรับจอย] ---
+        self.selectable_buttons.append(btn_start)
+        self.selectable_buttons.append(btn_quit)
+        # --------------------------------
+
         menu_group.add_widget(title_label)
         menu_group.add_widget(btn_layout)
 
@@ -140,3 +151,94 @@ class MainMenuScreen(Screen):
 
     def change_screen(self, screen_name):
         self.manager.current = screen_name
+
+    # ==========================================
+    # --- [ระบบ Navigation (จอยสติ๊ก + เมาส์)] ---
+    # ==========================================
+    def on_enter(self):
+        Window.bind(
+            on_joy_axis=self._on_joy_axis, 
+            on_joy_hat=self._on_joy_hat, 
+            on_joy_button_down=self._on_joy_button_down,
+            mouse_pos=self._on_mouse_pos # <--- เพิ่ม Event จับการขยับเมาส์
+        )
+        self.selected_index = 0
+        self.show_highlight = False  # <--- ใช้ตัวนี้คุมแสง Highlight ทั้งคู่
+        self.update_highlight()
+
+    def on_leave(self):
+        Window.unbind(
+            on_joy_axis=self._on_joy_axis, 
+            on_joy_hat=self._on_joy_hat, 
+            on_joy_button_down=self._on_joy_button_down,
+            mouse_pos=self._on_mouse_pos # <--- อย่าลืม unbind เมาส์ตอนออกหน้าด้วย
+        )
+
+    # --- [ระบบตรวจจับเมาส์ Hover] ---
+    def _on_mouse_pos(self, window, pos):
+        # วนลูปเช็คว่าเมาส์ไปชน (Hover) โดนปุ่มไหนบ้าง
+        for i, btn in enumerate(self.selectable_buttons):
+            if btn.collide_point(*pos):
+                self.selected_index = i
+                self.show_highlight = True # เปิดแสง
+                self.update_highlight()
+                return # เจอแล้วก็จบการทำงานได้เลย
+        
+        # ถ้าขยับเมาส์ออกนอกปุ่มทั้งหมด ให้ปิดแสง Highlight
+        if self.show_highlight:
+            self.show_highlight = False
+            self.update_highlight()
+
+    def update_highlight(self):
+        for i, btn in enumerate(self.selectable_buttons):
+            # เช็คว่า Index ตรงกัน และ สถานะโชว์ Highlight ทำงานอยู่
+            if i == self.selected_index and self.show_highlight:
+                
+                # --- [ส่วนปรับสีตอน Highlight (เลือกอยู่)] ---
+                if btn.text == "QUIT GAME": # แก้ตรงนี้ให้ตรงกับข้อความบนปุ่มคุณ
+                    # ชี้ปุ่ม QUIT: ไฮไลท์สีแดง
+                    btn.background_color = (0.9, 0.2, 0.2, 1)
+                else:
+                    # ชี้ปุ่มอื่นๆ: ไฮไลท์สีฟ้าสว่าง
+                    btn.background_color = (0.3, 0.5, 0.7, 1) 
+                
+            else:
+                # --- [ส่วนปรับสีปกติ (ตอนไม่ได้เลือก)] ---
+                # ทุกปุ่มรวมถึง QUIT จะเป็นสีเทามืดปกติ
+                btn.background_color = (0.1, 0.15, 0.2, 0.85)
+
+    def _reset_cooldown(self, dt):
+        self.joy_cooldown = False
+
+    def navigate(self, direction):
+        if self.joy_cooldown: return
+        self.joy_cooldown = True
+        self.show_highlight = True  # ขยับจอยปุ๊บ เปิดแสง
+        Clock.schedule_once(self._reset_cooldown, 0.2) 
+
+        if direction == "next":
+            self.selected_index = (self.selected_index + 1) % len(self.selectable_buttons)
+        elif direction == "prev":
+            self.selected_index = (self.selected_index - 1) % len(self.selectable_buttons)
+        self.update_highlight()
+
+    def _on_joy_axis(self, window, stickid, axisid, value):
+        normalized = value / 32767.0
+        if abs(normalized) > 0.5:
+            if axisid == 0 or axisid == 1:
+                self.navigate("next" if normalized > 0 else "prev")
+
+    def _on_joy_hat(self, window, stickid, hatid, value):
+        x, y = value
+        if x == 1 or y == -1: self.navigate("next")
+        elif x == -1 or y == 1: self.navigate("prev")
+
+    def _on_joy_button_down(self, window, stickid, buttonid):
+        self.show_highlight = True # กดปุ่มจอยปุ๊บ เปิดแสง
+        self.update_highlight()
+        
+        if buttonid == 0:  
+            self.selectable_buttons[self.selected_index].dispatch('on_press')
+        elif buttonid == 1:  
+            self.go_back(None)
+    # ==========================================
