@@ -23,6 +23,7 @@ class LevelUpPopup(Popup):
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         cards_layout = GridLayout(cols=3, spacing=15)
 
+        # รายการอัปเกรด
         upgrades = ["+ Damage", "+ Max HP", "+ Speed"]
 
         for upg in upgrades:
@@ -41,6 +42,7 @@ class LevelUpPopup(Popup):
         self.content = layout
 
     def apply_upgrade(self, instance):
+        # รับค่าผู้เล่นจาก App
         player = kivy.app.App.get_running_app().current_player
         if player:
             if "+ Damage" in instance.text:
@@ -52,7 +54,6 @@ class LevelUpPopup(Popup):
 
         self.game_screen.resume_game()
         self.dismiss()
-
 
 class PausePopup(Popup):
     def __init__(self, game_screen, **kwargs):
@@ -98,5 +99,5 @@ class PausePopup(Popup):
         self.dismiss()
 
     def go_to_menu(self):
+        self.game_screen.resume_game()
         self.dismiss()
-        self.game_screen.manager.current = "main_menu"

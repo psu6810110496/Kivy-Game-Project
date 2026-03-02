@@ -7,8 +7,11 @@ from kivy.core.image import Image as CoreImage
 import kivy.app
 from game.player_widget import PlayerWidget
 from ui.hud import HUD, CountdownOverlay
-from ui.level_up import LevelUpPopup, PausePopup
-
+from ui.level_up import LevelUpPopup
+from kivy.uix.popup import Popup
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from ui.pause import PausePopup
 
 class GameScreen(Screen):
     def __init__(self, **kwargs):
@@ -18,19 +21,21 @@ class GameScreen(Screen):
         self.is_paused = False
         self.facing_right = True
         self.is_left_clicked = False
-
-        # ตั้งค่าระบบ Dash
+        
         self.is_dashing = False
         self.dash_cooldown = False
+        self.dash_duration = 0.5
         self.last_dir_x = 0
         self.last_dir_y = 0
         self.dash_duration = 0.2
         self.dash_cooldown_time = 1.0
 
-        # ตั้งค่าจอยสติ๊ก
         self.joy_x = self.joy_y = self.joy_right_x = self.joy_right_y = 0.0
         self.joy_lt_pressed = False
         self.joy_deadzone = 0.2
+
+        # ตัวแปรเก็บสถานะ Popup
+        self.active_pause_popup = None
 
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
@@ -92,13 +97,28 @@ class GameScreen(Screen):
     def start_actual_game(self):
         self.is_paused = False
 
-    def pause_game(self, instance):
-        self.is_paused = True
-        PausePopup(game_screen=self).open()
+    def start_actual_game(self): 
+        self.is_paused = False
+    
+    # --- ระบบ Toggle Pause ---
+    def toggle_pause(self):
+        if self.is_paused:
+            self.resume_game()
+        else:
+            self.pause_game()
+
+    def pause_game(self, instance=None):
+        if not self.is_paused and not self.active_pause_popup:
+            self.is_paused = True
+            self.active_pause_popup = PausePopup(game_screen=self)
+            self.active_pause_popup.open()
 
     def resume_game(self):
         self.is_paused = False
         self.keys_pressed.clear()
+        if self.active_pause_popup:
+            self.active_pause_popup.dismiss()
+            self.active_pause_popup = None
 
     def update_frame(self, dt):
         if not self.player_stats or self.is_paused:
@@ -144,7 +164,6 @@ class GameScreen(Screen):
 
         self.player_widget.update_pos(self.player_pos)
 
-        # จัดการหันหน้าตัวละคร
         if not self.is_left_clicked and not self.joy_lt_pressed:
             if dir_x > 0.1:
                 self.facing_right = True
@@ -208,20 +227,16 @@ class GameScreen(Screen):
         normalized = value / 32767.0
         if abs(normalized) < self.joy_deadzone:
             normalized = 0.0
-
-        if axisid == 0:
-            self.joy_x = normalized
-        elif axisid == 1:
-            self.joy_y = -normalized
-        elif axisid == 2:
-            self.joy_right_x = normalized
-        elif axisid == 3:
-            self.joy_right_y = -normalized
-        elif axisid == 4:
-            self.joy_lt_pressed = normalized > 0.0
-
+            
+        if axisid == 0: self.joy_x = normalized
+        elif axisid == 1: self.joy_y = -normalized 
+        elif axisid == 2: self.joy_right_x = normalized
+        elif axisid == 3: self.joy_right_y = -normalized
+        elif axisid == 4: self.joy_lt_pressed = (normalized > 0.0)
+        elif axisid == 5:
+            if normalized > 0.5:
+                self.start_dash()
+            
     def _on_joy_button_down(self, window, stickid, buttonid):
-        if buttonid == 0:
-            self.start_dash()  # A button
-        elif buttonid == 7:
-            self.pause_game(None)  # Start button
+        if buttonid == 7: 
+            self.toggle_pause()
