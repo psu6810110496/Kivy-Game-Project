@@ -1,7 +1,18 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
 from kivy.core.window import Window
-from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate, Scale
+
+# 🌟 เพิ่ม InstructionGroup และ Ellipse เข้ามาสำหรับการวาด Hitbox โจมตี
+from kivy.graphics import (
+    Rectangle,
+    Color,
+    PushMatrix,
+    PopMatrix,
+    Translate,
+    Scale,
+    InstructionGroup,
+    Ellipse,
+)
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 import kivy.app
@@ -46,6 +57,7 @@ class GameScreen(Screen):
         self.game_started = False
         self.is_invincible = False
         self.countdown = None
+        self.attack_event = None  # 🌟 เพิ่มตัวแปรเก็บ Event การโจมตี
 
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
@@ -67,10 +79,10 @@ class GameScreen(Screen):
             Rectangle(pos=(0, 0), size=(5000, 5000), texture=map_texture)
 
             Color(0, 0, 0, 0.85)
-            Rectangle(pos=(-3000, -3000), size=(3000, 11000))  # หมอกซ้าย
-            Rectangle(pos=(5000, -3000), size=(3000, 11000))  # หมอกขวา
-            Rectangle(pos=(0, -3000), size=(5000, 3000))  # หมอกล่าง
-            Rectangle(pos=(0, 5000), size=(5000, 3000))  # หมอกบน
+            Rectangle(pos=(-3000, -3000), size=(3000, 11000))
+            Rectangle(pos=(5000, -3000), size=(3000, 11000))
+            Rectangle(pos=(0, -3000), size=(5000, 3000))
+            Rectangle(pos=(0, 5000), size=(5000, 3000))
 
         with self.world_layout.canvas.after:
             PopMatrix()
@@ -83,7 +95,6 @@ class GameScreen(Screen):
         self.hud = HUD(game_screen=self)
         self.root_layout.add_widget(self.hud)
 
-        # ปุ่มสำหรับเคลียร์ศัตรูทิ้ง (ไว้ทดสอบ)
         self.btn_clear = Button(
             text="Clear Enemy",
             size_hint=(None, None),
@@ -97,7 +108,6 @@ class GameScreen(Screen):
         self.add_widget(self.root_layout)
 
     def _reset_state(self):
-        """Reset ทุก state กลับค่าเริ่มต้น เรียกทุกครั้งก่อนเริ่มเกมใหม่"""
         self.player_pos = [2500, 2500]
         self.is_paused = False
         self.facing_right = True
@@ -115,8 +125,11 @@ class GameScreen(Screen):
         self.game_started = False
         self.current_wave = 0
 
-        self.keys_pressed.clear()
+        if self.attack_event:
+            self.attack_event.cancel()
+            self.attack_event = None
 
+        self.keys_pressed.clear()
         self.camera.x = 0
         self.camera.y = 0
 
@@ -124,7 +137,7 @@ class GameScreen(Screen):
         self.player_stats = kivy.app.App.get_running_app().current_player
 
         if self.player_stats:
-            self.player_stats.reset()  # คืนค่าเลือดเป็นเต็มร้อยตอนเริ่มใหม่
+            self.player_stats.reset()
             self._reset_state()
 
             if self.active_pause_popup:
@@ -170,6 +183,120 @@ class GameScreen(Screen):
         self.game_started = True
         self.start_next_wave()
 
+        # 🌟 เริ่มระบบออโต้โจมตี (ฟาดทุกๆ 1 วินาที ปรับความเร็วตรงเลข 1.0 ได้เลย)
+        if self.attack_event:
+            self.attack_event.cancel()
+        self.attack_event = Clock.schedule_interval(self.perform_attack, 1.0)
+
+    def perform_attack(self, dt):
+        if self.is_paused or not self.game_started or not self.player_stats:
+            return
+
+        # 1. หาจุดศูนย์กลางผู้เล่น
+        px = self.player_pos[0] + 32
+        py = self.player_pos[1] + 32
+
+        # 2. คำนวณทิศทางการตี
+        aim_x, aim_y = self.joy_right_x, self.joy_right_y
+        if aim_x == 0 and aim_y == 0:
+            aim_x, aim_y = self.last_dir_x, self.last_dir_y
+        if aim_x == 0 and aim_y == 0:
+            aim_x = 1 if self.facing_right else -1
+            aim_y = 0
+
+        mag = math.hypot(aim_x, aim_y)
+        if mag > 0:
+            aim_x /= mag
+            aim_y /= mag
+
+        # 3. 🌟 ตั้งค่า Hitbox แบบ "เส้นโค้ง" (Arc / Cone)
+        attack_range = 120  # รัศมีความกว้างของการฟาด (ยื่นออกไปไกลขึ้น)
+        hit_angle_spread = 60  # รัศมีกวาดข้างละ 60 องศา (รวมพื้นที่โดนตี 120 องศา)
+
+        # หามุมที่ผู้เล่นกำลังหันหน้าไป (เป็นองศา)
+        aim_angle_deg = math.degrees(math.atan2(aim_y, aim_x))
+
+        # 4. วาด Effect การโจมตีแบบเส้นโค้ง (คล้ายคลื่นดาบ)
+        self.show_slash_effect(px, py, attack_range, aim_angle_deg, hit_angle_spread)
+
+        # 5. เช็คศัตรูในระยะกวาด
+        enemies_to_remove = []
+        for enemy in self.enemies:
+            ex = enemy.pos[0] + 20
+            ey = enemy.pos[1] + 20
+
+            dx = ex - px
+            dy = ey - py
+            dist = math.hypot(dx, dy)
+
+            # ถ้าระยะอยู่ในวงกว้าง
+            if dist < attack_range + 20:
+                enemy_angle = math.degrees(math.atan2(dy, dx))
+                angle_diff = (enemy_angle - aim_angle_deg) % 360
+
+                # ปรับองศาให้เปรียบเทียบง่ายขึ้น
+                if angle_diff > 180:
+                    angle_diff -= 360
+
+                # ถัาศัตรูอยู่ในมุมฟาด (อยู่ในพื้นที่หน้าพัด)
+                if abs(angle_diff) <= hit_angle_spread:
+                    enemy.hp -= self.player_stats.damage
+
+                    # Knockback ตามทิศทางการฟาด
+                    enemy.pos = (enemy.pos[0] + aim_x * 25, enemy.pos[1] + aim_y * 25)
+
+                    if enemy.hp <= 0:
+                        enemies_to_remove.append(enemy)
+
+        # 6. ลบศัตรูและแจก EXP
+        for enemy in enemies_to_remove:
+            if enemy in self.enemies:
+                self.enemies.remove(enemy)
+                self.world_layout.remove_widget(enemy)
+                self.gain_exp(10)
+
+    def show_slash_effect(self, px, py, radius, aim_angle_deg, spread):
+        ig = InstructionGroup()
+        ig.add(Color(1, 0.8, 0, 0.4))
+        # วาดพัดเส้นโค้ง โดยอิงจากมุมที่หันหน้า
+        ig.add(
+            Ellipse(
+                pos=(px - radius, py - radius),
+                size=(radius * 2, radius * 2),
+                angle_start=aim_angle_deg - spread,
+                angle_end=aim_angle_deg + spread,
+            )
+        )
+
+        self.world_layout.canvas.add(ig)
+
+        # ฟังก์ชันเคลียร์ Effect อย่างปลอดภัย (แก้บั๊กภาพค้างตอนเด้ง Level Up)
+        def remove_effect(dt):
+            if ig in self.world_layout.canvas.children:
+                self.world_layout.canvas.remove(ig)
+
+        Clock.schedule_once(remove_effect, 0.15)
+
+    def gain_exp(self, amount):
+        if not self.player_stats:
+            return
+        self.player_stats.exp += amount
+
+        # ถ้า EXP เต็ม หลอด
+        if self.player_stats.exp >= self.player_stats.max_exp:
+            self.player_stats.exp -= self.player_stats.max_exp
+            self.player_stats.level += 1
+            self.hud.update_ui(self.player_stats)
+
+            # โชว์หน้าต่าง Level UP !
+            self.is_paused = True
+            popup = LevelUpPopup(self)
+            popup.open()
+        else:
+            self.hud.update_ui(self.player_stats)
+
+    # -------------------------------------------------------------
+
     def start_next_wave(self):
         self.current_wave += 1
         print(f"Starting Wave {self.current_wave}!")
@@ -197,6 +324,8 @@ class GameScreen(Screen):
 
     def on_leave(self):
         Clock.unschedule(self.update_frame)
+        if self.attack_event:
+            self.attack_event.cancel()
         Window.unbind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
         Window.unbind(
             on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down
@@ -271,6 +400,8 @@ class GameScreen(Screen):
     def return_to_menu(self, instance):
         self.game_over_popup.dismiss()
         self.debug_clear_enemies(None)
+        if self.attack_event:
+            self.attack_event.cancel()
         self.manager.current = "main_menu"
 
     def update_frame(self, dt):
