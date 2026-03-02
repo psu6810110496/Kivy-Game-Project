@@ -7,36 +7,61 @@ from kivy.core.window import Window
 from game.player import PlayerStats
 import kivy.app
 
+
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
         # 1. ใช้ข้อมูลตัวละครใหม่ของเรา (PTae, Lostman, Monke)
         self.char_data = {
             "PTae": PlayerStats(
-                name="PTae", 
-                hp=100, 
-                speed=5.0, 
-                damage=10, 
-                idle_frames=['assets/PTae/PTIdle/PTTG1.png', 'assets/PTae/PTIdle/PTTG2.png'],
-                walk_frames=['assets/PTae/PTPushUp/PTaeTester1.png', 'assets/PTae/PTPushUp/PTaeTester2.png', 'assets/PTae/PTPushUp/PTaeTester3.png', 'assets/PTae/PTPushUp/PTaeTester4.png']
+                name="PTae",
+                hp=150,
+                speed=3.5,
+                damage=14,
+                idle_frames=[
+                    "assets/PTae/PTIdle/PTTG1.png",
+                    "assets/PTae/PTIdle/PTTG2.png",
+                ],
+                walk_frames=[
+                    "assets/PTae/PTPushUp/PTaeTester1.png",
+                    "assets/PTae/PTPushUp/PTaeTester2.png",
+                    "assets/PTae/PTPushUp/PTaeTester3.png",
+                    "assets/PTae/PTPushUp/PTaeTester4.png",
+                ],
             ),
             "Lostman": PlayerStats(
-                name="Lostman", 
-                hp=80, 
-                speed=7.0, 
-                damage=15, 
-                idle_frames=['assets/Lostman/idle/idleman1.png', 'assets/Lostman/idle/idleman2.png'],
-                walk_frames=['assets/Lostman/walk/walk1.png', 'assets/Lostman/walk/walk2.png', 'assets/Lostman/walk/walk3.png', 'assets/Lostman/walk/walk4.png']
+                name="Lostman",
+                hp=100,
+                speed=5.0,
+                damage=17,
+                idle_frames=[
+                    "assets/Lostman/idle/idleman1.png",
+                    "assets/Lostman/idle/idleman2.png",
+                ],
+                walk_frames=[
+                    "assets/Lostman/walk/walk1.png",
+                    "assets/Lostman/walk/walk2.png",
+                    "assets/Lostman/walk/walk3.png",
+                    "assets/Lostman/walk/walk4.png",
+                ],
             ),
             "Monke": PlayerStats(
                 name="Monke",
-                hp=90,        
-                speed=8.0,      
-                damage=12,      
-                idle_frames=['assets/Monkey/IdleM/IdleM01.png', 'assets/Monkey/IdleM/IdleM02.png'],
-                walk_frames=['assets/Monkey/WalkM/W01.png', 'assets/Monkey/WalkM/W02.png', 'assets/Monkey/WalkM/W03.png', 'assets/Monkey/WalkM/W04.png']
-            )
+                hp=90,
+                speed=7.0,
+                damage=12,
+                idle_frames=[
+                    "assets/Monkey/IdleM/IdleM01.png",
+                    "assets/Monkey/IdleM/IdleM02.png",
+                ],
+                walk_frames=[
+                    "assets/Monkey/WalkM/W01.png",
+                    "assets/Monkey/WalkM/W02.png",
+                    "assets/Monkey/WalkM/W03.png",
+                    "assets/Monkey/WalkM/W04.png",
+                ],
+            ),
         }
 
         # 2. นำ UI สวยๆ (พื้นหลังสีเทาเข้มอมฟ้า) มาใช้
