@@ -13,11 +13,9 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from ui.pause import PausePopup
 
-# --- [เพิ่มส่วนนี้: import math, random และ EnemyWidget] ---
 import math
 import random
 from game.enemy_widget import EnemyWidget
-# ----------------------------------------------------
 
 class GameScreen(Screen):
     def __init__(self, **kwargs):
@@ -41,10 +39,12 @@ class GameScreen(Screen):
         self.joy_deadzone = 0.2
 
         self.active_pause_popup = None
-
-        # --- [เพิ่มส่วนนี้: ลิสต์สำหรับเก็บตัวศัตรูทั้งหมด] ---
         self.enemies = []
-        # ---------------------------------------------
+
+        # --- [เพิ่มตัวแปรระบบ Wave] ---
+        self.current_wave = 0
+        self.game_started = False
+        # ---------------------------
 
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
@@ -81,6 +81,16 @@ class GameScreen(Screen):
 
         self.hud = HUD(game_screen=self)
         self.root_layout.add_widget(self.hud)
+        
+        # --- [เพิ่มปุ่ม Clear Enemy ไว้ที่มุมขวาบนของจอ (ใช้ทดสอบ)] ---
+        self.btn_clear = Button(
+            text="Clear Enemy", size_hint=(None, None), size=(150, 50),
+            pos_hint={'right': 0.98, 'top': 0.98}, background_color=(1, 0, 0, 1)
+        )
+        self.btn_clear.bind(on_press=self.debug_clear_enemies)
+        self.root_layout.add_widget(self.btn_clear)
+        # ------------------------------------------------------
+
         self.add_widget(self.root_layout)
 
         Window.bind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
@@ -99,26 +109,42 @@ class GameScreen(Screen):
 
     def start_actual_game(self):
         self.is_paused = False
-        # --- [เพิ่มส่วนนี้: เริ่มนับเวลาเพื่อเสกศัตรูเรื่อยๆ (ทุกๆ 1 วินาที)] ---
-        Clock.schedule_interval(self.spawn_enemy, 1.0)
-        # -------------------------------------------------------------
+        self.game_started = True
+        # --- [เริ่ม Wave แรก] ---
+        self.start_next_wave()
+        # -----------------------
 
-    # --- [เพิ่มฟังก์ชันนี้: เสกศัตรูรอบตัวผู้เล่น] ---
-    def spawn_enemy(self, dt):
-        if self.is_paused: return
+    # --- [ระบบเริ่ม Wave ใหม่] ---
+    def start_next_wave(self):
+        self.current_wave += 1
+        print(f"Starting Wave {self.current_wave}!") # แสดงในคอนโซล
         
-        # สุ่มมุมและระยะห่างเพื่อให้ศัตรูเกิดนอกจอเล็กน้อย
+        # เสกศัตรู 10 ตัว
+        for _ in range(10):
+            self.spawn_single_enemy()
+
+    # --- [ฟังก์ชันเสกศัตรู 1 ตัว] ---
+    def spawn_single_enemy(self):
         angle = random.uniform(0, 2 * math.pi)
-        radius = 800 
+        # สุ่มระยะห่างให้ต่างกันนิดหน่อย ศัตรูจะได้ไม่เกิดซ้อนเป็นก้อนเดียวกันหมด
+        radius = random.uniform(800, 1000) 
         
         spawn_x = self.player_pos[0] + (math.cos(angle) * radius)
         spawn_y = self.player_pos[1] + (math.sin(angle) * radius)
         
-        # สร้างศัตรูเพิ่มเข้าใน world_layout
         new_enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y))
         self.enemies.append(new_enemy)
         self.world_layout.add_widget(new_enemy)
-    # -------------------------------------------------
+
+    # --- [ฟังก์ชันสำหรับปุ่มลบศัตรูทั้งหมด] ---
+    def debug_clear_enemies(self, instance):
+        if not self.game_started or self.is_paused:
+            return
+        
+        for enemy in self.enemies:
+            self.world_layout.remove_widget(enemy)
+        self.enemies.clear()
+        print("All enemies cleared!")
 
     def toggle_pause(self):
         if self.is_paused:
@@ -143,18 +169,20 @@ class GameScreen(Screen):
         if not self.player_stats or self.is_paused:
             return
 
+        # --- [ระบบตรวจสอบ Wave ถัดไป] ---
+        # ถ้าเกมเริ่มแล้ว และศัตรูในฉากตายหมด (เป็น 0) ให้เริ่ม Wave ใหม่ทันที
+        if self.game_started and len(self.enemies) == 0:
+            self.start_next_wave()
+        # ------------------------------
+
         speed = self.player_stats.speed * (3.0 if self.is_dashing else 1.0)
         dir_x, dir_y = 0, 0
 
         if not self.is_dashing:
-            if "w" in self.keys_pressed:
-                dir_y += 1
-            if "s" in self.keys_pressed:
-                dir_y -= 1
-            if "a" in self.keys_pressed:
-                dir_x -= 1
-            if "d" in self.keys_pressed:
-                dir_x += 1
+            if "w" in self.keys_pressed: dir_y += 1
+            if "s" in self.keys_pressed: dir_y -= 1
+            if "a" in self.keys_pressed: dir_x -= 1
+            if "d" in self.keys_pressed: dir_x += 1
 
             if dir_x == 0 and dir_y == 0:
                 dir_x, dir_y = self.joy_x, self.joy_y
@@ -180,21 +208,16 @@ class GameScreen(Screen):
         
         self.player_widget.update_pos(self.player_pos)
 
-        # --- [เพิ่มส่วนนี้: สั่งให้ศัตรูทุกตัวเดินตามผู้เล่นในทุกๆ เฟรม] ---
+        # ส่งลิสต์ศัตรูเข้าไปเพื่อคำนวณการชน/ผลักกันเอง
         for enemy in self.enemies:
             enemy.update_movement(self.player_pos, self.enemies)
-        # ----------------------------------------------------------
 
         if not self.is_left_clicked and not self.joy_lt_pressed:
-            if dir_x > 0.1:
-                self.facing_right = True
-            elif dir_x < -0.1:
-                self.facing_right = False
+            if dir_x > 0.1: self.facing_right = True
+            elif dir_x < -0.1: self.facing_right = False
         elif self.joy_lt_pressed:
-            if self.joy_right_x > 0.1:
-                self.facing_right = True
-            elif self.joy_right_x < -0.1:
-                self.facing_right = False
+            if self.joy_right_x > 0.1: self.facing_right = True
+            elif self.joy_right_x < -0.1: self.facing_right = False
 
         self.player_widget.set_state(
             (dir_x != 0 or dir_y != 0), self.facing_right, speed
@@ -233,7 +256,7 @@ class GameScreen(Screen):
         if codepoint:
             self.keys_pressed.add(codepoint.lower())
         if key == 27:  
-            self.toggle_pause() # ❗ แก้ไขเป็น toggle_pause เผื่อกรณีกด Esc
+            self.toggle_pause()
             return True
 
     def _on_keyup(self, window, key, scancode):
