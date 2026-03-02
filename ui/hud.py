@@ -4,8 +4,39 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 from kivy.uix.button import Button
 from kivy.clock import Clock
+from kivy.uix.widget import Widget
+from kivy.graphics import Color, Rectangle
+from kivy.properties import NumericProperty
 import kivy.app
 from ui.level_up import LevelUpPopup
+
+
+# --- [คลาส HealthBar] ---
+class HealthBar(Widget):
+    current_hp = NumericProperty(100)
+    max_hp = NumericProperty(100)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(
+            pos=self.update_canvas,
+            size=self.update_canvas,
+            current_hp=self.update_canvas,
+            max_hp=self.update_canvas,
+        )
+
+    def update_canvas(self, *args):
+        self.canvas.clear()
+        with self.canvas:
+            Color(0.2, 0.2, 0.2, 1)
+            Rectangle(pos=self.pos, size=self.size)
+
+            Color(0.8, 0.1, 0.1, 1)
+            hp_ratio = max(0, min(self.current_hp / max(self.max_hp, 1), 1))
+            Rectangle(pos=self.pos, size=(self.width * hp_ratio, self.height))
+
+
+# -----------------------------
 
 
 class HUD(FloatLayout):
@@ -13,25 +44,63 @@ class HUD(FloatLayout):
         super().__init__(**kwargs)
         self.game_screen = game_screen
 
-        top_ui = BoxLayout(
-            size_hint=(0.8, 0.05), pos_hint={"center_x": 0.5, "top": 0.98}, spacing=15
+        # --- [🌟 ส่วนที่แก้ไข: จัดกลุ่ม UI มุมซ้ายบนให้ตรงกันเป๊ะ] ---
+        # สร้างกล่องรวม (กว้าง 360 = ตัวหนังสือ 60 + หลอด 300)
+        top_left_ui = BoxLayout(
+            orientation="vertical",
+            size_hint=(None, None),
+            size=(360, 60),
+            pos_hint={"x": 0.02, "top": 0.98},
+            spacing=5,
         )
 
+        # แถวบน: หลอดเลือด (ใช้ FloatLayout เพื่อซ้อนข้อความและจัดชิดขวา)
+        hp_container = FloatLayout(size_hint=(1, 1))
+
+        # ดันหลอดเลือดไปชิดขวาของกล่อง เพื่อเว้นที่ว่างด้านซ้ายให้ตรงกับคำว่า "LV : 1"
+        self.health_bar = HealthBar(
+            size_hint=(None, None),
+            size=(300, 25),
+            pos_hint={"right": 1, "center_y": 0.5},
+        )
+        self.hp_label = Label(
+            text="100 / 100",
+            size_hint=(None, None),
+            size=(300, 25),
+            pos_hint={"right": 1, "center_y": 0.5},
+            bold=True,
+        )
+        hp_container.add_widget(self.health_bar)
+        hp_container.add_widget(self.hp_label)
+
+        # แถวล่าง: เลเวล + หลอด EXP
+        exp_container = BoxLayout(orientation="horizontal", size_hint=(1, 1), spacing=5)
         self.lbl_level = Label(
             text="LV : 1",
-            size_hint=(0.15, 1),
-            font_size=20,
+            size_hint=(None, 1),
+            width=55,  # ความกว้างตัวหนังสือ 55 + spacing 5 = 60 พอดี
+            font_size=18,
             bold=True,
             color=(0.9, 0.95, 1, 1),
             outline_width=2,
             outline_color=(0, 0, 0, 1),
         )
-        self.exp_bar = ProgressBar(max=100, value=0, size_hint=(0.85, 1))
+        # ตั้งความกว้างหลอด EXP ให้เป็น 300 เท่ากับหลอดเลือด
+        self.exp_bar = ProgressBar(max=100, value=0, size_hint=(None, 1), width=300)
 
-        top_ui.add_widget(self.lbl_level)
-        top_ui.add_widget(self.exp_bar)
-        self.add_widget(top_ui)
+        exp_container.add_widget(self.lbl_level)
+        exp_container.add_widget(self.exp_bar)
 
+        # นำทั้งสองแถวใส่เข้ากล่องรวม แล้วแปะลงบนหน้าจอ
+        top_left_ui.add_widget(hp_container)
+        top_left_ui.add_widget(exp_container)
+        self.add_widget(top_left_ui)
+
+        # ให้อัปเดตเลือดแบบเรียลไทม์ 60 เฟรมต่อวินาที
+        Clock.schedule_interval(self.update_hp_realtime, 1.0 / 60.0)
+        # --------------------------------------------------------
+
+        # ปุ่มเมนูด้านขวาบน
         btn_pause = Button(
             text="||",
             font_size=24,
@@ -98,6 +167,19 @@ class HUD(FloatLayout):
     def update_ui(self, stats):
         self.lbl_level.text = f"LV : {stats.level}"
         self.exp_bar.value = stats.exp
+
+        self.health_bar.max_hp = stats.hp
+        self.health_bar.current_hp = stats.current_hp
+        self.hp_label.text = f"{int(stats.current_hp)} / {int(stats.hp)}"
+
+    def update_hp_realtime(self, dt):
+        if hasattr(self.game_screen, "player_stats") and self.game_screen.player_stats:
+            player_stats = self.game_screen.player_stats
+            self.health_bar.max_hp = player_stats.hp
+            self.health_bar.current_hp = player_stats.current_hp
+            self.hp_label.text = (
+                f"{int(player_stats.current_hp)} / {int(player_stats.hp)}"
+            )
 
 
 class CountdownOverlay(Label):

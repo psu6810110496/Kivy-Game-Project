@@ -3,11 +3,14 @@ from kivy.graphics import Rectangle, Color, Ellipse
 from kivy.clock import Clock
 
 class PlayerWidget(Widget):
-    def __init__(self, **kwargs):
+    # ปรับให้รับค่าภาพและตำแหน่งตอนสร้างตัวละคร
+    def __init__(self, idle_frames, walk_frames, start_pos=(2500, 2500), **kwargs):
         super().__init__(**kwargs)
-        # ตรวจสอบ Path ไฟล์ภาพให้ถูกต้อง
-        self.anim_idle = ['assets/PTae/PTIdle/PTTG1.png', 'assets/PTae/PTIdle/PTTG2.png']
-        self.anim_walk = ['assets/PTae/PTPushUp/PTaeTester1.png', 'assets/PTae/PTPushUp/PTaeTester2.png', 'assets/PTae/PTPushUp/PTaeTester3.png', 'assets/PTae/PTPushUp/PTaeTester4.png']
+        
+        # นำค่าที่ส่งมาไปใช้งาน แทนการกำหนด Path ตายตัว
+        self.anim_idle = idle_frames
+        self.anim_walk = walk_frames
+        
         self.idle_speed = 0.5 
         self.walk_speed = 0.15 
         self.current_anim = self.anim_idle
@@ -18,7 +21,8 @@ class PlayerWidget(Widget):
         
         with self.canvas:
             self.color_inst = Color(1, 1, 1, 1) 
-            self.rect = Rectangle(source=self.current_anim[0], pos=(2500, 2500), size=(64, 64))
+            # ให้เกิดตามพิกัด start_pos ที่ส่งเข้ามา
+            self.rect = Rectangle(source=self.current_anim[0], pos=start_pos, size=(64, 64))
             
         with self.canvas.after:
             self.aim_color = Color(1, 0, 0, 0)
