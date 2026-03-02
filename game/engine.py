@@ -4,7 +4,7 @@ from kivy.core.window import Window
 from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate, Scale
 from kivy.clock import Clock
 import kivy.app
-from game.player_widget import PlayerWidget
+from game.player_widget import PlayerWidget 
 from ui.hud import HUD, CountdownOverlay
 from ui.level_up import LevelUpPopup, PausePopup
 
@@ -44,28 +44,56 @@ class GameScreen(Screen):
         
         with self.world_layout.canvas.after:
             PopMatrix()
-
-        self.player_widget = PlayerWidget()
-        self.world_layout.add_widget(self.player_widget)
+        
+        # สร้างตัวแปร player_widget ทิ้งไว้ก่อน
+        self.player_widget = None
+        
         self.root_layout.add_widget(self.world_layout)
         
         self.hud = HUD(game_screen=self)
         self.root_layout.add_widget(self.hud)
         self.add_widget(self.root_layout)
 
-        Window.bind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
-        Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
-
     def on_enter(self):
+        # 1. ดึงข้อมูลตัวละครที่เลือกมาจากหน้าจอที่แล้ว
         self.player_stats = kivy.app.App.get_running_app().current_player
+        
         if self.player_stats:
+            # 2. ถ้ายืนยันว่าเลือกตัวละครแล้ว ให้ "ลบตัวเก่าทิ้ง" (ถ้ามี)
+            if self.player_widget:
+                self.world_layout.remove_widget(self.player_widget)
+
+            # 3. แล้ว "สร้างตัวใหม่" ขึ้นมาทับเสมอ! (แก้ปัญหาเลือกตัวไหนก็ได้ตัวเดิม)
+            self.player_widget = PlayerWidget(
+                idle_frames=self.player_stats.idle_frames,
+                walk_frames=self.player_stats.walk_frames,
+                start_pos=tuple(self.player_pos)
+            )
+            self.world_layout.add_widget(self.player_widget)
+
+            # เซ็ตอัประบบเริ่มเกม
             self.is_paused = True
             self.hud.update_ui(self.player_stats)
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
+            
+            # เคลียร์ปุ่มเก่าและเริ่มจับการกดปุ่ม
+            self.keys_pressed.clear()
+            Window.bind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
+            Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+            
+            # เริ่ม Game Loop
+            Clock.unschedule(self.update_frame) 
             Clock.schedule_interval(self.update_frame, 1.0/60.0)
 
-    def start_actual_game(self): self.is_paused = False
+    def on_leave(self):
+        # ฟังก์ชันนี้จะทำงานตอนกด Pause ออกไปเมนูหลัก ป้องกันเกมแครช
+        Clock.unschedule(self.update_frame)
+        Window.unbind(on_key_down=self._on_keydown, on_key_up=self._on_keyup)
+        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+
+    def start_actual_game(self): 
+        self.is_paused = False
     
     def pause_game(self, instance):
         self.is_paused = True
@@ -76,7 +104,7 @@ class GameScreen(Screen):
         self.keys_pressed.clear()
 
     def update_frame(self, dt):
-        if not self.player_stats or self.is_paused: return
+        if not self.player_stats or self.is_paused or not self.player_widget: return
         
         speed = self.player_stats.speed * (3.0 if self.is_dashing else 1.0)
         dir_x, dir_y = 0, 0
@@ -117,11 +145,11 @@ class GameScreen(Screen):
         self.player_widget.update_aim(self.joy_lt_pressed, self.joy_right_x, self.joy_right_y)
         
         self.zoom.origin = (Window.width/2, Window.height/2)
-        self.camera.x = (Window.width/2) - self.player_pos[0] - 25
-        self.camera.y = (Window.height/2) - self.player_pos[1] - 25
+        self.camera.x = (Window.width/2) - self.player_pos[0] - 32 
+        self.camera.y = (Window.height/2) - self.player_pos[1] - 32
 
     def start_dash(self):
-        if not self.dash_cooldown and not self.is_dashing:
+        if not self.dash_cooldown and not self.is_dashing and self.player_widget:
             if self.last_dir_x != 0 or self.last_dir_y != 0:
                 self.is_dashing = True
                 self.dash_cooldown = True
@@ -131,7 +159,8 @@ class GameScreen(Screen):
 
     def end_dash(self, dt):
         self.is_dashing = False
-        self.player_widget.color_inst.rgba = (1, 1, 1, 1)
+        if self.player_widget:
+            self.player_widget.color_inst.rgba = (1, 1, 1, 1)
 
     def reset_dash_cooldown(self, dt):
         self.dash_cooldown = False
