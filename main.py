@@ -1,16 +1,3 @@
-import random
-
-# ==========================================
-# 0. การตั้งค่า Config (ต้องอยู่บนสุด ก่อน Import Kivy ตัวอื่นๆ!)
-# ==========================================
-from kivy.config import Config
-Config.set('graphics', 'width', '1280') # แก้ไขความกว้างเป็น 1280
-Config.set('graphics', 'height', '720') # แก้ไขความสูงเป็น 720
-Config.set('graphics', 'window_state', 'visible') # เปลี่ยนเป็น visible (หน้าต่างปกติ ไม่ Maximize)
-Config.set('graphics', 'fullscreen', '0') # เปลี่ยนเป็น 0 (ปิดโหมดเต็มจออัตโนมัติ)
-Config.set('graphics', 'resizable', '0') # ปิดการย่อขยายหน้าต่าง
-
-# หลังจากตั้งค่าเสร็จ ค่อย Import ส่วนอื่นๆ
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -22,12 +9,20 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.widget import Widget
 from kivy.uix.popup import Popup
 from kivy.core.window import Window
-from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate, Rotate, Scale
+from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate
 from kivy.clock import Clock
+from kivy.config import Config
+import random
+from kivy.graphics import Rotate, PushMatrix, PopMatrix
+from kivy.graphics import Rectangle, Color, PushMatrix, PopMatrix, Translate, Scale, Rotate, Ellipse
 
-# ==========================================
-# 1. VFX
-# ==========================================
+Config.set('input', 'mouse', 'mouse,disable_multitouch')
+
+Config.set('graphics', 'fullscreen', 'auto')
+Config.set('graphics', 'resizable', '0')
+
+Window.maximize()
+
 class RainEffect(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -38,12 +33,17 @@ class RainEffect(Widget):
             Color(0.6, 0.6, 0.6, 0.4) 
             for _ in range(self.num_drops):
                 PushMatrix()
+                
+                # 1. มุมเอียงเป็นลบ (-20) เพื่อให้เม็ดเอียงชี้ไปทางขวา
                 rotation = Rotate(angle=20, origin=(0, 0)) 
+                
                 rect = Rectangle(
+                    # สุ่ม X เผื่อไปทางซ้ายนอกจอ เพราะฝนจะวิ่งจากซ้ายไปขวา
                     pos=(random.uniform(-Window.width * 0.5, Window.width), 
                          random.uniform(0, Window.height)), 
                     size=(2, random.uniform(10, 25))
                 )
+                
                 PopMatrix()
 
                 drop = {
@@ -58,17 +58,23 @@ class RainEffect(Widget):
     def update_rain(self, dt):
         for drop in self.drops:
             x, y = drop['rect'].pos
+            
+            # 2. ปรับให้ตกเฉียงขวา: y ลดลง (ลงล่าง), x เพิ่มขึ้น (ไปขวา)
             y -= drop['speed']
-            x += drop['speed'] * 0.4 
+            x += drop['speed'] * 0.4  # ปรับตัวคูณเพื่อเปลี่ยนความชัน
+            
             drop['rotation'].origin = (x, y)
 
+            # 3. ตรวจสอบขอบล่าง และขอบขวา
             if y < -30 or x > Window.width:
                 y = Window.height + random.uniform(10, 100)
+                # สุ่มเกิดใหม่จากทางซ้าย (รวมนอกจอฝั่งซ้าย) เพื่อให้เฉียงเข้าหาจอ
                 x = random.uniform(-Window.width * 0.5, Window.width)
+                
             drop['rect'].pos = (x, y)
 
 # ==========================================
-# 2. Data Model
+# 1. Data Model
 # ==========================================
 class PlayerStats:
     def __init__(self, name, hp, speed, damage):
@@ -81,28 +87,29 @@ class PlayerStats:
         self.exp = 0
 
 # ==========================================
-# 3. Widgets & Popups
+# 2. Widgets & Popups
 # ==========================================
 class PlayerWidget(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.canvas.clear()
         
-        # --- เตรียมรายชื่อไฟล์ Animation ---
-        self.anim_idle = ['PTTG1.png', 'PTTG2.png'] 
-        self.anim_walk = ['PT1.png', 'PT2.png', 'PT3.png', 'PT4.png', 'PT5.png', 'PT6.png', 'PT7.png'] 
+        # --- 1. เตรียมรายชื่อไฟล์ Animation ---
+        self.anim_idle = ['idleM01.png', 'idleM02.png'] # ภาพตอนยืนนิ่ง
+        self.anim_walk = ['W01.png', 'W02.png', 'W03.png', 'W04.png'] # ภาพตอนเดิน
         
-        # --- กำหนดความเร็วแยกกัน ---
-        self.idle_speed = 0.5  
-        self.walk_speed = 0.15 
+        # --- 2. กำหนดความเร็วแยกกัน (วินาทีต่อเฟรม) ---
+        self.idle_speed = 0.5   
+        self.walk_speed = 0.15  
         
+        # สถานะปัจจุบัน
         self.current_anim = self.anim_idle
         self.current_anim_speed = self.idle_speed 
-        
         self.frame_index = 0
         self.anim_timer = 0
         self.is_facing_right = True 
         
+        # --- [จุดสำคัญ] วาดตัวละคร (ตอนนี้มีแค่บล็อกเดียวแล้ว จะไม่มีร่างแยก) ---
         with self.canvas:
             self.color_inst = Color(1, 1, 1, 1) 
             self.rect = Rectangle(
@@ -111,7 +118,33 @@ class PlayerWidget(Widget):
                 size=(64, 64)  
             )
             
+        # --- วาดจุดเล็งเป้า (Aim Marker) วาดทับด้านบน ---
+        with self.canvas.after:
+            self.aim_color = Color(1, 0, 0, 0) # กำหนดค่า Alpha เป็น 0 เพื่อซ่อนไว้ก่อน
+            self.aim_marker = Ellipse(size=(10, 10), pos=(0, 0)) 
+
         Clock.schedule_interval(self.animate, 1.0/60.0)
+
+    def update_aim(self, is_aiming, aim_x, aim_y):
+        if is_aiming and (aim_x != 0 or aim_y != 0):
+            self.aim_color.a = 1.0  
+            
+            mag = (aim_x**2 + aim_y**2) ** 0.5
+            if mag > 0:
+                aim_x /= mag
+                aim_y /= mag
+                
+            radius = 60  
+            
+            center_x = self.rect.pos[0] + (self.rect.size[0] / 2)
+            center_y = self.rect.pos[1] + (self.rect.size[1] / 2)
+            
+            self.aim_marker.pos = (
+                center_x + (aim_x * radius) - (self.aim_marker.size[0] / 2),
+                center_y + (aim_y * radius) - (self.aim_marker.size[1] / 2)
+            )
+        else:
+            self.aim_color.a = 0.0  
 
     def set_state(self, is_moving, facing_right=None, current_speed=5.0):
         if facing_right is not None:
@@ -153,6 +186,7 @@ class LevelUpPopup(Popup):
         super().__init__(**kwargs)
         self.game_screen = game_screen
         self.title = "LEVEL UP! Choose your Upgrade:"
+        self.title_size = 24
         self.size_hint = (0.6, 0.5)
         self.auto_dismiss = False
         
@@ -212,7 +246,7 @@ class CountdownOverlay(Label):
         self.text = str(self.count)
         self.font_size = 200
         self.bold = True
-        self.color = (1, 0.8, 0, 1)
+        self.color = (1, 0.8, 0, 1) # สีเหลืองทอง
         self.pos_hint = {'center_x': 0.5, 'center_y': 0.5}
         Clock.schedule_interval(self.update_countdown, 1)
 
@@ -222,15 +256,15 @@ class CountdownOverlay(Label):
             self.text = str(self.count)
         elif self.count == 0:
             self.text = "SURVIVE!"
-            self.color = (1, 0.2, 0.2, 1)
+            self.color = (1, 0.2, 0.2, 1) # สีแดง
         else:
             Clock.unschedule(self.update_countdown)
-            self.callback()
+            self.callback() # เรียกให้เริ่มเกม
             if self.parent:
                 self.parent.remove_widget(self)
 
 # ==========================================
-# 4. UI Screens
+# 3. UI Screens
 # ==========================================
 class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
@@ -269,10 +303,8 @@ class MainMenuScreen(Screen):
         
         main_layout.add_widget(menu_group)
         self.add_widget(main_layout)
+        
         Window.bind(size=self._update_bg)
-
-        # อัปเดตขนาดพื้นหลังให้เต็มจอจริงๆ หลังจากเริ่มเกม
-        Clock.schedule_once(lambda dt: self._update_bg(None, Window.size), 0.1)
 
     def _update_bg(self, instance, value):
         self.bg_rect.size = value
@@ -313,23 +345,54 @@ class GameScreen(Screen):
         self.player_stats = None 
         self.is_paused = False
         
+        # --- ตัวแปรสำหรับระบบ Dash ---
         self.is_dashing = False
         self.dash_cooldown = False
-        self.dash_speed_multiplier = 3.0 
-        self.dash_duration = 0.2 
-        self.dash_cooldown_time = 1.0 
+        self.dash_speed_multiplier = 3.0 # ความเร็วจะเพิ่มเป็น 3 เท่าตอน Dash
+        self.dash_duration = 0.2         # พุ่งตัวเป็นเวลา 0.2 วินาที
+        self.dash_cooldown_time = 1.0    # รอ 1 วินาทีก่อน Dash ใหม่ได้
         
+        # เก็บทิศทางล่าสุดที่เดิน เพื่อให้ Dash ไปทางนั้น
         self.last_dir_x = 0
-        self.last_dir_y = 1
+        self.last_dir_y = 0
+        
+        # --- เพิ่มตัวแปรเก็บทิศทางการหันหน้า และสถานะเมาส์ ---
+        self.facing_right = True 
+        self.is_left_clicked = False  # เช็คว่ากดคลิกซ้ายค้างอยู่ไหม
         
         Window.bind(on_key_down=self._on_keydown)
         Window.bind(on_key_up=self._on_keyup)
 
+        # ... โค้ดเดิมด้านบน ...
+        self.facing_right = True 
+        self.is_left_clicked = False  # เช็คว่ากดคลิกซ้ายค้างอยู่ไหม
+        
+        # --- ตัวแปรสำหรับจอยสติ๊ก ---
+        self.joy_x = 0.0
+        self.joy_y = 0.0
+        self.joy_deadzone = 0.2
+        
+        # เพิ่มตัวแปรใหม่ตรงนี้
+        self.joy_right_x = 0.0
+        self.joy_right_y = 0.0
+        self.joy_lt_pressed = False  # เช็คว่ากด LT ค้างอยู่ไหม
+        
+        Window.bind(on_key_down=self._on_keydown)
+        Window.bind(on_key_up=self._on_keyup)
+        # ผูก Event สำหรับจอยสติ๊ก
+        Window.bind(on_joy_axis=self._on_joy_axis)
+        Window.bind(on_joy_button_down=self._on_joy_button_down)
+        # ...
+
         self.root_layout = FloatLayout()
+        
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000)) 
         with self.world_layout.canvas.before:
             PushMatrix()
+            # ปรับกลับเป็น 1, 1, 1 เพื่อให้มุมกล้องกลับไปเป็นขนาดดั้งเดิม
+            # (หรือเปลี่ยนเป็น 0.7, 0.7, 1 ถ้าอยากได้มุมกว้างแบบที่ผมทำให้อันแรกครับ)
             self.zoom = Scale(2, 2, 2) 
+            
             self.camera = Translate(0, 0)
             Color(0.2, 0.2, 0.2, 1)
             for i in range(0, 5001, 100):
@@ -366,8 +429,10 @@ class GameScreen(Screen):
         if self.player_stats:
             self.is_paused = True 
             self.update_ui()
+            
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
+            
             Clock.schedule_interval(self.update_frame, 1.0/60.0)
 
     def start_actual_game(self):
@@ -397,6 +462,7 @@ class GameScreen(Screen):
                 self.is_dashing = True
                 self.dash_cooldown = True
                 
+                # เปลี่ยนสีตัวละครเป็นออร่าสีเหลือง (โดยไม่ต้อง clear canvas)
                 self.player_widget.color_inst.rgba = (1, 1, 0, 1) 
                 
                 Clock.schedule_once(self.end_dash, self.dash_duration)
@@ -404,10 +470,66 @@ class GameScreen(Screen):
 
     def end_dash(self, dt):
         self.is_dashing = False
+        # เปลี่ยนสีตัวละครกลับเป็นสีปกติ
         self.player_widget.color_inst.rgba = (1, 1, 1, 1)
 
     def reset_dash_cooldown(self, dt):
         self.dash_cooldown = False
+
+    def on_touch_down(self, touch):
+        # เช็คว่าเป็นการคลิกซ้ายหรือไม่
+        if 'button' in touch.profile and touch.button == 'left':
+            self.is_left_clicked = True  # <--- บันทึกว่ากำลังกดเมาส์อยู่
+            
+            # เช็คว่าคลิกที่ครึ่งขวาหรือครึ่งซ้ายของหน้าจอ
+            if touch.x > Window.width / 2:
+                self.facing_right = True
+            else:
+                self.facing_right = False
+                
+        return super().on_touch_down(touch)
+    
+    def on_touch_move(self, touch):
+        # เช็คว่าเป็นการกดเมาส์ซ้ายค้างไว้หรือไม่
+        if 'button' in touch.profile and touch.button == 'left':
+            # เช็คตำแหน่ง X ของเมาส์ขณะลาก ว่าอยู่ฝั่งซ้ายหรือขวาของจอ
+            if touch.x > Window.width / 2:
+                self.facing_right = True
+            else:
+                self.facing_right = False
+                
+        return super().on_touch_move(touch)
+    
+    def on_touch_up(self, touch):
+        # เมื่อปล่อยเมาส์ซ้าย ให้รีเซ็ตสถานะ
+        if 'button' in touch.profile and touch.button == 'left':
+            self.is_left_clicked = False
+            
+        return super().on_touch_up(touch)
+    
+    def _on_joy_axis(self, window, stickid, axisid, value):
+        # Kivy คืนค่า Analog ตั้งแต่ -32768 ถึง 32767 เราต้องแปลงให้เป็น -1.0 ถึง 1.0
+        normalized = value / 32767.0
+        
+        # กรองค่าที่น้อยกว่า Deadzone ทิ้ง เพื่อป้องกันตัวละครเดินเองเวลาคันโยกเอียงนิดๆ
+        if abs(normalized) < self.joy_deadzone:
+            normalized = 0.0
+            
+        if axisid == 0: 
+            # แกน X (ซ้าย-ขวา) ของ Analog ซ้าย
+            self.joy_x = normalized
+        elif axisid == 1: 
+            # แกน Y (บน-ล่าง) ของ Analog ซ้าย (Kivy มักจะสลับแกน Y บนล่าง จึงต้องใส่ลบ)
+            self.joy_y = -normalized 
+            
+    def _on_joy_button_down(self, window, stickid, buttonid):
+        # Index ปุ่มของจอย Xbox ปกติ: A=0, B=1, X=2, Y=3, LB=4, RB=5, Back=6, Start=7
+        if buttonid == 0: 
+            # กดปุ่ม A เพื่อ Dash
+            self.start_dash()
+        elif buttonid == 7: 
+            # กดปุ่ม Start เพื่อ Pause
+            self.pause_game(None)
 
     def update_frame(self, dt):
         if not self.player_stats or self.is_paused:
@@ -420,10 +542,16 @@ class GameScreen(Screen):
         dir_x, dir_y = 0, 0
         
         if not self.is_dashing:
+            # 1. เช็คคีย์บอร์ดก่อน
             if 'w' in self.keys_pressed: dir_y += 1
             if 's' in self.keys_pressed: dir_y -= 1
             if 'a' in self.keys_pressed: dir_x -= 1
             if 'd' in self.keys_pressed: dir_x += 1
+            
+            # 2. ถ้าไม่ได้กดคีย์บอร์ด ให้ดึงค่า Analog ของจอยมาใช้
+            if dir_x == 0 and dir_y == 0:
+                dir_x = self.joy_x
+                dir_y = self.joy_y
             
             if dir_x != 0 or dir_y != 0:
                 self.last_dir_x = dir_x
@@ -432,29 +560,60 @@ class GameScreen(Screen):
             dir_x = self.last_dir_x
             dir_y = self.last_dir_y
 
-        if dir_x != 0 and dir_y != 0:
-            current_speed *= 0.7071 
+        # --- ปรับแก้ความเร็วแนวทแยง (รองรับทั้งจอยและคีย์บอร์ด) ---
+        # แทนที่การคูณ 0.7071 แบบเดิม ด้วยสูตรเวกเตอร์ เพื่อให้ความเร็วคงที่เสมอ
+        magnitude = (dir_x**2 + dir_y**2) ** 0.5
+        if magnitude > 1.0:
+            dir_x /= magnitude
+            dir_y /= magnitude
             
         self.player_pos[0] += dir_x * current_speed
         self.player_pos[1] += dir_y * current_speed
             
         self.player_widget.update_pos(self.player_pos)
         
+        # --- โค้ดควบคุม Animation ---
         is_moving = (dir_x != 0 or dir_y != 0)
         
-        mouse_x, mouse_y = Window.mouse_pos
+        if not self.is_left_clicked:
+            # เช็คว่าเดินไปทางซ้ายหรือขวา (ใช้ 0.1 แทน 0 เพื่อป้องกันจอยสั่นนิดเดียวแล้วหันหน้า)
+            if dir_x > 0.1:
+                self.facing_right = True
+            elif dir_x < -0.1:
+                self.facing_right = False
+                
+        self.player_widget.set_state(is_moving, self.facing_right, current_speed)
+        # -----------------------------------------------
         
-        if mouse_x > Window.width / 2:
-            facing_right = True  
+        # --- โค้ดควบคุม Animation ---
+        is_moving = (dir_x != 0 or dir_y != 0)
+        
+        if self.is_left_clicked:
+            pass 
+        elif self.joy_lt_pressed:
+            if self.joy_right_x > 0.1:
+                self.facing_right = True
+            elif self.joy_right_x < -0.1:
+                self.facing_right = False
         else:
-            facing_right = False 
-            
-        self.player_widget.set_state(is_moving, facing_right, current_speed)
+            if dir_x > 0.1:
+                self.facing_right = True
+            elif dir_x < -0.1:
+                self.facing_right = False
+                
+        self.player_widget.set_state(is_moving, self.facing_right, current_speed)
         
+        # --- อัปเดตตำแหน่งจุดเล็งเป้าด้วยค่าจาก Analog ขวา ---
+        self.player_widget.update_aim(
+            self.joy_lt_pressed, 
+            self.joy_right_x, 
+            self.joy_right_y
+        )
+        
+        # ⚠️ (ลบ self.zoom.origin ที่ซ้ำซ้อนออก ให้เหลือบรรทัดเดียว)
         self.zoom.origin = (Window.width / 2, Window.height / 2)
-        # ปรับ -32 เพื่อให้กึ่งกลางของภาพขนาด 64x64 อยู่ตรงกลางจอพอดี
-        self.camera.x = (Window.width / 2) - self.player_pos[0] - 32
-        self.camera.y = (Window.height / 2) - self.player_pos[1] - 32
+        self.camera.x = (Window.width / 2) - self.player_pos[0] - 25
+        self.camera.y = (Window.height / 2) - self.player_pos[1] - 25
 
     def gain_exp(self, instance):
         if self.player_stats:
@@ -467,12 +626,15 @@ class GameScreen(Screen):
             self.update_ui()
 
     def _on_keydown(self, window, key, scancode, codepoint, modifiers):
-        if key == 292: 
+        if key == 292: # F11
             Window.fullscreen = not Window.fullscreen
             return True
-        if key == 32: # Spacebar
+            
+        # ตรวจจับปุ่ม Spacebar (keycode: 32) เพื่อเริ่ม Dash
+        if key == 32:
             self.start_dash()
             return True
+        
         if codepoint: self.keys_pressed.add(codepoint.lower())
         if key == 27: 
             self.pause_game(None)
@@ -484,6 +646,40 @@ class GameScreen(Screen):
             if key_char in self.keys_pressed:
                 self.keys_pressed.remove(key_char)
         except: pass
+
+    def _on_joy_axis(self, window, stickid, axisid, value):
+        normalized = value / 32767.0
+        
+        # กรองค่าที่น้อยกว่า Deadzone ทิ้ง
+        if abs(normalized) < self.joy_deadzone:
+            normalized = 0.0
+            
+        if axisid == 0: 
+            # แกน X ของ Analog ซ้าย
+            self.joy_x = normalized
+        elif axisid == 1: 
+            # แกน Y ของ Analog ซ้าย
+            self.joy_y = -normalized 
+        elif axisid == 2:
+            # แกน X ของ Analog ขวา (ใช้เล็งซ้าย-ขวา)
+            self.joy_right_x = normalized
+        elif axisid == 3:
+            # แกน Y ของ Analog ขวา (เผื่อใช้เล็งบน-ล่างในอนาคต)
+            self.joy_right_y = -normalized
+        elif axisid == 4:
+            # ปุ่ม LT (Left Trigger)
+            # ปกติค่าปุ่ม Trigger จะเริ่มที่ -1.0 (ไม่ได้กด) จนถึง 1.0 (กดมิด)
+            # ถ้าค่ามากกว่า 0.0 แสดงว่ากดลงไปเกินครึ่งนึงแล้ว
+            self.joy_lt_pressed = (normalized > 0.0)
+            
+    def _on_joy_button_down(self, window, stickid, buttonid):
+        # Index ปุ่มของจอย Xbox ปกติ: A=0, B=1, X=2, Y=3, LB=4, RB=5, Back=6, Start=7
+        if buttonid == 0: 
+            # กดปุ่ม A เพื่อ Dash
+            self.start_dash()
+        elif buttonid == 7: 
+            # กดปุ่ม Start เพื่อ Pause
+            self.pause_game(None)
 
 class VampireApp(App):
     def build(self):
