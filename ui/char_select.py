@@ -2,7 +2,8 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Rectangle, Color
+from kivy.core.window import Window
 from game.player import PlayerStats
 import kivy.app
 
@@ -16,56 +17,48 @@ class CharacterSelectScreen(Screen):
             "Veteran": PlayerStats("Veteran", 200, 2, 15),
         }
 
-        # พื้นหลังสีเข้ม
+        # ใส่พื้นหลังสีเทาเข้มอมฟ้า
         with self.canvas.before:
-            Color(0.05, 0.05, 0.08, 1)
-            self.bg = Rectangle(pos=self.pos, size=self.size)
-        self.bind(pos=self.update_bg, size=self.update_bg)
+            Color(0.05, 0.08, 0.1, 1)
+            self.bg = Rectangle(pos=self.pos, size=Window.size)
+        self.bind(pos=self._update_bg, size=self._update_bg)
 
         layout = BoxLayout(orientation="vertical", padding=50, spacing=30)
 
-        title = Label(
-            text="SELECT YOUR OPERATIVE",
-            font_size=40,
-            bold=True,
-            color=(1, 0.8, 0.2, 1),
-            size_hint=(1, 0.2),
+        # หัวข้อมีขอบดำ
+        layout.add_widget(
+            Label(
+                text="SELECT CHARACTER",
+                font_size=40,
+                bold=True,
+                color=(0.9, 0.95, 1, 1),
+                outline_width=2,
+                outline_color=(0, 0, 0, 1),
+                size_hint=(1, 0.2),
+            )
         )
-        layout.add_widget(title)
 
-        chars_layout = BoxLayout(spacing=20, size_hint=(1, 0.6))
+        chars = BoxLayout(spacing=20, size_hint=(1, 0.8))
         for name, stats in self.char_data.items():
-            # ทำปุ่มให้เหมือนการ์ด
+            # ปรับปุ่มให้เป็นธีมกระจกโปร่งแสงและแสดง Status ชัดเจน
             btn = Button(
-                text=f"{name.upper()}\n\nHP: {stats.hp}\nATK: {stats.damage}\nSPD: {stats.speed}",
+                text=f"{name}\n\nHP: {stats.hp}\nATK: {stats.damage}\nSPD: {stats.speed}",
                 font_size=20,
                 bold=True,
                 halign="center",
                 background_normal="",
-                background_color=(0.15, 0.15, 0.15, 1),  # สีเทาเข้ม
-                color=(0.9, 0.9, 0.9, 1),
+                background_color=(0.1, 0.15, 0.2, 0.85),
+                color=(0.8, 0.9, 1, 1),
             )
             btn.bind(on_press=lambda inst, s=stats: self.select_char(s))
-            chars_layout.add_widget(btn)
+            chars.add_widget(btn)
 
-        layout.add_widget(chars_layout)
-
-        # ปุ่มกลับเมนู
-        btn_back = Button(
-            text="BACK",
-            size_hint=(0.2, 0.1),
-            pos_hint={"center_x": 0.5},
-            background_normal="",
-            background_color=(0.3, 0.1, 0.1, 1),
-        )
-        btn_back.bind(on_press=lambda x: setattr(self.manager, "current", "main_menu"))
-        layout.add_widget(btn_back)
-
+        layout.add_widget(chars)
         self.add_widget(layout)
 
-    def update_bg(self, *args):
-        self.bg.pos = self.pos
-        self.bg.size = self.size
+    def _update_bg(self, instance, value):
+        self.bg.pos = instance.pos
+        self.bg.size = instance.size
 
     def select_char(self, stats):
         kivy.app.App.get_running_app().current_player = stats
