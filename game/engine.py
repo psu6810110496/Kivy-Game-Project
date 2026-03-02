@@ -13,6 +13,12 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from ui.pause import PausePopup
 
+# --- [เพิ่มส่วนนี้: import math, random และ EnemyWidget] ---
+import math
+import random
+from game.enemy_widget import EnemyWidget
+# ----------------------------------------------------
+
 class GameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -34,8 +40,11 @@ class GameScreen(Screen):
         self.joy_lt_pressed = False
         self.joy_deadzone = 0.2
 
-        # ตัวแปรเก็บสถานะ Popup
         self.active_pause_popup = None
+
+        # --- [เพิ่มส่วนนี้: ลิสต์สำหรับเก็บตัวศัตรูทั้งหมด] ---
+        self.enemies = []
+        # ---------------------------------------------
 
         self.root_layout = FloatLayout()
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
@@ -43,15 +52,10 @@ class GameScreen(Screen):
         map_texture = CoreImage("assets/maps/map.jpg").texture
         map_texture.wrap = "repeat"
 
-        # 🌟 ปรับขนาดภาพแมพตรงนี้ (ยิ่งเลขมาก ภาพยิ่งซูมใหญ่ขึ้น)
-        # 🌟 ปรับขนาดภาพแมพตรงนี้ (ยิ่งเลขมาก ภาพยิ่งซูมใหญ่ขึ้น)
         map_scale = 3.0
-
-        # 🌟 แยกคำนวณสเกลแกน X และ Y (สร้างตัวแปร u_scale และ v_scale)
         u_scale = 5000 / (map_texture.width * map_scale)
         v_scale = 5000 / (map_texture.height * map_scale)
 
-        # 🌟 ใส่เครื่องหมายลบ (-) ที่หน้า v_scale เพื่อพลิกภาพกลับด้าน (แกน Y)
         map_texture.uvsize = (u_scale, -v_scale)
 
         with self.world_layout.canvas.before:
@@ -62,12 +66,11 @@ class GameScreen(Screen):
             Color(1, 1, 1, 1)
             Rectangle(pos=(0, 0), size=(5000, 5000), texture=map_texture)
 
-            # วาดหมอก (Dark Void) รอบแมพ
             Color(0, 0, 0, 0.85)
-            Rectangle(pos=(-3000, -3000), size=(3000, 11000))  # หมอกซ้าย
-            Rectangle(pos=(5000, -3000), size=(3000, 11000))  # หมอกขวา
-            Rectangle(pos=(0, -3000), size=(5000, 3000))  # หมอกล่าง
-            Rectangle(pos=(0, 5000), size=(5000, 3000))  # หมอกบน
+            Rectangle(pos=(-3000, -3000), size=(3000, 11000))  
+            Rectangle(pos=(5000, -3000), size=(3000, 11000))  
+            Rectangle(pos=(0, -3000), size=(5000, 3000))  
+            Rectangle(pos=(0, 5000), size=(5000, 3000))  
 
         with self.world_layout.canvas.after:
             PopMatrix()
@@ -96,11 +99,27 @@ class GameScreen(Screen):
 
     def start_actual_game(self):
         self.is_paused = False
+        # --- [เพิ่มส่วนนี้: เริ่มนับเวลาเพื่อเสกศัตรูเรื่อยๆ (ทุกๆ 1 วินาที)] ---
+        Clock.schedule_interval(self.spawn_enemy, 1.0)
+        # -------------------------------------------------------------
 
-    def start_actual_game(self): 
-        self.is_paused = False
-    
-    # --- ระบบ Toggle Pause ---
+    # --- [เพิ่มฟังก์ชันนี้: เสกศัตรูรอบตัวผู้เล่น] ---
+    def spawn_enemy(self, dt):
+        if self.is_paused: return
+        
+        # สุ่มมุมและระยะห่างเพื่อให้ศัตรูเกิดนอกจอเล็กน้อย
+        angle = random.uniform(0, 2 * math.pi)
+        radius = 800 
+        
+        spawn_x = self.player_pos[0] + (math.cos(angle) * radius)
+        spawn_y = self.player_pos[1] + (math.sin(angle) * radius)
+        
+        # สร้างศัตรูเพิ่มเข้าใน world_layout
+        new_enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y))
+        self.enemies.append(new_enemy)
+        self.world_layout.add_widget(new_enemy)
+    # -------------------------------------------------
+
     def toggle_pause(self):
         if self.is_paused:
             self.resume_game()
@@ -155,14 +174,16 @@ class GameScreen(Screen):
         new_x = self.player_pos[0] + (dir_x * speed)
         new_y = self.player_pos[1] + (dir_y * speed)
 
-        # --- [🌟 ส่วนที่แก้ไขเพิ่มเติม: ลดขนาด Hitbox ขอบแมพ] ---
-        # เปลี่ยนระยะชนขอบจาก 50 เหลือ 20 ตัวละครจะเดินชิดหมอกได้แนบเนียนขึ้น
         hitbox_radius = 20
         self.player_pos[0] = max(hitbox_radius, min(new_x, 5000 - hitbox_radius))
         self.player_pos[1] = max(hitbox_radius, min(new_y, 5000 - hitbox_radius))
-        # ---------------------------------------------------
-
+        
         self.player_widget.update_pos(self.player_pos)
+
+        # --- [เพิ่มส่วนนี้: สั่งให้ศัตรูทุกตัวเดินตามผู้เล่นในทุกๆ เฟรม] ---
+        for enemy in self.enemies:
+            enemy.update_movement(self.player_pos)
+        # ----------------------------------------------------------
 
         if not self.is_left_clicked and not self.joy_lt_pressed:
             if dir_x > 0.1:
@@ -203,16 +224,16 @@ class GameScreen(Screen):
         self.dash_cooldown = False
 
     def _on_keydown(self, window, key, scancode, codepoint, modifiers):
-        if key == 292:  # F11
+        if key == 292:  
             Window.fullscreen = not Window.fullscreen
             return True
-        if key == 32:  # Spacebar
+        if key == 32:  
             self.start_dash()
             return True
         if codepoint:
             self.keys_pressed.add(codepoint.lower())
-        if key == 27:  # Esc
-            self.pause_game(None)
+        if key == 27:  
+            self.toggle_pause() # ❗ แก้ไขเป็น toggle_pause เผื่อกรณีกด Esc
             return True
 
     def _on_keyup(self, window, key, scancode):
