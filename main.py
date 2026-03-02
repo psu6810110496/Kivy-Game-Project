@@ -11,7 +11,6 @@ Config.set("graphics", "resizable", "0")
 Config.set("graphics", "width", "1280")
 Config.set("graphics", "height", "720")
 
-
 class VampireApp(App):
     def build(self):
         self.current_player = None
@@ -20,7 +19,6 @@ class VampireApp(App):
         sm.add_widget(CharacterSelectScreen(name="char_select_screen"))
         sm.add_widget(GameScreen(name="game_screen"))
         return sm
-
 
 if __name__ == "__main__":
     VampireApp().run()
