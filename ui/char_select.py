@@ -7,7 +7,6 @@ from kivy.core.window import Window
 from game.player import PlayerStats
 import kivy.app
 
-
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -85,7 +84,7 @@ class CharacterSelectScreen(Screen):
             )
         )
 
-        chars = BoxLayout(spacing=20, size_hint=(1, 0.8))
+        chars = BoxLayout(spacing=20, size_hint=(1, 0.7)) # ปรับ size_hint เล็กน้อยเผื่อที่ให้ปุ่ม Back
         for name, stats in self.char_data.items():
             # 4. ปรับปุ่มให้เป็นธีมกระจกโปร่งแสงและแสดง Status โชว์ ATK ด้วย
             btn = Button(
@@ -101,6 +100,22 @@ class CharacterSelectScreen(Screen):
             chars.add_widget(btn)
 
         layout.add_widget(chars)
+
+        # --- [ส่วนปุ่ม Back to Menu ไว้ด้านล่าง] ---
+        back_btn = Button(
+            text="BACK TO MENU",
+            size_hint=(1, 0.15), # ความสูงของปุ่ม
+            font_size=20,
+            bold=True,
+            background_normal="",
+            # ใช้สีแดงเข้มโปร่งแสงให้ดูเป็นปุ่มย้อนกลับหรือยกเลิก
+            background_color=(0.3, 0.1, 0.1, 0.85), 
+            color=(1, 0.8, 0.8, 1)
+        )
+        back_btn.bind(on_press=self.go_back)
+        layout.add_widget(back_btn)
+        # ----------------------------------------
+
         self.add_widget(layout)
 
     def _update_bg(self, instance, value):
@@ -111,3 +126,8 @@ class CharacterSelectScreen(Screen):
         # บันทึกตัวละครที่เลือกลงใน App และเปลี่ยนหน้า
         kivy.app.App.get_running_app().current_player = stats
         self.manager.current = "game_screen"
+
+    # --- [ฟังก์ชันสำหรับทำงานเมื่อกดปุ่ม Back] ---
+    def go_back(self, instance):
+        # หมายเหตุ: เปลี่ยน "main_menu" ให้ตรงกับชื่อ Screen หน้าเมนูของคุณที่ตั้งไว้ใน ScreenManager นะครับ
+        self.manager.current = "main_menu"
