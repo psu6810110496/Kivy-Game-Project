@@ -6,7 +6,7 @@ import math
 class EnemyWidget(Widget):
     def __init__(self, spawn_pos, **kwargs):
         super().__init__(**kwargs)
-        self.size = (40, 40)
+        self.size = (40, 40)  # ปรับขนาดซอมบี้ได้ตามต้องการ
         self.pos = spawn_pos
 
         self.speed = 1.5
@@ -14,8 +14,13 @@ class EnemyWidget(Widget):
         self.damage = 5
 
         with self.canvas:
-            Color(1, 0, 0, 1)  # มอนสเตอร์สีแดง
-            self.rect = Rectangle(pos=self.pos, size=self.size)
+            # 🌟 เปลี่ยนสีเป็น (1, 1, 1, 1) สีขาว เพื่อให้รูปภาพแสดงสีตามต้นฉบับ 100%
+            Color(1, 1, 1, 1)
+
+            # 🌟 ดึงรูปภาพซอมบี้มาใช้ (อย่าลืมหาไฟล์รูปไปใส่ไว้ในโฟลเดอร์ assets นะครับ)
+            self.rect = Rectangle(
+                source="assets/enemy/zombie.png", pos=self.pos, size=self.size
+            )
 
     def update_movement(self, player_pos, all_enemies):
         ex, ey = self.pos
