@@ -6,7 +6,7 @@ import math
 class EnemyWidget(Widget):
     def __init__(self, spawn_pos, **kwargs):
         super().__init__(**kwargs)
-        self.size = (40, 40)  # ปรับขนาดซอมบี้ได้ตามต้องการ
+        self.size = (50, 50)  # ปรับขนาดซอมบี้ได้ตามต้องการ
         self.pos = spawn_pos
 
         self.speed = 1.5
