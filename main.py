@@ -1,6 +1,6 @@
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager
-from kivy.core.window import Window  # นำเข้า Window เพื่อควบคุมหน้าต่าง
+from kivy.core.window import Window
 from ui.main_menu import MainMenuScreen
 from ui.char_select import CharacterSelectScreen
 from game.engine import GameScreen
@@ -8,13 +8,13 @@ from kivy.config import Config
 
 # ตั้งค่าการปรับขนาดหน้าจอ
 Config.set("graphics", "resizable", "1")
+Config.set("graphics", "multisamples", "1")
 Config.set("graphics", "width", "1280")
 Config.set("graphics", "height", "720")
 Config.set("input", "mouse", "mouse,disable_multitouch")
 
 class Apocalite(App):
     def build(self):
-        # Bind การกดปุ่มในระดับ Global (App-wide)
         Window.bind(on_key_down=self._on_keyboard_down)
         
         self.current_player = None
@@ -30,8 +30,8 @@ class Apocalite(App):
                 Window.fullscreen = False
             else:
                 Window.fullscreen = 'auto'
-            return True # จัดการ F11 เสร็จแล้ว
-        return False # ปุ่มอื่นๆ ปล่อยผ่าน
+            return True
+        return False
 
 if __name__ == "__main__":
     Apocalite().run()

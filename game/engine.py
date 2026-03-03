@@ -56,9 +56,10 @@ class GameScreen(Screen):
         self.is_invincible = False
         self.countdown = None
         self.attack_event = None
-        self.is_dead = False
+        self.is_dead = False # ป้องกัน Game Over ซ้อน
 
-        self.root_layout = FloatLayout()
+        # --- [ระบบ Layout & Aspect Ratio] ---
+        self.root_layout = FloatLayout(size_hint=(None, None))
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
         self.bind(size=self._update_layout_size)
 
@@ -97,29 +98,24 @@ class GameScreen(Screen):
         self.add_widget(self.root_layout)
 
     def _update_layout_size(self, instance, value):
-        """ ฟังก์ชันรักษา Aspect Ratio 16:9 """
+        """ จัดการ Letterboxing เมื่อมีการ Maximize หรือขยายหน้าต่าง """
         target_ratio = 16 / 9
-        window_width, window_height = value
-        window_ratio = window_width / window_height
+        win_w, win_h = value
+        if win_h == 0: return
+        
+        win_ratio = win_w / win_h
 
-        if window_ratio > target_ratio:
-            # หน้าจอกว้างไป (มีแถบดำซ้ายขวา)
-            new_width = window_height * target_ratio
-            new_height = window_height
+        if win_ratio > target_ratio:
+            new_w = win_h * target_ratio
+            new_h = win_h
         else:
-            # หน้าจอสูงไป (มีแถบดำบนล่าง)
-            new_width = window_width
-            new_height = window_width / target_ratio
+            new_w = win_w
+            new_h = win_w / target_ratio
 
-        # ปรับขนาด root_layout ให้คงสัดส่วน แต่จัดให้อยู่กลางจอ
-        self.root_layout.size = (new_width, new_height)
-        self.root_layout.pos = (
-            (window_width - new_width) / 2,
-            (window_height - new_height) / 2
-        )
+        self.root_layout.size = (new_w, new_h)
+        self.root_layout.pos = ((win_w - new_w) / 2, (win_h - new_h) / 2)
 
     def _reset_state(self):
-        """ ล้างค่าสถานะทุกอย่างเพื่อเริ่มเกมใหม่ """
         self.player_pos = [2500, 2500]
         self.is_paused = False
         self.facing_right = True
@@ -140,7 +136,6 @@ class GameScreen(Screen):
             
         self.keys_pressed.clear()
 
-        # ล้างศัตรูเก่า
         if hasattr(self, 'enemies'):
             for enemy in self.enemies:
                 if enemy.parent:
@@ -150,6 +145,9 @@ class GameScreen(Screen):
         self.update_camera(0)
 
     def on_enter(self):
+        # รีเซ็ตขนาดหน้าจอให้ถูกต้องทันทีที่เข้าหน้าเกม
+        self._update_layout_size(None, Window.size)
+        
         self.player_stats = kivy.app.App.get_running_app().current_player
         if self.player_stats:
             self.player_stats.reset()
@@ -170,7 +168,6 @@ class GameScreen(Screen):
             self.countdown = CountdownOverlay(callback=self.start_actual_game)
             self.root_layout.add_widget(self.countdown)
 
-            # Bind Controls (ใช้ชื่อฟังก์ชันที่ถูกต้อง)
             Window.bind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
             Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
             Window.bind(mouse_pos=self._on_mouse_pos)
@@ -186,15 +183,16 @@ class GameScreen(Screen):
         Window.unbind(mouse_pos=self._on_mouse_pos)
 
     def update_camera(self, dt):
-        self.zoom.origin = (Window.width / 2, Window.height / 2)
-        self.camera.x = (Window.width / 2) - self.player_pos[0] - 32
-        self.camera.y = (Window.height / 2) - self.player_pos[1] - 32
+        # ใช้ขนาดของ root_layout แทน Window เพื่อความแม่นยำในโหมด Maximize
+        rw, rh = self.root_layout.size
+        self.zoom.origin = (rw / 2, rh / 2)
+        self.camera.x = (rw / 2) - self.player_pos[0] - 32
+        self.camera.y = (rh / 2) - self.player_pos[1] - 32
 
     def update_frame(self, dt):
-        if not self.player_stats or self.is_paused or not self.player_widget:
+        if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
 
-        # --- [Movement] ---
         speed = self.player_stats.speed * (3.0 if self.is_dashing else 1.0)
         dir_x, dir_y = 0, 0
 
@@ -218,7 +216,6 @@ class GameScreen(Screen):
         self.player_pos[1] = max(20, min(self.player_pos[1] + dir_y * speed, 4980))
         self.player_widget.update_pos(self.player_pos)
 
-        # --- [Facing & Aiming] ---
         if abs(self.joy_right_x) > 0.1:
             self.facing_right = self.joy_right_x > 0
         else:
@@ -230,7 +227,6 @@ class GameScreen(Screen):
         aim_y = self.joy_right_y if abs(self.joy_right_y) > 0.1 else self.mouse_dir[1]
         self.player_widget.update_aim(True, aim_x, aim_y)
 
-        # --- [Enemies & Collision] ---
         for enemy in self.enemies:
             enemy.update_movement(self.player_pos, self.enemies)
             dist = math.hypot(
@@ -243,7 +239,6 @@ class GameScreen(Screen):
         self.update_camera(dt)
 
     def take_damage(self, amount):
-        # ถ้าตายไปแล้ว หรือ เป็นอมตะอยู่ ไม่ต้องคำนวณดาเมจซ้ำ
         if self.is_dead or self.is_invincible or not self.player_stats: 
             return
             
@@ -251,7 +246,7 @@ class GameScreen(Screen):
         self.hud.update_ui(self.player_stats)
         
         if self.player_stats.current_hp <= 0:
-            self.is_dead = True # <--- ล็อคทันทีว่าตายแล้ว เพื่อไม่ให้เรียกซ้อน
+            self.is_dead = True
             self.show_game_over()
         else:
             self.is_invincible = True
@@ -260,61 +255,46 @@ class GameScreen(Screen):
 
     def reset_invincibility(self, dt):
         self.is_invincible = False
-        if not self.is_dashing:
-            self.player_widget.color_inst.rgba = (1, 1, 1, 1) # กลับเป็นขาว
+        if not self.is_dashing and self.player_widget:
+            self.player_widget.color_inst.rgba = (1, 1, 1, 1)
 
     def show_game_over(self):
-        # 1. หยุด Loop เกมทันที
         Clock.unschedule(self.update_frame)
-        
-        # 2. หยุดการโจมตีอัตโนมัติของผู้เล่น
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
         
-        # 3. ปลดการเชื่อมต่อ Input ทั้งหมด
         Window.unbind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
         Window.unbind(mouse_pos=self._on_mouse_pos)
         
-        # 4. แสดงหน้าจอ Game Over
-        # แนะนำให้ส่ง self เข้าไปด้วยถ้าคลาส Popup ต้องการใช้อ้างอิง
-        popup = GameOverPopup() 
-        popup.open()
+        GameOverPopup().open()
 
     def start_dash(self):
         if not self.dash_cooldown and not self.is_dashing and (self.last_dir_x or self.last_dir_y):
             self.is_dashing = True
             self.dash_cooldown = True
-            self.player_widget.color_inst.rgba = (1, 1, 0, 1) # เหลือง
+            self.player_widget.color_inst.rgba = (1, 1, 0, 1)
             
             def end_dash(dt):
                 self.is_dashing = False
-                if not self.is_invincible:
+                if not self.is_invincible and self.player_widget:
                     self.player_widget.color_inst.rgba = (1, 1, 1, 1)
             
             Clock.schedule_once(end_dash, self.dash_duration)
             Clock.schedule_once(lambda dt: setattr(self, 'dash_cooldown', False), self.dash_cooldown_time)
 
-    # --- [Input Handlers] ---
-    # ใน game/engine.py
     def _on_window_key_down(self, window, key, scancode, codepoint, modifiers):
-        # ลบส่วน F11 ออกไปแล้ว (เพราะไปอยู่ใน main.py)
-        
         if key == 27: # Esc
             self.toggle_pause()
             return True
-        
         if key == 32: # Space
             self.start_dash()
-            return True # คืน True เฉพาะปุ่มที่เราใช้ในหน้านี้จริงๆ
-            
+            return True
         if codepoint: 
             self.keys_pressed.add(codepoint.lower())
-
-        # --- [จุดสำคัญ] ---
-        # คืนค่า False เพื่อให้ปุ่มอื่นๆ (เช่น F11) ไหลไปทำงานต่อที่ main.py ได้
-        return False
+        
+        return False # คืน False เพื่อให้ F11 ใน main.py ทำงานได้
 
     def _on_window_key_up(self, window, key, scancode):
         try:
@@ -324,9 +304,16 @@ class GameScreen(Screen):
 
     def _on_mouse_pos(self, window, pos):
         if self.is_paused or not self.player_widget: return
+        # คำนวณเมาส์โดยอิงจากตำแหน่งของ root_layout (พื้นที่เกมจริง)
+        rel_x = pos[0] - self.root_layout.x
+        rel_y = pos[1] - self.root_layout.y
+        
         zoom_val = self.zoom.x
-        world_x = (pos[0] - Window.width / 2) / zoom_val + self.player_pos[0] + 32
-        world_y = (pos[1] - Window.height / 2) / zoom_val + self.player_pos[1] + 32
+        rw, rh = self.root_layout.size
+        
+        world_x = (rel_x - rw / 2) / zoom_val + self.player_pos[0] + 32
+        world_y = (rel_y - rh / 2) / zoom_val + self.player_pos[1] + 32
+        
         dx, dy = world_x - (self.player_pos[0] + 32), world_y - (self.player_pos[1] + 32)
         mag = math.hypot(dx, dy)
         if mag > 0: self.mouse_dir = [dx / mag, dy / mag]
@@ -382,7 +369,7 @@ class GameScreen(Screen):
         self.world_layout.add_widget(new_enemy)
 
     def perform_attack(self, dt):
-        if self.is_paused or not self.game_started or not self.player_stats: return
+        if self.is_paused or not self.game_started or not self.player_stats or self.is_dead: return
         px, py = self.player_pos[0] + 32, self.player_pos[1] + 32
         aim_x, aim_y = (self.joy_right_x, self.joy_right_y) if (self.joy_right_x or self.joy_right_y) else (self.mouse_dir[0], self.mouse_dir[1])
         
