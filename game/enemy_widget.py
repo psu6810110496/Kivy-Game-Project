@@ -1,39 +1,10 @@
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, Ellipse
+from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 import math
 import random
 from game.projectile_widget import EnemyProjectile
-
-# --- [ Class สำหรับกระสุนของศัตรู ] ---
-class EnemyProjectile(Widget):
-    def __init__(self, start_pos, target_pos, damage=10, speed=7, **kwargs):
-        super().__init__(**kwargs)
-        self.pos = start_pos
-        self.damage = damage
-        self.speed = speed
-        self.size = (12, 12)
-
-        # คำนวณทิศทาง (direction) จาก target_pos ที่ได้รับมา
-        dx = target_pos[0] - start_pos[0]
-        dy = target_pos[1] - start_pos[1]
-        mag = math.hypot(dx, dy)
-        self.direction = (dx/mag, dy/mag) if mag > 0 else (1, 0)
-
-        with self.canvas:
-            Color(1, 0.3, 0.1, 1)
-            self.ellipse = Ellipse(pos=self.pos, size=self.size)
-        
-        self.bind(pos=self._update_graphics)
-
-    def _update_graphics(self, *args):
-        self.ellipse.pos = self.pos
-
-    def update(self, dt):
-        # เคลื่อนที่ตามทิศทาง
-        self.x += self.direction[0] * self.speed
-        self.y += self.direction[1] * self.speed
 
 # --- [ Class สำหรับตัวศัตรู ] ---
 class EnemyWidget(Widget):
@@ -122,18 +93,29 @@ class EnemyWidget(Widget):
                     self.pos[1] + vy + sep_y)
 
     def shoot(self, player_pos):
-        if not self.parent: return
-        
-        ex, ey = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
-        
-        # ส่ง target_pos=player_pos ตามที่ Class ต้องการ
-        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=player_pos, damage=self.damage)
-        
+        if not self.parent:
+            return
+
+        # ตำแหน่งจุดเริ่มกระสุน (กึ่งกลางตัว Ranger)
+        ex = self.pos[0] + self.enemy_size[0] / 2
+        ey = self.pos[1] + self.enemy_size[1] / 2
+
+        # หาจุดกึ่งกลางของผู้เล่นเพื่อใช้เป็นเป้าหมายกระสุน
+        target_x = player_pos[0] + 32
+        target_y = player_pos[1] + 32
+
+        # ใช้ EnemyProjectile จากไฟล์ projectile_widget (เคลื่อนที่ด้วย dt)
+        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(target_x, target_y), damage=self.damage)
+
+        # เพิ่มกระสุนเข้า world_layout (parent ของศัตรู)
         self.parent.add_widget(proj)
-        
+
         # ส่งเข้า list ใน GameScreen เพื่อเช็ค Collision
-        game_screen = self.parent.parent
-        if hasattr(game_screen, 'enemy_projectiles'):
+        # เดินไต่ parent ขึ้นไปหาวัตถุที่มี attribute enemy_projectiles (คือ GameScreen)
+        game_screen = self.parent
+        while game_screen is not None and not hasattr(game_screen, "enemy_projectiles"):
+            game_screen = game_screen.parent
+        if game_screen is not None:
             game_screen.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0,0)):

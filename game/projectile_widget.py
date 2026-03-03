@@ -7,6 +7,7 @@ class EnemyProjectile(Widget):
         super().__init__(**kwargs)
         # 1. กำหนดค่าเริ่มต้น
         self.pos = start_pos 
+        self.size = (12, 12)
         self.damage = damage
         self.speed = 400.0 # ความเร็วกระสุน (พิกเซลต่อวินาที)
         
@@ -19,7 +20,7 @@ class EnemyProjectile(Widget):
         with self.canvas:
             Color(1, 0.6, 0, 1) # สีส้มทอง
             # 3. สร้างรูปทรงกระสุน
-            self.bullet = Ellipse(pos=self.pos, size=(12, 12))
+            self.bullet = Ellipse(pos=self.pos, size=self.size)
         
         # 4. Bind ฟังก์ชันอัปเดตกราฟิก เมื่อตำแหน่ง Widget เปลี่ยน
         self.bind(pos=self._update_bullet_graphics)
