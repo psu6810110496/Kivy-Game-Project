@@ -66,6 +66,9 @@ class GameScreen(Screen):
         self.attack_event = None
         self.is_dead = False # ป้องกัน Game Over ซ้อน
         self.enemy_projectiles = []
+        # zoom control for boss appearance
+        self.zoom_target = 2.0
+        self.zoom_lerp_speed = 1.5
 
         # โหลด texture สำหรับเอฟเฟกต์การตีจากไฟล์ภาพ NPT10x (เป็นหลายเฟรมต่อกัน)
         self.slash_textures = [
@@ -221,9 +224,20 @@ class GameScreen(Screen):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
         
-        # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
-        target_x = (rw / 2) - self.player_pos[0] - 32
-        target_y = (rh / 2) - self.player_pos[1] - 32
+        # adjust zoom toward target
+        if abs(self.zoom.x - self.zoom_target) > 0.01:
+            self.zoom.x += (self.zoom_target - self.zoom.x) * self.zoom_lerp_speed * dt
+            self.zoom.y += (self.zoom_target - self.zoom.y) * self.zoom_lerp_speed * dt
+
+        # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร หรือบอสตอน intro)
+        if self.is_boss_intro and self.boss and self.boss.parent:
+            bx = self.boss.pos[0] + self.boss.enemy_size[0] / 2
+            by = self.boss.pos[1] + self.boss.enemy_size[1] / 2
+            target_x = (rw / 2) - bx
+            target_y = (rh / 2) - by
+        else:
+            target_x = (rw / 2) - self.player_pos[0] - 32
+            target_y = (rh / 2) - self.player_pos[1] - 32
 
         # ใส่แรงเขย่าถ้ามีการ Dash
         if self.is_dashing:
@@ -542,6 +556,9 @@ class GameScreen(Screen):
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
 
+        # zoom in for dramatic effect
+        self.zoom_target = 3.0
+
         # เริ่มช่วง Intro: ล็อกกล้องไปที่บอส + แสดงข้อความ
         self.is_boss_intro = True
         self.show_boss_overlay()
@@ -569,6 +586,8 @@ class GameScreen(Screen):
         if self.boss_overlay and self.boss_overlay.parent:
             self.root_layout.remove_widget(self.boss_overlay)
         self.boss_overlay = None
+        # zoom back out to normal
+        self.zoom_target = 2.0
 
     def show_wave_title(self):
         # ลบ Label เดิมถ้ามี
