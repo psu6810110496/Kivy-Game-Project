@@ -1,3 +1,16 @@
+"""
+LEGACY PROTOTYPE (ไม่ใช้ในเกมหลัก)
+-----------------------------------
+ไฟล์นี้เป็นเวอร์ชันทดลองระบบเกม/เมนูเดิมที่ไม่ได้ถูกใช้แล้ว
+โค้ดหลักของโปรเจคตอนนี้รันจาก:
+  - main.py
+  - ui/*.py
+  - game/*.py
+
+ห้าม import หรือรันไฟล์นี้เป็นเกมหลักโดยตรง
+ใช้ไว้ดูไอเดีย / reference เท่านั้น
+"""
+
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
@@ -682,12 +695,17 @@ class GameScreen(Screen):
 
 class VampireApp(App):
     def build(self):
-        self.current_player = None 
+        # PROTOTYPE-ONLY: อย่าใช้เป็น entrypoint จริง
+        self.current_player = None
         sm = ScreenManager()
         sm.add_widget(MainMenuScreen(name='main_menu'))
         sm.add_widget(CharacterSelectScreen(name='char_select_screen'))
         sm.add_widget(GameScreen(name='game_screen'))
         return sm
 
-if __name__ == '__main__':
-    VampireApp().run()
+# NOTE:
+# บล็อก main เดิมถูกคอมเมนต์ออกเพื่อไม่ให้รัน prototype นี้โดยไม่ตั้งใจ
+# ถ้าต้องการเทส prototype จริง ๆ ค่อย uncomment ด้านล่างเอง
+#
+# if __name__ == '__main__':
+#     VampireApp().run()

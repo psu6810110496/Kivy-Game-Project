@@ -1,6 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
 from kivy.core.window import Window
+from kivy.uix.label import Label
 from kivy.graphics import (
     Rectangle, Color, PushMatrix, PopMatrix,
     Translate, Scale, InstructionGroup, Ellipse,
@@ -216,7 +217,8 @@ class GameScreen(Screen):
         self.is_paused = False
         self.game_started = True
         self.start_next_wave()
-        
+        # skills.py จัดการ cooldown + attack + animation เองผ่าน skill.tick()
+
     # Wave
     def start_next_wave(self):
         self.current_wave += 1
@@ -242,7 +244,7 @@ class GameScreen(Screen):
         if self.game_started and not self.enemies:
             self.start_next_wave()
 
-        # Tick สกิลทุกตัว
+        # Tick สกิลทุกตัว — skills.py จัดการ cooldown/activate/animation เอง
         if self.game_started and hasattr(self.player_stats, 'skills'):
             for skill in self.player_stats.skills:
                 skill.tick(dt, self)
@@ -315,7 +317,7 @@ class GameScreen(Screen):
         for enemy in list(self.enemies):
             enemy.update_movement(self.player_pos, self.enemies)
 
-            if hasattr(enemy, 'enemy_type') and enemy.enemy_type == "ranger":
+            if hasattr(enemy, "enemy_type") and enemy.enemy_type == "ranger":
                 enemy.shoot_cooldown += dt
                 if enemy.shoot_cooldown >= 2.5:
                     p = EnemyProjectile(
@@ -377,8 +379,6 @@ class GameScreen(Screen):
         Window.unbind(mouse_pos=self._on_mouse_pos)
         GameOverPopup().open()
 
-    # Attack (Slash auto)
-    
     # EXP / Level Up
     def gain_exp(self, amount):
         if not self.player_stats:
@@ -389,7 +389,6 @@ class GameScreen(Screen):
             self.player_stats.level += 1
             self.is_paused = True
             choices = get_upgrade_choices(self.player_stats)
-            # ถ้าคาแรกเตอร์นี้ยังไม่มีระบบสกิล ให้ fallback ไปใช้โหมดอัป stat เดิม
             if choices:
                 LevelUpPopup(self, choices).open()
             else:
@@ -410,8 +409,8 @@ class GameScreen(Screen):
 
             Clock.schedule_once(end_dash, self.dash_duration)
             Clock.schedule_once(
-                lambda dt: setattr(self, 'dash_cooldown', False),
-                self.dash_cooldown_time
+                lambda dt: setattr(self, "dash_cooldown", False),
+                self.dash_cooldown_time,
             )
 
     # Pause
@@ -436,9 +435,14 @@ class GameScreen(Screen):
 
     # Input
     def _on_window_key_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 27:  self.toggle_pause(); return True
-        if key == 32:  self.start_dash();   return True
-        if codepoint:  self.keys_pressed.add(codepoint.lower())
+        if key == 27:
+            self.toggle_pause()
+            return True
+        if key == 32:
+            self.start_dash()
+            return True
+        if codepoint:
+            self.keys_pressed.add(codepoint.lower())
         return False
 
     def _on_window_key_up(self, window, key, scancode):

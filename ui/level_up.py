@@ -141,3 +141,4 @@ class LevelUpPopup(Popup):
         self.game_screen.hud.update_ui(self.game_screen.player_stats)
         self.dismiss()
         self.game_screen.resume_game()
+
