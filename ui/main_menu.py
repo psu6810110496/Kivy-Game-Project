@@ -152,6 +152,13 @@ class MainMenuScreen(Screen):
     def change_screen(self, screen_name):
         self.manager.current = screen_name
 
+    def go_back(self, instance):
+        """
+        ฟังก์ชันกลับจากเมนูหลักเมื่อกดปุ่ม B บนจอย
+        ในหน้าหลักเราจะถือว่าเป็นการออกจากเกม (เหมือนกด QUIT GAME)
+        """
+        App.get_running_app().stop()
+
     # ==========================================
     # --- [ระบบ Navigation (จอยสติ๊ก + เมาส์)] ---
     # ==========================================

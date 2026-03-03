@@ -1,6 +1,7 @@
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
 from kivy.core.window import Window
+from kivy.uix.label import Label
 from kivy.graphics import (
     Rectangle,
     Color,
@@ -54,6 +55,9 @@ class GameScreen(Screen):
         self.active_pause_popup = None
         self.enemies = []
         self.current_wave = 0
+        self.boss = None
+        self.is_boss_intro = False
+        self.boss_overlay = None
         self.game_started = False
         self.is_invincible = False
         self.countdown = None
@@ -192,9 +196,16 @@ class GameScreen(Screen):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
         
-        # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
-        target_x = (rw / 2) - self.player_pos[0] - 32
-        target_y = (rh / 2) - self.player_pos[1] - 32
+        # ถ้าอยู่ในช่วง Intro บอส ให้โฟกัสที่บอสแทนผู้เล่น
+        if self.is_boss_intro and self.boss and self.boss.parent:
+            bx = self.boss.pos[0] + self.boss.enemy_size[0] / 2
+            by = self.boss.pos[1] + self.boss.enemy_size[1] / 2
+            target_x = (rw / 2) - bx
+            target_y = (rh / 2) - by
+        else:
+            # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
+            target_x = (rw / 2) - self.player_pos[0] - 32
+            target_y = (rh / 2) - self.player_pos[1] - 32
 
         # ใส่แรงเขย่าถ้ามีการ Dash
         if self.is_dashing:
@@ -402,6 +413,10 @@ class GameScreen(Screen):
         for _ in range(5 + self.current_wave * 2):
             self.spawn_single_enemy()
 
+        # ตัวอย่าง: เรียกบอสอัตโนมัติเมื่อถึง Wave 5
+        if self.current_wave == 5:
+            self.start_boss_fight()
+
     def spawn_single_enemy(self):
         etype = random.choices(["normal", "stalker", "ranger"], weights=[60, 25, 15])[0]
         angle = random.uniform(0, 2 * math.pi)
@@ -411,6 +426,49 @@ class GameScreen(Screen):
         new_enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y), enemy_type=etype)
         self.enemies.append(new_enemy)
         self.world_layout.add_widget(new_enemy)
+        
+    # --- ระบบ Boss Fight ---
+    def start_boss_fight(self, *args):
+        if self.boss is not None:
+            return
+
+        # สุ่มตำแหน่งบอสให้อยู่ห่างจากผู้เล่นประมาณ 900 พิกเซล
+        angle = random.uniform(0, 2 * math.pi)
+        radius = 900
+        bx = self.player_pos[0] + math.cos(angle) * radius
+        by = self.player_pos[1] + math.sin(angle) * radius
+
+        self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
+        self.enemies.append(self.boss)
+        self.world_layout.add_widget(self.boss)
+
+        # เริ่มช่วง Intro: ล็อกกล้องไปที่บอส + แสดงข้อความ
+        self.is_boss_intro = True
+        self.show_boss_overlay()
+
+    def show_boss_overlay(self):
+        if self.boss_overlay and self.boss_overlay.parent:
+            self.root_layout.remove_widget(self.boss_overlay)
+
+        self.boss_overlay = Label(
+            text="[b]BOSS ARISE[/b]",
+            markup=True,
+            font_size=120,
+            color=(0.9, 0.2, 0.2, 1),
+            outline_width=3,
+            outline_color=(0, 0, 0, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.7},
+        )
+        self.root_layout.add_widget(self.boss_overlay)
+
+        # แสดงข้อความประมาณ 2 วินาที แล้วกลับกล้องไปที่ผู้เล่น
+        Clock.schedule_once(self.end_boss_intro, 2.0)
+
+    def end_boss_intro(self, dt):
+        self.is_boss_intro = False
+        if self.boss_overlay and self.boss_overlay.parent:
+            self.root_layout.remove_widget(self.boss_overlay)
+        self.boss_overlay = None
         
     def perform_attack(self, dt):
         if self.is_paused or not self.game_started or not self.player_stats or self.is_dead: return
@@ -435,6 +493,9 @@ class GameScreen(Screen):
                     if enemy.hp <= 0:
                         self.enemies.remove(enemy)
                         self.world_layout.remove_widget(enemy)
+                        # ถ้าศัตรูที่ตายคือบอส ให้ล้าง reference
+                        if enemy is self.boss:
+                            self.boss = None
                         self.gain_exp(10)
 
     def gain_exp(self, amount):

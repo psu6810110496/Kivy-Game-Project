@@ -145,6 +145,22 @@ class HUD(FloatLayout):
         btn_add_exp.bind(on_press=self.test_add_exp)
         self.add_widget(btn_add_exp)
 
+        # ปุ่มทดสอบเรียกบอส
+        btn_boss = Button(
+            text="SUMMON\nBOSS",
+            font_size=14,
+            bold=True,
+            halign="center",
+            size_hint=(None, None),
+            size=(80, 50),
+            pos_hint={"right": 0.98, "top": 0.68},
+            background_normal="",
+            background_color=(0.3, 0.1, 0.3, 0.85),
+            color=(1, 1, 1, 1),
+        )
+        btn_boss.bind(on_press=self.test_summon_boss)
+        self.add_widget(btn_boss)
+
     def test_level_up(self, instance):
         if hasattr(self.game_screen, "is_paused"):
             self.game_screen.is_paused = True
@@ -163,6 +179,11 @@ class HUD(FloatLayout):
                 popup = LevelUpPopup(self.game_screen)
                 popup.open()
             self.update_ui(player)
+
+    def test_summon_boss(self, instance):
+        # เรียกใช้ฟังก์ชันเริ่ม Boss Fight จาก GameScreen
+        if hasattr(self.game_screen, "start_boss_fight"):
+            self.game_screen.start_boss_fight()
 
     def update_ui(self, stats):
         self.lbl_level.text = f"LV : {stats.level}"
