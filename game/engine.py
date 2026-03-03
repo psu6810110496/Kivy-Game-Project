@@ -55,6 +55,8 @@ class GameScreen(Screen):
         self.active_pause_popup = None
         self.enemies = []
         self.current_wave = 0
+        self.is_spawning_wave = False
+        self.wave_label = None
         self.boss = None
         self.is_boss_intro = False
         self.boss_overlay = None
@@ -334,6 +336,16 @@ class GameScreen(Screen):
         # 5. อัปเดตกล้อง
         self.update_camera(dt)
 
+        # 6. ถ้าเคลียร์ศัตรูหมดแล้ว และไม่ได้อยู่ในช่วง Intro บอส ให้เตรียม Wave ถัดไป
+        if (
+            self.game_started
+            and not self.is_paused
+            and not self.is_dead
+            and not self.is_boss_intro
+            and not self.enemies
+        ):
+            self.start_next_wave()
+
     def take_damage(self, amount):
         if self.is_dead or self.is_invincible or not self.player_stats:
             return
@@ -473,13 +485,33 @@ class GameScreen(Screen):
         self.attack_event = Clock.schedule_interval(self.perform_attack, 1.0)
 
     def start_next_wave(self):
+        # ถ้ากำลังตั้งคิว Wave อยู่แล้ว หรือเกมจบไปแล้ว ไม่ต้องทำซ้ำ
+        if self.is_spawning_wave or self.is_dead:
+            return
+
+        self.is_spawning_wave = True
         self.current_wave += 1
+
+        # แสดงหัวข้อ Wave ด้านบนจอ
+        self.show_wave_title()
+
+        # หน่วงเวลาสักพักก่อนปล่อยศัตรูเข้ามา
+        Clock.schedule_once(self._spawn_wave_enemies, 1.5)
+
+    def _spawn_wave_enemies(self, dt):
+        # ถ้าระหว่างรอแล้วเกมจบ / ถูกหยุด ก็ไม่ต้อง spawn
+        if self.is_dead or not self.game_started:
+            self.is_spawning_wave = False
+            return
+
         for _ in range(5 + self.current_wave * 2):
             self.spawn_single_enemy()
 
         # ตัวอย่าง: เรียกบอสอัตโนมัติเมื่อถึง Wave 5
         if self.current_wave == 5:
             self.start_boss_fight()
+
+        self.is_spawning_wave = False
 
     def spawn_single_enemy(self, force_type=None):
         # ถ้าไม่ได้บังคับประเภท ให้สุ่มตามน้ำหนักปกติ
@@ -537,6 +569,30 @@ class GameScreen(Screen):
         if self.boss_overlay and self.boss_overlay.parent:
             self.root_layout.remove_widget(self.boss_overlay)
         self.boss_overlay = None
+
+    def show_wave_title(self):
+        # ลบ Label เดิมถ้ามี
+        if self.wave_label and self.wave_label.parent:
+            self.root_layout.remove_widget(self.wave_label)
+
+        self.wave_label = Label(
+            text=f"[b]WAVE {self.current_wave}[/b]",
+            markup=True,
+            font_size=64,
+            color=(1, 1, 1, 1),
+            outline_width=3,
+            outline_color=(0, 0, 0, 1),
+            pos_hint={"center_x": 0.5, "top": 0.95},
+        )
+        self.root_layout.add_widget(self.wave_label)
+
+        # ให้หัวข้อขึ้นค้างสักพักแล้วค่อยหายไปเอง
+        Clock.schedule_once(self.hide_wave_title, 1.5)
+
+    def hide_wave_title(self, dt):
+        if self.wave_label and self.wave_label.parent:
+            self.root_layout.remove_widget(self.wave_label)
+        self.wave_label = None
 
     def perform_attack(self, dt):
         if (

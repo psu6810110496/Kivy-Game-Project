@@ -6,6 +6,7 @@ class EnemyProjectile(Widget):
     def __init__(self, start_pos, target_pos, damage=10, **kwargs):
         super().__init__(**kwargs)
         # 1. กำหนดค่าเริ่มต้น
+        self.size = (12, 12)
         self.pos = start_pos 
         self.size = (12, 12)
         self.damage = damage
