@@ -23,8 +23,9 @@ from ui.hud import HUD, CountdownOverlay
 from ui.level_up import LevelUpPopup
 from ui.pause import PausePopup
 from game.enemy_widget import EnemyWidget
-from game.projectile_widget import EnemyProjectile # บรรทัดสำคัญ!
 from ui.game_over import GameOverPopup
+from game.projectile_widget import EnemyProjectile
+
 
 class GameScreen(Screen):
     def __init__(self, **kwargs):
@@ -52,13 +53,13 @@ class GameScreen(Screen):
 
         self.active_pause_popup = None
         self.enemies = []
-        self.enemy_projectiles = [] # เก็บกระสุนศัตรู
         self.current_wave = 0
         self.game_started = False
         self.is_invincible = False
         self.countdown = None
         self.attack_event = None
         self.is_dead = False # ป้องกัน Game Over ซ้อน
+        self.enemy_projectiles = []
 
         # --- [ระบบ Layout & Aspect Ratio] ---
         self.root_layout = FloatLayout(size_hint=(None, None))
@@ -103,6 +104,7 @@ class GameScreen(Screen):
         target_ratio = 16 / 9
         win_w, win_h = value
         if win_h == 0: return
+        
         win_ratio = win_w / win_h
 
         if win_ratio > target_ratio:
@@ -136,23 +138,21 @@ class GameScreen(Screen):
             
         self.keys_pressed.clear()
 
-        # ลบศัตรูทั้งหมด
         if hasattr(self, 'enemies'):
             for enemy in self.enemies:
                 if enemy.parent:
                     self.world_layout.remove_widget(enemy)
             self.enemies = []
 
-        # ลบกระสุนทั้งหมด
-        for p in self.enemy_projectiles:
-            if p.parent:
-                self.world_layout.remove_widget(p)
-        self.enemy_projectiles = []
-
         self.update_camera(0)
+
+        for p in self.enemy_projectiles:
+            if p.parent: self.world_layout.remove_widget(p)
+        self.enemy_projectiles = []
 
     def on_enter(self):
         self._update_layout_size(None, Window.size)
+        
         self.player_stats = kivy.app.App.get_running_app().current_player
         if self.player_stats:
             self.player_stats.reset()
@@ -187,27 +187,31 @@ class GameScreen(Screen):
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
         Window.unbind(mouse_pos=self._on_mouse_pos)
 
+    # --- [ส่วนที่อัปเดตใหม่: Smooth Camera & Shake] ---
     def update_camera(self, dt):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
-        self.camera.x = (rw / 2) - self.player_pos[0] - 32
-        self.camera.y = (rh / 2) - self.player_pos[1] - 32
+        
+        # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
+        target_x = (rw / 2) - self.player_pos[0] - 32
+        target_y = (rh / 2) - self.player_pos[1] - 32
+
+        # ใส่แรงเขย่าถ้ามีการ Dash
+        if self.is_dashing:
+            shake_intensity = 8.0
+            target_x += (random.random() - 0.5) * shake_intensity
+            target_y += (random.random() - 0.5) * shake_intensity
+
+        # ใช้ Lerp เพื่อให้กล้องไหลลื่น (ปรับ 6.0 ให้สูงขึ้นถ้าอยากให้กล้องตามไวขึ้น)
+        lerp_speed = 6.0
+        self.camera.x += (target_x - self.camera.x) * lerp_speed * dt
+        self.camera.y += (target_y - self.camera.y) * lerp_speed * dt
 
     def update_frame(self, dt):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
 
-        # 1. จัดการกระสุนศัตรู (New!)
-        for proj in list(self.enemy_projectiles):
-            proj.update()
-            d_proj = math.hypot(proj.pos[0] - (self.player_pos[0]+32), proj.pos[1] - (self.player_pos[1]+32))
-            if d_proj < 35:
-                self.take_damage(proj.damage)
-                self.remove_projectile(proj)
-            elif math.hypot(proj.pos[0] - self.player_pos[0], proj.pos[1] - self.player_pos[1]) > 1200:
-                self.remove_projectile(proj)
-
-        # 2. การเคลื่อนที่ของผู้เล่น
+        # 1. คำนวณความเร็วและการเคลื่อนที่ของผู้เล่น
         speed = self.player_stats.speed * (3.0 if self.is_dashing else 1.0)
         dir_x, dir_y = 0, 0
 
@@ -231,6 +235,7 @@ class GameScreen(Screen):
         self.player_pos[1] = max(20, min(self.player_pos[1] + dir_y * speed, 4980))
         self.player_widget.update_pos(self.player_pos)
 
+        # 2. การหันหน้าและการเล็ง (Aiming)
         if abs(self.joy_right_x) > 0.1:
             self.facing_right = self.joy_right_x > 0
         else:
@@ -242,43 +247,52 @@ class GameScreen(Screen):
         aim_y = self.joy_right_y if abs(self.joy_right_y) > 0.1 else self.mouse_dir[1]
         self.player_widget.update_aim(True, aim_x, aim_y)
 
-        # 3. จัดการศัตรู
+        # 3. อัปเดตศัตรู และเช็คการชนตัวศัตรู (Melee Damage)
         for enemy in self.enemies:
             enemy.update_movement(self.player_pos, self.enemies)
-            
-            # Ranger Shooting Logic (New!)
-            if hasattr(enemy, 'enemy_type') and enemy.enemy_type == "ranger":
-                enemy.shoot_cooldown += dt
-                if enemy.shoot_cooldown >= 2.5:
-                    p = EnemyProjectile(
-                        start_pos=(enemy.pos[0]+20, enemy.pos[1]+20),
-                        target_pos=(self.player_pos[0]+32, self.player_pos[1]+32),
-                        damage=enemy.damage
-                    )
-                    self.enemy_projectiles.append(p)
-                    self.world_layout.add_widget(p)
-                    enemy.shoot_cooldown = 0
-
-            # Collision Check
             dist = math.hypot(
-                (enemy.pos[0] + 20) - (self.player_pos[0] + 32),
-                (enemy.pos[1] + 20) - (self.player_pos[1] + 32)
+                (enemy.pos[0] + enemy.enemy_size[0]/2) - (self.player_pos[0] + 32),
+                (enemy.pos[1] + enemy.enemy_size[1]/2) - (self.player_pos[1] + 32)
             )
             if dist < 45 and not self.is_invincible:
                 self.take_damage(enemy.damage)
-            
-        self.update_camera(dt)
 
-    def remove_projectile(self, proj):
-        if proj in self.enemy_projectiles:
-            self.enemy_projectiles.remove(proj)
-            self.world_layout.remove_widget(proj)
+        # 4. [ส่วนที่เพิ่มใหม่] อัปเดตกระสุน และเช็ค Collision ของกระสุน (Ranger Projectiles)
+        p_center_x = self.player_pos[0] + 32
+        p_center_y = self.player_pos[1] + 32
+
+        for proj in list(self.enemy_projectiles):
+            proj.update(dt)
+            
+            # คำนวณระยะห่างระหว่างกระสุนกับจุดกึ่งกลางผู้เล่น
+            dist_to_player = math.hypot(proj.pos[0] - p_center_x, proj.pos[1] - p_center_y)
+            
+            # ถ้าชนผู้เล่น
+            if dist_to_player < 35: 
+                if not self.is_invincible:
+                    self.take_damage(proj.damage)
+                
+                # ลบกระสุนออกเมื่อชน
+                if proj in self.enemy_projectiles:
+                    self.enemy_projectiles.remove(proj)
+                    self.world_layout.remove_widget(proj)
+            
+            # ถ้ากระสุนลอยไปไกลเกิน (เช่น 1200 px) ให้ลบทิ้งเพื่อประหยัด RAM
+            elif math.hypot(proj.pos[0] - p_center_x, proj.pos[1] - p_center_y) > 1200:
+                if proj in self.enemy_projectiles:
+                    self.enemy_projectiles.remove(proj)
+                    self.world_layout.remove_widget(proj)
+            
+        # 5. อัปเดตกล้อง
+        self.update_camera(dt)
 
     def take_damage(self, amount):
         if self.is_dead or self.is_invincible or not self.player_stats: 
             return
+            
         self.player_stats.current_hp -= amount
         self.hud.update_ui(self.player_stats)
+        
         if self.player_stats.current_hp <= 0:
             self.is_dead = True
             self.show_game_over()
@@ -297,9 +311,11 @@ class GameScreen(Screen):
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
+        
         Window.unbind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
         Window.unbind(mouse_pos=self._on_mouse_pos)
+        
         GameOverPopup().open()
 
     def start_dash(self):
@@ -307,17 +323,24 @@ class GameScreen(Screen):
             self.is_dashing = True
             self.dash_cooldown = True
             self.player_widget.color_inst.rgba = (1, 1, 0, 1)
+            
             def end_dash(dt):
                 self.is_dashing = False
                 if not self.is_invincible and self.player_widget:
                     self.player_widget.color_inst.rgba = (1, 1, 1, 1)
+            
             Clock.schedule_once(end_dash, self.dash_duration)
             Clock.schedule_once(lambda dt: setattr(self, 'dash_cooldown', False), self.dash_cooldown_time)
 
     def _on_window_key_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 27: self.toggle_pause(); return True
-        if key == 32: self.start_dash(); return True
-        if codepoint: self.keys_pressed.add(codepoint.lower())
+        if key == 27: # Esc
+            self.toggle_pause()
+            return True
+        if key == 32: # Space
+            self.start_dash()
+            return True
+        if codepoint: 
+            self.keys_pressed.add(codepoint.lower())
         return False
 
     def _on_window_key_up(self, window, key, scancode):
@@ -393,9 +416,11 @@ class GameScreen(Screen):
         if self.is_paused or not self.game_started or not self.player_stats or self.is_dead: return
         px, py = self.player_pos[0] + 32, self.player_pos[1] + 32
         aim_x, aim_y = (self.joy_right_x, self.joy_right_y) if (self.joy_right_x or self.joy_right_y) else (self.mouse_dir[0], self.mouse_dir[1])
+        
         attack_range, spread = 140, 60
         angle_deg = math.degrees(math.atan2(aim_y, aim_x))
         self.show_slash_effect(px, py, attack_range, angle_deg, spread)
+
         for enemy in list(self.enemies):
             ex, ey = enemy.pos[0] + 20, enemy.pos[1] + 20
             dx, dy = ex - px, ey - py
