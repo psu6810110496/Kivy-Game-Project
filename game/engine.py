@@ -26,7 +26,7 @@ class GameScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # Input
+        # ── Input ─────────────────────────────────────────
         self.keys_pressed = set()
         self.joy_x = self.joy_y = self.joy_right_x = self.joy_right_y = 0.0
         self.joy_lt_pressed = False
@@ -34,7 +34,7 @@ class GameScreen(Screen):
         self.mouse_world_pos = [0, 0]
         self.mouse_dir = [1, 0]
 
-        # Player
+        # ── Player ────────────────────────────────────────
         self.player_pos = [2500, 2500]
         self.player_widget = None
         self.player_stats = None
@@ -43,7 +43,7 @@ class GameScreen(Screen):
         self.is_invincible = False
         self.is_dead = False
 
-        # Dash
+        # ── Dash ──────────────────────────────────────────
         self.is_dashing = False
         self.dash_cooldown = False
         self.dash_duration = 0.2
@@ -51,25 +51,45 @@ class GameScreen(Screen):
         self.last_dir_x = 0
         self.last_dir_y = 0
 
-        # Combat
+        # ── Combat ────────────────────────────────────────
         self.enemies = []
         self.enemy_projectiles = []
         self.player_bullets = []
         self.attack_event = None
 
-        # Wave / State
+        # ── Wave / State ──────────────────────────────────
         self.current_wave = 0
+        self.is_spawning_wave = False
+        self.wave_label = None
         self.game_started = False
         self.is_paused = False
         self.active_pause_popup = None
         self.countdown = None
 
-        # Layout
+        # ── Boss ──────────────────────────────────────────
+        self.boss = None
+        self.is_boss_intro = False
+        self.boss_overlay = None
+
+        # ── Slash textures (sprite animation) ────────────
+        self.slash_textures = []
+        for path in [
+            "assets/effect/NPT100.png",
+            "assets/effect/NPT101.png",
+            "assets/effect/NPT102.png",
+            "assets/effect/NPT103.png",
+        ]:
+            try:
+                self.slash_textures.append(CoreImage(path).texture)
+            except Exception:
+                pass
+
+        # ── Layout ────────────────────────────────────────
         self.root_layout = FloatLayout(size_hint=(None, None))
         self.world_layout = FloatLayout(size_hint=(None, None), size=(5000, 5000))
         self.bind(size=self._update_layout_size)
 
-        # Map
+        # ── Map ───────────────────────────────────────────
         try:
             map_texture = CoreImage("assets/maps/map.jpg").texture
             map_texture.wrap = "repeat"
@@ -90,6 +110,7 @@ class GameScreen(Screen):
             else:
                 Color(0.15, 0.15, 0.15, 1)
                 Rectangle(pos=(0, 0), size=(5000, 5000))
+            # ขอบเขตแผนที่ (Void)
             Color(0, 0, 0, 0.85)
             Rectangle(pos=(-3000, -3000), size=(3000, 11000))
             Rectangle(pos=(5000, -3000),  size=(3000, 11000))
@@ -104,27 +125,36 @@ class GameScreen(Screen):
         self.root_layout.add_widget(self.hud)
         self.add_widget(self.root_layout)
 
-    # Layout
+    # ── Layout ────────────────────────────────────────────
     def _update_layout_size(self, instance, value):
         target_ratio = 16 / 9
         win_w, win_h = value
         if win_h == 0:
             return
-        if win_w / win_h > target_ratio:
+        win_ratio = win_w / win_h
+        if win_ratio > target_ratio:
             new_w, new_h = win_h * target_ratio, win_h
         else:
             new_w, new_h = win_w, win_w / target_ratio
         self.root_layout.size = (new_w, new_h)
         self.root_layout.pos = ((win_w - new_w) / 2, (win_h - new_h) / 2)
 
-    # Camera
+    # ── Camera ────────────────────────────────────────────
     def update_camera(self, dt=0):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
-        self.camera.x = (rw / 2) - self.player_pos[0] - 32
-        self.camera.y = (rh / 2) - self.player_pos[1] - 32
 
-    # Reset
+        # Boss intro → โฟกัสที่บอส
+        if self.is_boss_intro and self.boss and self.boss.parent:
+            bx = self.boss.pos[0] + self.boss.enemy_size[0] / 2
+            by = self.boss.pos[1] + self.boss.enemy_size[1] / 2
+            self.camera.x = (rw / 2) - bx
+            self.camera.y = (rh / 2) - by
+        else:
+            self.camera.x = (rw / 2) - self.player_pos[0] - 32
+            self.camera.y = (rh / 2) - self.player_pos[1] - 32
+
+    # ── Reset ─────────────────────────────────────────────
     def _reset_state(self):
         self.player_pos = [2500, 2500]
         self.is_paused = False
@@ -137,8 +167,11 @@ class GameScreen(Screen):
         self.joy_x = self.joy_y = self.joy_right_x = self.joy_right_y = 0.0
         self.is_invincible = False
         self.game_started = False
+        self.is_spawning_wave = False
         self.current_wave = 0
         self.is_dead = False
+        self.boss = None
+        self.is_boss_intro = False
         self.keys_pressed.clear()
         self.mouse_dir = [1, 0]
 
@@ -163,7 +196,7 @@ class GameScreen(Screen):
 
         self.update_camera()
 
-    # Lifecycle
+    # ── Lifecycle ─────────────────────────────────────────
     def on_enter(self):
         self._update_layout_size(None, Window.size)
         self.player_stats = kivy.app.App.get_running_app().current_player
@@ -212,21 +245,37 @@ class GameScreen(Screen):
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
         Window.unbind(mouse_pos=self._on_mouse_pos)
 
-    # Game Start
+    # ── Game Start ────────────────────────────────────────
     def start_actual_game(self):
         self.is_paused = False
         self.game_started = True
         self.start_next_wave()
         # skills.py จัดการ cooldown + attack + animation เองผ่าน skill.tick()
 
-    # Wave
-    def start_next_wave(self):
+    # ── Wave ──────────────────────────────────────────────
+    def start_next_wave(self, *args):
+        if self.is_spawning_wave or self.is_dead:
+            return
+        self.is_spawning_wave = True
         self.current_wave += 1
+        self.show_wave_title()
+        Clock.schedule_once(self._spawn_wave_enemies, 1.5)
+
+    def _spawn_wave_enemies(self, dt):
+        if self.is_dead or not self.game_started:
+            self.is_spawning_wave = False
+            return
         for _ in range(5 + self.current_wave * 2):
             self.spawn_single_enemy()
+        if self.current_wave == 5:
+            self.start_boss_fight()
+        self.is_spawning_wave = False
 
-    def spawn_single_enemy(self):
-        etype = random.choices(["normal", "stalker", "ranger"], weights=[60, 25, 15])[0]
+    def spawn_single_enemy(self, force_type=None):
+        etype = (
+            force_type
+            or random.choices(["normal", "stalker", "ranger"], weights=[60, 25, 15])[0]
+        )
         angle = random.uniform(0, 2 * math.pi)
         radius = random.uniform(850, 1100)
         spawn_x = self.player_pos[0] + math.cos(angle) * radius
@@ -235,28 +284,86 @@ class GameScreen(Screen):
         self.enemies.append(enemy)
         self.world_layout.add_widget(enemy)
 
-    # Main Loop
+    def show_wave_title(self):
+        if self.wave_label and self.wave_label.parent:
+            self.root_layout.remove_widget(self.wave_label)
+        self.wave_label = Label(
+            text=f"[b]WAVE {self.current_wave}[/b]",
+            markup=True,
+            font_size=64,
+            color=(1, 1, 1, 1),
+            outline_width=3,
+            outline_color=(0, 0, 0, 1),
+            pos_hint={"center_x": 0.5, "top": 0.95},
+        )
+        self.root_layout.add_widget(self.wave_label)
+        if self.hud:
+            self.hud.update_wave(self.current_wave)
+        Clock.schedule_once(self._hide_wave_title, 1.5)
+
+    def _hide_wave_title(self, dt):
+        if self.wave_label and self.wave_label.parent:
+            self.root_layout.remove_widget(self.wave_label)
+        self.wave_label = None
+
+    # ── Boss ──────────────────────────────────────────────
+    def start_boss_fight(self, *args):
+        if self.boss is not None:
+            return
+        angle = random.uniform(0, 2 * math.pi)
+        bx = self.player_pos[0] + math.cos(angle) * 900
+        by = self.player_pos[1] + math.sin(angle) * 900
+        self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
+        self.enemies.append(self.boss)
+        self.world_layout.add_widget(self.boss)
+        self.is_boss_intro = True
+        self._show_boss_overlay()
+
+    def _show_boss_overlay(self):
+        if self.boss_overlay and self.boss_overlay.parent:
+            self.root_layout.remove_widget(self.boss_overlay)
+        self.boss_overlay = Label(
+            text="[b]BOSS ARISE[/b]",
+            markup=True,
+            font_size=120,
+            color=(0.9, 0.2, 0.2, 1),
+            outline_width=3,
+            outline_color=(0, 0, 0, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.7},
+        )
+        self.root_layout.add_widget(self.boss_overlay)
+        Clock.schedule_once(self._end_boss_intro, 2.0)
+
+    def _end_boss_intro(self, dt):
+        self.is_boss_intro = False
+        if self.boss_overlay and self.boss_overlay.parent:
+            self.root_layout.remove_widget(self.boss_overlay)
+        self.boss_overlay = None
+
+    # ── Main Loop ─────────────────────────────────────────
     def update_frame(self, dt):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
 
-        # Wave ใหม่ถ้าศัตรูหมด
-        if self.game_started and not self.enemies:
+        # Wave ใหม่ถ้าศัตรูหมดและไม่กำลัง spawn อยู่
+        if self.game_started and not self.enemies and not self.is_spawning_wave:
             self.start_next_wave()
 
-        # Tick สกิลทุกตัว — skills.py จัดการ cooldown/activate/animation เอง
+        # ✅ Tick สกิลทุกตัว — skills.py จัดการ cooldown/activate/animation เอง
         if self.game_started and hasattr(self.player_stats, 'skills'):
             for skill in self.player_stats.skills:
                 skill.tick(dt, self)
 
         # อัปเดต player bullets
         for b in list(self.player_bullets):
-            b.update()
+            b.update(dt)
             hit = False
             for enemy in list(self.enemies):
                 if math.hypot(b.pos[0] - (enemy.pos[0] + 20),
                               b.pos[1] - (enemy.pos[1] + 20)) < 40:
                     _hit_enemy(self, enemy, b.damage)
+                    if enemy is self.boss and enemy not in self.enemies:
+                        self.boss = None
                     self._remove_player_bullet(b)
                     hit = True
                     break
@@ -266,15 +373,15 @@ class GameScreen(Screen):
                     self._remove_player_bullet(b)
 
         # อัปเดตกระสุนศัตรู
+        p_cx = self.player_pos[0] + 32
+        p_cy = self.player_pos[1] + 32
         for proj in list(self.enemy_projectiles):
-            proj.update()
-            d = math.hypot(proj.pos[0] - (self.player_pos[0] + 32),
-                           proj.pos[1] - (self.player_pos[1] + 32))
-            if d < 35:
+            proj.update(dt)
+            dist = math.hypot(proj.pos[0] - p_cx, proj.pos[1] - p_cy)
+            if dist < 35:
                 self.take_damage(proj.damage)
                 self._remove_enemy_projectile(proj)
-            elif math.hypot(proj.pos[0] - self.player_pos[0],
-                            proj.pos[1] - self.player_pos[1]) > 1200:
+            elif dist > 1200:
                 self._remove_enemy_projectile(proj)
 
         # การเคลื่อนที่ผู้เล่น
@@ -318,27 +425,28 @@ class GameScreen(Screen):
             enemy.update_movement(self.player_pos, self.enemies)
 
             if hasattr(enemy, "enemy_type") and enemy.enemy_type == "ranger":
+                if not hasattr(enemy, "shoot_cooldown"):
+                    enemy.shoot_cooldown = 0.0
                 enemy.shoot_cooldown += dt
                 if enemy.shoot_cooldown >= 2.5:
                     p = EnemyProjectile(
                         start_pos=(enemy.pos[0] + 20, enemy.pos[1] + 20),
-                        target_pos=(self.player_pos[0] + 32, self.player_pos[1] + 32),
+                        target_pos=(p_cx, p_cy),
                         damage=enemy.damage,
                     )
                     self.enemy_projectiles.append(p)
                     self.world_layout.add_widget(p)
                     enemy.shoot_cooldown = 0
 
-            dist = math.hypot(
-                (enemy.pos[0] + 20) - (self.player_pos[0] + 32),
-                (enemy.pos[1] + 20) - (self.player_pos[1] + 32),
-            )
+            ex = enemy.pos[0] + (enemy.enemy_size[0] / 2 if hasattr(enemy, 'enemy_size') else 20)
+            ey = enemy.pos[1] + (enemy.enemy_size[1] / 2 if hasattr(enemy, 'enemy_size') else 20)
+            dist = math.hypot(ex - p_cx, ey - p_cy)
             if dist < 45 and not self.is_invincible:
                 self.take_damage(enemy.damage)
 
         self.update_camera(dt)
 
-    # Combat Helpers
+    # ── Combat Helpers ────────────────────────────────────
     def _remove_player_bullet(self, b):
         if b in self.player_bullets:
             self.player_bullets.remove(b)
@@ -379,7 +487,7 @@ class GameScreen(Screen):
         Window.unbind(mouse_pos=self._on_mouse_pos)
         GameOverPopup().open()
 
-    # EXP / Level Up
+    # ── EXP / Level Up ────────────────────────────────────
     def gain_exp(self, amount):
         if not self.player_stats:
             return
@@ -395,7 +503,7 @@ class GameScreen(Screen):
                 LevelUpPopup(self).open()
         self.hud.update_ui(self.player_stats)
 
-    # Dash
+    # ── Dash ──────────────────────────────────────────────
     def start_dash(self):
         if not self.dash_cooldown and not self.is_dashing and (self.last_dir_x or self.last_dir_y):
             self.is_dashing = True
@@ -413,7 +521,7 @@ class GameScreen(Screen):
                 self.dash_cooldown_time,
             )
 
-    # Pause
+    # ── Pause ─────────────────────────────────────────────
     def toggle_pause(self):
         if self.is_paused:
             self.resume_game()
@@ -433,7 +541,7 @@ class GameScreen(Screen):
             self.active_pause_popup.dismiss()
             self.active_pause_popup = None
 
-    # Input
+    # ── Input ─────────────────────────────────────────────
     def _on_window_key_down(self, window, key, scancode, codepoint, modifiers):
         if key == 27:
             self.toggle_pause()

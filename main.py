@@ -32,6 +32,5 @@ class Apocalite(App):
                 Window.fullscreen = 'auto'
             return True
         return False
-
 if __name__ == "__main__":
     Apocalite().run()
