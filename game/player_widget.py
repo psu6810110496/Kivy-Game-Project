@@ -1,16 +1,15 @@
 from kivy.uix.widget import Widget
-from kivy.graphics import Rectangle, Color, Ellipse
+from kivy.graphics import Rectangle, Color, Line  # นำเข้า Line แทน Triangle
 from kivy.clock import Clock
+import math
 
 class PlayerWidget(Widget):
-    # ปรับให้รับค่าภาพและตำแหน่งตอนสร้างตัวละคร
     def __init__(self, idle_frames, walk_frames, start_pos=(2500, 2500), **kwargs):
         super().__init__(**kwargs)
         
-        # นำค่าที่ส่งมาไปใช้งาน แทนการกำหนด Path ตายตัว
+        # Animation Setup (เหมือนเดิม)
         self.anim_idle = idle_frames
         self.anim_walk = walk_frames
-        
         self.idle_speed = 0.5 
         self.walk_speed = 0.15 
         self.current_anim = self.anim_idle
@@ -21,29 +20,56 @@ class PlayerWidget(Widget):
         
         with self.canvas:
             self.color_inst = Color(1, 1, 1, 1) 
-            # ให้เกิดตามพิกัด start_pos ที่ส่งเข้ามา
             self.rect = Rectangle(source=self.current_anim[0], pos=start_pos, size=(64, 64))
             
         with self.canvas.after:
-            self.aim_color = Color(1, 0, 0, 0)
-            self.aim_marker = Ellipse(size=(10, 10), pos=(0, 0)) 
+            # เปลี่ยนสีเป็นสีขาว (1, 1, 1) และค่า Alpha เริ่มต้นเป็น 0
+            self.aim_color = Color(1, 1, 1, 0) 
+            
+            # ใช้ Line วาดหัวลูกศรแบบ >
+            # points จะรับ [x_base_top, y_base_top, x_tip, y_tip, x_base_bottom, y_base_bottom]
+            self.aim_line = Line(points=[0, 0, 0, 0, 0, 0], width=1.5, joint='miter')
 
         Clock.schedule_interval(self.animate, 1.0/60.0)
 
     def update_aim(self, is_aiming, aim_x, aim_y):
+        """ อัปเดตตำแหน่งและทิศทางของลูกศรเล็งแบบ > """
         if is_aiming and (aim_x != 0 or aim_y != 0):
-            self.aim_color.a = 1.0 
+            self.aim_color.a = 1.0 # แสดงลูกศรสีขาว
+            
+            cx = self.rect.pos[0] + (self.rect.size[0] / 2)
+            cy = self.rect.pos[1] + (self.rect.size[1] / 2)
+            
+            # ปรับทิศทางเป็น Unit Vector
             mag = (aim_x**2 + aim_y**2) ** 0.5
-            if mag > 0:
-                aim_x /= mag
-                aim_y /= mag
-            radius = 60 
-            center_x = self.rect.pos[0] + (self.rect.size[0] / 2)
-            center_y = self.rect.pos[1] + (self.rect.size[1] / 2)
-            self.aim_marker.pos = (center_x + (aim_x * radius) - 5, center_y + (aim_y * radius) - 5)
+            ux, uy = aim_x / mag, aim_y / mag
+            
+            # ตั้งค่ารูปร่างลูกศร
+            dist = 50        # ระยะห่างจากตัวละคร
+            arrow_size = 10  # ความยาวก้านของหัวศร
+            spread = 1     # ความกว้างของปากลูกศร (ยิ่งเยอะยิ่งอ้ากว้าง)
+            
+            # Vector ตั้งฉาก
+            px, py = -uy, ux
+            
+            # 1. จุดยอด (Tip) ของลูกศร >
+            tip_x = cx + (ux * dist)
+            tip_y = cy + (uy * dist)
+            
+            # 2. จุดปลายก้านบน
+            p2_x = cx + (ux * (dist - arrow_size)) + (px * arrow_size * spread)
+            p2_y = cy + (uy * (dist - arrow_size)) + (py * arrow_size * spread)
+            
+            # 3. จุดปลายก้านล่าง
+            p3_x = cx + (ux * (dist - arrow_size)) - (px * arrow_size * spread)
+            p3_y = cy + (uy * (dist - arrow_size)) - (py * arrow_size * spread)
+            
+            # อัปเดตเส้น Line ให้ลากจาก (ปลายก้านบน -> จุดยอด -> ปลายก้านล่าง)
+            self.aim_line.points = [p2_x, p2_y, tip_x, tip_y, p3_x, p3_y]
         else:
-            self.aim_color.a = 0.0 
+            self.aim_color.a = 0.0 # ซ่อนเมื่อไม่ได้เล็ง
 
+    # --- ฟังก์ชันอื่นๆ (set_state, animate, update_pos) คงเดิมเหมือนโค้ดก่อนหน้า ---
     def set_state(self, is_moving, facing_right, current_speed):
         self.is_facing_right = facing_right
         base_speed_ref = 5.0 
@@ -60,7 +86,11 @@ class PlayerWidget(Widget):
             self.anim_timer = 0
             self.frame_index = (self.frame_index + 1) % len(self.current_anim)
             self.rect.source = self.current_anim[self.frame_index]
-        self.rect.tex_coords = (0,1,1,1,1,0,0,0) if self.is_facing_right else (1,1,0,1,0,0,1,0)
+        
+        if self.is_facing_right:
+            self.rect.tex_coords = (0, 1, 1, 1, 1, 0, 0, 0)
+        else:
+            self.rect.tex_coords = (1, 1, 0, 1, 0, 0, 1, 0)
 
     def update_pos(self, new_pos):
         self.rect.pos = new_pos
