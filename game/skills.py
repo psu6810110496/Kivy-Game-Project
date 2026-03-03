@@ -120,7 +120,7 @@ class SlashSkill(BaseSkill):
     def __init__(self):
         super().__init__()
         self.radius = 120
-        self.damage_mult = 0.8
+        self.damage_mult = 5
         self.arc = 360
         self.knockback = 50
         self.anim_frames = [

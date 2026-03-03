@@ -71,7 +71,11 @@ class GameScreen(Screen):
         self.is_boss_intro = False
         self.boss_overlay = None
 
-        # ── Slash textures (sprite animation) ────────────
+        # ── Camera zoom (lerp) ────────────────────────────
+        self.zoom_target = 2.0
+        self.zoom_lerp_speed = 1.5
+
+        # ── Slash textures ────────────────────────────────
         self.slash_textures = []
         for path in [
             "assets/effect/NPT100.png",
@@ -110,7 +114,6 @@ class GameScreen(Screen):
             else:
                 Color(0.15, 0.15, 0.15, 1)
                 Rectangle(pos=(0, 0), size=(5000, 5000))
-            # ขอบเขตแผนที่ (Void)
             Color(0, 0, 0, 0.85)
             Rectangle(pos=(-3000, -3000), size=(3000, 11000))
             Rectangle(pos=(5000, -3000),  size=(3000, 11000))
@@ -131,23 +134,28 @@ class GameScreen(Screen):
         win_w, win_h = value
         if win_h == 0:
             return
-        win_ratio = win_w / win_h
-        if win_ratio > target_ratio:
+        if win_w / win_h > target_ratio:
             new_w, new_h = win_h * target_ratio, win_h
         else:
             new_w, new_h = win_w, win_w / target_ratio
         self.root_layout.size = (new_w, new_h)
         self.root_layout.pos = ((win_w - new_w) / 2, (win_h - new_h) / 2)
 
-    # ── Camera ────────────────────────────────────────────
+    # ── Camera (lerp zoom) ────────────────────────────────
     def update_camera(self, dt=0):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
 
-        # Boss intro → โฟกัสที่บอส
+        # zoom lerp
+        if dt > 0 and abs(self.zoom.x - self.zoom_target) > 0.01:
+            self.zoom.x += (self.zoom_target - self.zoom.x) * self.zoom_lerp_speed * dt
+            self.zoom.y += (self.zoom_target - self.zoom.y) * self.zoom_lerp_speed * dt
+            self.zoom.z = self.zoom.x
+
+        # boss intro → โฟกัสบอส
         if self.is_boss_intro and self.boss and self.boss.parent:
-            bx = self.boss.pos[0] + self.boss.enemy_size[0] / 2
-            by = self.boss.pos[1] + self.boss.enemy_size[1] / 2
+            bx = self.boss.pos[0] + (self.boss.enemy_size[0] / 2 if hasattr(self.boss, 'enemy_size') else 20)
+            by = self.boss.pos[1] + (self.boss.enemy_size[1] / 2 if hasattr(self.boss, 'enemy_size') else 20)
             self.camera.x = (rw / 2) - bx
             self.camera.y = (rh / 2) - by
         else:
@@ -172,6 +180,7 @@ class GameScreen(Screen):
         self.is_dead = False
         self.boss = None
         self.is_boss_intro = False
+        self.zoom_target = 2.0
         self.keys_pressed.clear()
         self.mouse_dir = [1, 0]
 
@@ -316,6 +325,7 @@ class GameScreen(Screen):
         self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
+        self.zoom_target = 3.0   # zoom in ตอน boss
         self.is_boss_intro = True
         self._show_boss_overlay()
 
@@ -336,6 +346,7 @@ class GameScreen(Screen):
 
     def _end_boss_intro(self, dt):
         self.is_boss_intro = False
+        self.zoom_target = 2.0   # zoom กลับ
         if self.boss_overlay and self.boss_overlay.parent:
             self.root_layout.remove_widget(self.boss_overlay)
         self.boss_overlay = None
@@ -345,11 +356,11 @@ class GameScreen(Screen):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
 
-        # Wave ใหม่ถ้าศัตรูหมดและไม่กำลัง spawn อยู่
+        # Wave ใหม่ถ้าศัตรูหมด
         if self.game_started and not self.enemies and not self.is_spawning_wave:
             self.start_next_wave()
 
-        # ✅ Tick สกิลทุกตัว — skills.py จัดการ cooldown/activate/animation เอง
+        # ✅ Tick สกิลทุกตัว
         if self.game_started and hasattr(self.player_stats, 'skills'):
             for skill in self.player_stats.skills:
                 skill.tick(dt, self)
