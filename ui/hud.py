@@ -179,6 +179,32 @@ class HUD(FloatLayout):
         btn_boss.bind(on_press=self.test_summon_boss)
         self.add_widget(btn_boss)
 
+        # --- [⚡ ช่องแสดงสกิล 3 ช่อง ด้านซ้ายล่าง] ---
+        # วางก่อนเพราะเริ่มต้นจะยังไม่มีการใช้งานจริง
+        skill_box = BoxLayout(
+            orientation="horizontal",
+            size_hint=(None, None),
+            size=(3 * 256 + 2 * 10, 256),  # 3 ปุ่ม 256x256 + spacing 10
+            pos_hint={"x": 0.02, "y": 0.02},
+            spacing=10,
+        )
+        self.skill_buttons = []
+        for i in range(3):
+            btn = Button(
+                text=f"S{i+1}",
+                font_size=24,
+                bold=True,
+                size_hint=(None, None),
+                size=(128, 128),
+                background_normal="",
+                background_color=(0.2, 0.2, 0.2, 0.6),
+                color=(1, 1, 1, 1),
+            )
+            # ต่อไปจะ bind กับสกิลจริงเมื่อมี
+            skill_box.add_widget(btn)
+            self.skill_buttons.append(btn)
+        self.add_widget(skill_box)
+
     def test_level_up(self, instance):
         if hasattr(self.game_screen, "is_paused"):
             self.game_screen.is_paused = True
