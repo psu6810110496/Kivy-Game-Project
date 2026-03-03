@@ -1,6 +1,5 @@
 from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.core.window import Window
 from kivy.clock import Clock
@@ -45,33 +44,41 @@ class GameOverPopup(Popup):
         die_label.opacity = 0  # ให้ค่อย ๆ โผล่ทีหลัง
         self.die_label = die_label
         
-        # ปุ่ม Try Again
-        retry_btn = Button(
+        # ปุ่ม Try Again -> เปลี่ยนเป็น Label แบบ "ลอย" (ใช้ฟอนต์เหมือน PausePopup)
+        retry_lbl = Label(
             text="TRY AGAIN",
+            font_size=30,
+            bold=True,
             size_hint_y=None,
             height=50,
-            background_color=(0.3, 0.3, 0.3, 1),
+            color=(1, 1, 1, 1),
         )
-        retry_btn.opacity = 0
-        retry_btn.bind(on_press=self.try_again)
-        self.retry_btn = retry_btn
-        self.selectable_buttons.append(retry_btn)
+        retry_lbl.opacity = 0
+        # เก็บ callback สำหรับเรียกใช้ทั้งจาก touch และจอย
+        retry_lbl.callback = self.try_again
+        # bind touch event ให้ตรวจสอบการคลิกภายในพื้นที่
+        retry_lbl.bind(on_touch_down=self._on_label_pressed)
+        self.retry_btn = retry_lbl
+        self.selectable_buttons.append(retry_lbl)
 
-        # ปุ่มกลับหน้าเมนู
-        menu_btn = Button(
+        # ปุ่มกลับหน้าเมนู -> ใช้ Label ด้วย
+        menu_lbl = Label(
             text="BACK TO MENU",
+            font_size=30,
+            bold=True,
             size_hint_y=None,
             height=50,
-            background_color=(0.15, 0.15, 0.15, 1),
+            color=(1, 1, 1, 1),
         )
-        menu_btn.opacity = 0
-        menu_btn.bind(on_press=self.return_to_menu)
-        self.menu_btn = menu_btn
-        self.selectable_buttons.append(menu_btn)
+        menu_lbl.opacity = 0
+        menu_lbl.callback = self.return_to_menu
+        menu_lbl.bind(on_touch_down=self._on_label_pressed)
+        self.menu_btn = menu_lbl
+        self.selectable_buttons.append(menu_lbl)
 
         layout.add_widget(die_label)
-        layout.add_widget(retry_btn)
-        layout.add_widget(menu_btn)
+        layout.add_widget(retry_lbl)
+        layout.add_widget(menu_lbl)
         self.content = layout
 
     def return_to_menu(self, instance):
@@ -147,9 +154,12 @@ class GameOverPopup(Popup):
     def _on_joy_button_down(self, window, stickid, buttonid):
         # ปุ่ม A (0) = กดปุ่มที่เลือกอยู่, ปุ่ม B (1) = Back to Menu
         if buttonid == 0 and self.selectable_buttons:
-            self.selectable_buttons[self.selected_index].dispatch("on_press")
+            # เรียก callback ที่เก็บไว้
+            btn = self.selectable_buttons[self.selected_index]
+            if hasattr(btn, "callback") and btn.callback:
+                btn.callback(btn)
         elif buttonid == 1 and self.menu_btn:
-            self.menu_btn.dispatch("on_press")
+            self.return_to_menu(self.menu_btn)
 
     # -------------------------
     # Navigation ด้วยอนาล็อก / D-Pad
@@ -190,14 +200,25 @@ class GameOverPopup(Popup):
             if i == self.selected_index and self.show_highlight:
                 # ปุ่มที่ถูกเลือกอยู่ ให้สว่างขึ้น
                 if btn is self.retry_btn:
-                    btn.background_color = (0.9, 0.4, 0.4, 1)
+                    btn.color = (1, 0.4, 0.4, 1)
                 else:
-                    btn.background_color = (0.7, 0.7, 0.7, 1)
+                    btn.color = (0.9, 0.9, 0.9, 1)
+                # ขยายฟอนต์เมื่อถูกเลือก (เหมือน PausePopup)
+                btn.font_size = 36
                 btn.bold = True
             else:
                 # สีปกติ
                 if btn is self.retry_btn:
-                    btn.background_color = (0.3, 0.3, 0.3, 1)
+                    btn.color = (1, 1, 1, 1)
                 else:
-                    btn.background_color = (0.15, 0.15, 0.15, 1)
+                    btn.color = (1, 1, 1, 1)
+                btn.font_size = 30
                 btn.bold = False
+
+    def _on_label_pressed(self, instance, touch):
+        """Handle touch on floating text labels."""
+        if instance.collide_point(*touch.pos):
+            if hasattr(instance, "callback") and instance.callback:
+                instance.callback(instance)
+            return True
+        return False

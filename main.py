@@ -1,5 +1,5 @@
 from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager
+from kivy.uix.screenmanager import ScreenManager, NoTransition
 from kivy.core.window import Window
 from ui.main_menu import MainMenuScreen
 from ui.char_select import CharacterSelectScreen
@@ -18,7 +18,7 @@ class Apocalite(App):
         Window.bind(on_key_down=self._on_keyboard_down)
         
         self.current_player = None
-        sm = ScreenManager()
+        sm = ScreenManager(transition=NoTransition())
         sm.add_widget(MainMenuScreen(name="main_menu"))
         sm.add_widget(CharacterSelectScreen(name="char_select_screen"))
         sm.add_widget(GameScreen(name="game_screen"))
