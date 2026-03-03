@@ -145,7 +145,6 @@ class GameScreen(Screen):
         self.update_camera(0)
 
     def on_enter(self):
-        # รีเซ็ตขนาดหน้าจอให้ถูกต้องทันทีที่เข้าหน้าเกม
         self._update_layout_size(None, Window.size)
         
         self.player_stats = kivy.app.App.get_running_app().current_player

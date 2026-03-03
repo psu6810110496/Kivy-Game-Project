@@ -7,6 +7,7 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from game.player import PlayerStats
 import kivy.app
+from kivy.app import App
 
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
@@ -104,7 +105,7 @@ class CharacterSelectScreen(Screen):
                 background_color=(0.1, 0.15, 0.2, 0.85),
                 color=(0.8, 0.9, 1, 1),
             )
-            btn.bind(on_press=lambda inst, s=stats: self.select_char(s))
+            btn.bind(on_press=lambda inst, s=stats: self.select_character(s))
             chars.add_widget(btn)
             
             # --- [เก็บปุ่มตัวละครลงใน List สำหรับจอยและเมาส์] ---
@@ -136,8 +137,10 @@ class CharacterSelectScreen(Screen):
         self.bg.pos = instance.pos
         self.bg.size = instance.size
 
-    def select_char(self, stats):
-        kivy.app.App.get_running_app().current_player = stats
+    def select_character(self, stats): # เปลี่ยนจาก select_char เป็น select_character
+        app = App.get_running_app()
+        stats.reset() 
+        app.current_player = stats
         self.manager.current = "game_screen"
 
     def go_back(self, instance):
