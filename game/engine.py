@@ -430,8 +430,8 @@ class GameScreen(Screen):
                 diff = (enemy_angle - angle_deg) % 360
                 if diff > 180: diff -= 360
                 if abs(diff) <= spread:
-                    enemy.hp -= self.player_stats.damage
-                    enemy.pos = (enemy.pos[0] + aim_x * 40, enemy.pos[1] + aim_y * 40)
+                    # ให้ศัตรูรับดาเมจ + กระเด็น พร้อมเอฟเฟกต์สีใน take_damage()
+                    enemy.take_damage(self.player_stats.damage, knockback_dir=(aim_x, aim_y))
                     if enemy.hp <= 0:
                         self.enemies.remove(enemy)
                         self.world_layout.remove_widget(enemy)
