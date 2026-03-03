@@ -1,11 +1,19 @@
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
+from kivy.core.image import Image as CoreImage
 import math
 from game.projectile_widget import EnemyProjectile
 
 # --- [ Class สำหรับตัวศัตรู ] ---
 class EnemyWidget(Widget):
+    # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
+    ENEMY_TEXTURES = {
+        "normal": CoreImage("assets/enemy/enemy1.png").texture,
+        "stalker": CoreImage("assets/enemy/enemy2.png").texture,
+        "ranger": CoreImage("assets/enemy/enemy3.png").texture,
+    }
+
     def __init__(self, spawn_pos=(0, 0), enemy_type="normal", **kwargs):
         super().__init__(**kwargs)
         self.pos = spawn_pos
@@ -22,6 +30,7 @@ class EnemyWidget(Widget):
             "ranger":  {"hp": 25,  "speed": 1.8, "damage": 15, "color": (0.2, 0.9, 0.3, 1), "size": (45, 45)},
             # Boss: ศัตรูตัวใหญ่ HP เยอะ เดินช้าแต่ตีแรง
             "boss":    {"hp": 400, "speed": 1.2, "damage": 30, "color": (0.9, 0.2, 0.2, 1), "size": (96, 96)},
+
         }
         
         current_stats = stats.get(enemy_type, stats["normal"])
@@ -31,9 +40,13 @@ class EnemyWidget(Widget):
         self.damage = current_stats["damage"]
         self.enemy_size = current_stats["size"]
 
+        # เลือก texture ตามประเภทศัตรู (ถ้าไม่เจอใช้ normal แทน)
+        self.texture = self.ENEMY_TEXTURES.get(enemy_type, self.ENEMY_TEXTURES["normal"])
+
         with self.canvas:
+            # ใช้สีขาวเพื่อไม่ให้กลบสีจาก texture และเอาไว้เปลี่ยนสีตอนโดนตี
             self.color_inst = Color(*current_stats["color"])
-            self.rect = Rectangle(pos=self.pos, size=self.enemy_size)
+            self.rect = Rectangle(pos=self.pos, size=self.enemy_size, texture=self.texture)
 
         self.bind(pos=self._update_rect)
 
@@ -104,12 +117,12 @@ class EnemyWidget(Widget):
             game_screen.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0,0)):
-        """ รับดาเมจและแสดงเอฟเฟกต์กระพริบแดง """
+        """ รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ """
         self.hp -= amount
         
-        # เอฟเฟกต์กระพริบแดง
+        # เอฟเฟกต์กระพริบม่วง
         orig_color = self.color_inst.rgba
-        self.color_inst.rgba = (1, 0, 0, 1)
+        self.color_inst.rgba = (1, 0, 1, 1)  # ม่วง
         Clock.schedule_once(lambda dt: setattr(self.color_inst, 'rgba', orig_color), 0.1)
         
         # แรงสะท้อน (Knockback)
