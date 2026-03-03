@@ -414,18 +414,25 @@ class GameScreen(Screen):
             self.active_pause_popup = None
 
     def start_actual_game(self):
+        # ออกจากสถานะ Pause แต่ยังไม่ปล่อยศัตรูทันที ให้ผู้เล่นได้ขยับตัวเล็กน้อย
         self.is_paused = False
-        self.game_started = True
-        self.start_next_wave()
-        if self.attack_event: self.attack_event.cancel()
+
+        # เริ่มระบบโจมตีของผู้เล่น
+        if self.attack_event:
+            self.attack_event.cancel()
         self.attack_event = Clock.schedule_interval(self.perform_attack, 1.0)
 
-    def start_next_wave(self):
+        # หน่วงเวลาเล็กน้อยก่อนเริ่ม Wave 1
+        Clock.schedule_once(self.start_next_wave, 6.0)
+
+    def start_next_wave(self, *args):
         # ถ้ากำลังตั้งคิว Wave อยู่แล้ว หรือเกมจบไปแล้ว ไม่ต้องทำซ้ำ
         if self.is_spawning_wave or self.is_dead:
             return
 
         self.is_spawning_wave = True
+        if not self.game_started:
+            self.game_started = True
         self.current_wave += 1
 
         # แสดงหัวข้อ Wave ด้านบนจอ
@@ -520,6 +527,10 @@ class GameScreen(Screen):
             pos_hint={"center_x": 0.5, "top": 0.95},
         )
         self.root_layout.add_widget(self.wave_label)
+
+        # อัปเดตข้อความ Wave บน HUD มุมจอ
+        if self.hud:
+            self.hud.update_wave(self.current_wave)
 
         # ให้หัวข้อขึ้นค้างสักพักแล้วค่อยหายไปเอง
         Clock.schedule_once(self.hide_wave_title, 1.5)
