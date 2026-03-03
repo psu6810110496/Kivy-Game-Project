@@ -95,19 +95,23 @@ class EnemyWidget(Widget):
                     self.pos[1] + vy + sep_y)
 
     def shoot(self, player_pos):
-        if not self.parent: return
-        
-        ex, ey = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
-        
+        if not self.parent:
+            return
+
+        # ตำแหน่งจุดเริ่มกระสุน (กึ่งกลางตัว Ranger)
+        ex = self.pos[0] + self.enemy_size[0] / 2
+        ey = self.pos[1] + self.enemy_size[1] / 2
+
         # หาจุดกึ่งกลางของผู้เล่นเพื่อใช้เป็นเป้าหมายกระสุน
         target_x = player_pos[0] + 32
         target_y = player_pos[1] + 32
 
         # ใช้ EnemyProjectile จากไฟล์ projectile_widget (เคลื่อนที่ด้วย dt)
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(target_x, target_y), damage=self.damage)
-        
+
+        # เพิ่มกระสุนเข้า world_layout (parent ของศัตรู)
         self.parent.add_widget(proj)
-        
+
         # ส่งเข้า list ใน GameScreen เพื่อเช็ค Collision
         # เดินไต่ parent ขึ้นไปหาวัตถุที่มี attribute enemy_projectiles (คือ GameScreen)
         game_screen = self.parent

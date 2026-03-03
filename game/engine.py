@@ -274,16 +274,12 @@ class GameScreen(Screen):
 
         for proj in list(self.enemy_projectiles):
             proj.update(dt)
-
-            # คำนวณจุดกึ่งกลางของกระสุน
-            proj_center_x = proj.pos[0] + proj.size[0] / 2.0
-            proj_center_y = proj.pos[1] + proj.size[1] / 2.0
-
-            # คำนวณระยะห่างระหว่างกระสุนกับจุดกึ่งกลางผู้เล่น
-            dist_to_player = math.hypot(proj_center_x - p_center_x, proj_center_y - p_center_y)
             
-            # ถ้าชนผู้เล่น (ลดฮิตบ็อกซ์ลงให้หลบได้ง่ายขึ้น)
-            if dist_to_player < 25: 
+            # คำนวณระยะห่างระหว่างกระสุนกับจุดกึ่งกลางผู้เล่น
+            dist_to_player = math.hypot(proj.pos[0] - p_center_x, proj.pos[1] - p_center_y)
+            
+            # ถ้าชนผู้เล่น
+            if dist_to_player < 35: 
                 if not self.is_invincible:
                     self.take_damage(proj.damage)
                 
@@ -293,17 +289,13 @@ class GameScreen(Screen):
                     self.world_layout.remove_widget(proj)
             
             # ถ้ากระสุนลอยไปไกลเกิน (เช่น 1200 px) ให้ลบทิ้งเพื่อประหยัด RAM
-            elif math.hypot(proj_center_x - p_center_x, proj_center_y - p_center_y) > 1200:
+            elif math.hypot(proj.pos[0] - p_center_x, proj.pos[1] - p_center_y) > 1200:
                 if proj in self.enemy_projectiles:
                     self.enemy_projectiles.remove(proj)
                     self.world_layout.remove_widget(proj)
             
         # 5. อัปเดตกล้อง
         self.update_camera(dt)
-
-        # 6. ถ้าเคลียร์ศัตรูหมดแล้วให้เริ่ม wave ถัดไป
-        if self.game_started and not self.is_paused and not self.is_dead and len(self.enemies) == 0:
-            self.start_next_wave()
 
     def take_damage(self, amount):
         if self.is_dead or self.is_invincible or not self.player_stats: 
@@ -418,17 +410,7 @@ class GameScreen(Screen):
 
     def start_next_wave(self):
         self.current_wave += 1
-        # จำนวนศัตรูต่อ wave จะเพิ่มขึ้นเรื่อย ๆ
-        total_count = 5 + self.current_wave * 2
-
-        # ให้เกิดครบทุกประเภทอย่างน้อย 1 ตัว
-        enemy_types = ["normal", "stalker", "ranger"]
-        for etype in enemy_types:
-            self.spawn_single_enemy(force_type=etype)
-
-        # ที่เหลือสุ่มประเภท
-        remaining = max(0, total_count - len(enemy_types))
-        for _ in range(remaining):
+        for _ in range(5 + self.current_wave * 2):
             self.spawn_single_enemy()
 
         # ตัวอย่าง: เรียกบอสอัตโนมัติเมื่อถึง Wave 5
@@ -445,17 +427,6 @@ class GameScreen(Screen):
         spawn_x = self.player_pos[0] + (math.cos(angle) * radius)
         spawn_y = self.player_pos[1] + (math.sin(angle) * radius)
         new_enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y), enemy_type=etype)
-
-        # สเกลความเก่งของมอนสเตอร์ตาม wave
-        if self.current_wave > 1:
-            diff_mul = 1.0 + (self.current_wave - 1) * 0.2  # HP / DMG เพิ่ม 20% ต่อ wave
-            speed_mul = 1.0 + (self.current_wave - 1) * 0.05  # ความเร็วเพิ่ม 5% ต่อ wave
-
-            new_enemy.hp = int(new_enemy.hp * diff_mul)
-            new_enemy.max_hp = new_enemy.hp
-            new_enemy.damage = int(new_enemy.damage * diff_mul)
-            new_enemy.speed *= speed_mul
-
         self.enemies.append(new_enemy)
         self.world_layout.add_widget(new_enemy)
         
@@ -520,8 +491,18 @@ class GameScreen(Screen):
                 diff = (enemy_angle - angle_deg) % 360
                 if diff > 180: diff -= 360
                 if abs(diff) <= spread:
-                    # ให้ศัตรูรับดาเมจ + กระเด็น พร้อมเอฟเฟกต์สีใน take_damage()
-                    enemy.take_damage(self.player_stats.damage, knockback_dir=(aim_x, aim_y))
+                    # เอฟเฟกต์กะพริบสีม่วงบนตัวศัตรูเมื่อโดนตี
+                    if hasattr(enemy, "color_inst"):
+                        orig_rgba = enemy.color_inst.rgba
+                        enemy.color_inst.rgba = (1, 0, 1, 1)
+                        Clock.schedule_once(
+                            lambda dt, e=enemy, c=orig_rgba: setattr(e.color_inst, "rgba", c),
+                            0.1,
+                        )
+
+                    # ฟังก์ชันตีแบบเดิม: ลด HP ตรงและผลักศัตรูถอย
+                    enemy.hp -= self.player_stats.damage
+                    enemy.pos = (enemy.pos[0] + aim_x * 40, enemy.pos[1] + aim_y * 40)
                     if enemy.hp <= 0:
                         self.enemies.remove(enemy)
                         self.world_layout.remove_widget(enemy)
@@ -542,6 +523,7 @@ class GameScreen(Screen):
     def show_slash_effect(self, px, py, radius, angle_deg, spread):
         kivy_angle = 90 - angle_deg
         ig = InstructionGroup()
+        # เอฟเฟกต์เดิม: สีเหลืองโปร่งตอนโจมตี
         ig.add(Color(1, 1, 0, 0.4))
         ig.add(Ellipse(pos=(px-radius, py-radius), size=(radius*2, radius*2), 
                        angle_start=kivy_angle-spread, angle_end=kivy_angle+spread))

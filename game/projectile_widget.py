@@ -8,6 +8,7 @@ class EnemyProjectile(Widget):
         # 1. กำหนดค่าเริ่มต้น
         self.size = (12, 12)
         self.pos = start_pos 
+        self.size = (12, 12)
         self.damage = damage
         self.speed = 400.0 # ความเร็วกระสุน (พิกเซลต่อวินาที)
         
