@@ -64,7 +64,7 @@ class GameScreen(Screen):
         self.is_invincible = False
         self.countdown = None
         self.attack_event = None
-        self.is_dead = False  # ป้องกัน Game Over ซ้อน
+        self.is_dead = False # ป้องกัน Game Over ซ้อน
         self.enemy_projectiles = []
 
         # โหลด texture สำหรับเอฟเฟกต์การตีจากไฟล์ภาพ NPT10x (เป็นหลายเฟรมต่อกัน)
@@ -220,17 +220,10 @@ class GameScreen(Screen):
     def update_camera(self, dt):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
-
-        # ถ้าอยู่ในช่วง Intro บอส ให้โฟกัสที่บอสแทนผู้เล่น
-        if self.is_boss_intro and self.boss and self.boss.parent:
-            bx = self.boss.pos[0] + self.boss.enemy_size[0] / 2
-            by = self.boss.pos[1] + self.boss.enemy_size[1] / 2
-            target_x = (rw / 2) - bx
-            target_y = (rh / 2) - by
-        else:
-            # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
-            target_x = (rw / 2) - self.player_pos[0] - 32
-            target_y = (rh / 2) - self.player_pos[1] - 32
+        
+        # เป้าหมายที่กล้องควรอยู่ (กึ่งกลางตัวละคร)
+        target_x = (rw / 2) - self.player_pos[0] - 32
+        target_y = (rh / 2) - self.player_pos[1] - 32
 
         # ใส่แรงเขย่าถ้ามีการ Dash
         if self.is_dashing:
@@ -336,12 +329,11 @@ class GameScreen(Screen):
         # 5. อัปเดตกล้อง
         self.update_camera(dt)
 
-        # 6. ถ้าเคลียร์ศัตรูหมดแล้ว และไม่ได้อยู่ในช่วง Intro บอส ให้เตรียม Wave ถัดไป
+        # 6. ถ้าเคลียร์ศัตรูหมดแล้ว ให้เตรียม Wave ถัดไป
         if (
             self.game_started
             and not self.is_paused
             and not self.is_dead
-            and not self.is_boss_intro
             and not self.enemies
         ):
             self.start_next_wave()
@@ -620,29 +612,13 @@ class GameScreen(Screen):
             if dist < attack_range + 30:
                 enemy_angle = math.degrees(math.atan2(dy, dx))
                 diff = (enemy_angle - angle_deg) % 360
-                if diff > 180:
-                    diff -= 360
+                if diff > 180: diff -= 360
                 if abs(diff) <= spread:
-                    # เอฟเฟกต์กะพริบสีม่วงบนตัวศัตรูเมื่อโดนตี
-                    if hasattr(enemy, "color_inst"):
-                        orig_rgba = enemy.color_inst.rgba
-                        enemy.color_inst.rgba = (1, 0, 1, 1)
-                        Clock.schedule_once(
-                            lambda dt, e=enemy, c=orig_rgba: setattr(
-                                e.color_inst, "rgba", c
-                            ),
-                            0.1,
-                        )
-
-                    # ฟังก์ชันตีแบบเดิม: ลด HP ตรงและผลักศัตรูถอย
                     enemy.hp -= self.player_stats.damage
                     enemy.pos = (enemy.pos[0] + aim_x * 40, enemy.pos[1] + aim_y * 40)
                     if enemy.hp <= 0:
                         self.enemies.remove(enemy)
                         self.world_layout.remove_widget(enemy)
-                        # ถ้าศัตรูที่ตายคือบอส ให้ล้าง reference
-                        if enemy is self.boss:
-                            self.boss = None
                         self.gain_exp(10)
 
     def gain_exp(self, amount):
