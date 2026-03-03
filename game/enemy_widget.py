@@ -3,7 +3,6 @@ from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 import math
-import random
 from game.projectile_widget import EnemyProjectile
 
 # --- [ Class สำหรับตัวศัตรู ] ---
@@ -27,8 +26,11 @@ class EnemyWidget(Widget):
         # --- [ Enemy Stats ] ---
         stats = {
             "normal":  {"hp": 30,  "speed": 2.2, "damage": 10, "color": (1, 1, 1, 1), "size": (40, 40)},
-            "stalker": {"hp": 15,  "speed": 3.8, "damage": 5,  "color": (1, 1, 1, 1), "size": (30, 30)},
-            "ranger":  {"hp": 25,  "speed": 1.8, "damage": 15, "color": (1, 1, 1, 1), "size": (45, 45)}
+            "stalker": {"hp": 15,  "speed": 3.8, "damage": 5,  "color": (0.8, 0.2, 1, 1), "size": (30, 30)},
+            "ranger":  {"hp": 25,  "speed": 1.8, "damage": 15, "color": (0.2, 0.9, 0.3, 1), "size": (45, 45)},
+            # Boss: ศัตรูตัวใหญ่ HP เยอะ เดินช้าแต่ตีแรง
+            "boss":    {"hp": 400, "speed": 1.2, "damage": 30, "color": (0.9, 0.2, 0.2, 1), "size": (96, 96)},
+
         }
         
         current_stats = stats.get(enemy_type, stats["normal"])
