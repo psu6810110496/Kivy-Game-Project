@@ -2,43 +2,116 @@ from kivy.uix.popup import Popup
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.button import Button
-from kivy.core.window import Window
-from kivy.clock import Clock
-import kivy.app
+from kivy.uix.label import Label
+from kivy.graphics import Color, RoundedRectangle
 
 
 class LevelUpPopup(Popup):
-    def __init__(self, game_screen, **kwargs):
+    def __init__(self, game_screen, choices=None, **kwargs):
         super().__init__(**kwargs)
         self.game_screen = game_screen
-        self.title = "LEVEL UP! Choose your Upgrade:"
+        self.title = f"LEVEL UP!  Lv {game_screen.player_stats.level}  — เลือก Upgrade:"
         self.title_font_size = 22
-
         self.background = ""
         self.background_color = (0.05, 0.08, 0.1, 0.95)
         self.separator_color = (0.3, 0.5, 0.6, 1)
+        self.size_hint = (0.75, 0.55)
+        self.auto_dismiss = False
 
-        self.size_hint = (0.6, 0.5)
-        self.auto_dismiss = False  # บังคับให้ผู้เล่นต้องเลือก 1 อย่าง
+        # choices=None → ใช้โหมด stat เดิม
+        # choices=[...] → ใช้โหมดสกิลจาก engine ใหม่
+        self._choices = choices
 
-        # --- [ระบบ Navigation (จอย + เมาส์)] ---
-        self.selectable_buttons = []
-        self.selected_index = 0
-        self.show_highlight = False
-        self.joy_cooldown = False
-        self.bind(on_open=self.setup_joy, on_dismiss=self.remove_joy)
+        layout = BoxLayout(orientation="vertical", padding=24, spacing=18)
 
-        layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
-        cards_layout = GridLayout(cols=3, spacing=15)
+        if self._choices:
+            layout.add_widget(self._build_skill_cards())
+        else:
+            layout.add_widget(self._build_stat_cards())
 
-        # กำหนดของอัปเกรด
+        self.content = layout
+
+    # ── โหมดสกิล ───────────────────────────────────────────────────────────
+    def _build_skill_cards(self):
+        grid = GridLayout(
+            cols=min(len(self._choices), 3),
+            spacing=20,
+            padding=[5, 10, 5, 10],
+        )
+        for choice in self._choices:
+            box = BoxLayout(orientation="vertical", spacing=8, padding=12)
+
+            # พื้นหลังการ์ด
+            with box.canvas.before:
+                Color(0.08, 0.12, 0.18, 0.95)
+                bg = RoundedRectangle(radius=[10, 10, 10, 10])
+
+            def _update_bg(instance, value):
+                bg.pos = instance.pos
+                bg.size = instance.size
+
+            box.bind(pos=_update_bg, size=_update_bg)
+
+            title_lbl = Label(
+                text=choice["label"],
+                font_size=18,
+                bold=True,
+                color=(0.95, 0.98, 1, 1),
+                size_hint_y=0.35,
+                halign="center",
+                valign="middle",
+            )
+            title_lbl.bind(size=lambda inst, _: setattr(inst, "text_size", inst.size))
+            box.add_widget(title_lbl)
+
+            desc_lbl = Label(
+                text=choice["description"],
+                font_size=13,
+                color=(0.78, 0.88, 0.96, 1),
+                size_hint_y=0.35,
+                halign="center",
+                valign="top",
+            )
+            desc_lbl.bind(size=lambda inst, _: setattr(inst, "text_size", inst.size))
+            box.add_widget(desc_lbl)
+
+            btn = Button(
+                text="เลือกการ์ดนี้",
+                font_size=16,
+                bold=True,
+                size_hint_y=0.3,
+                background_normal="",
+                background_color=(0.2, 0.55, 0.8, 1),
+                color=(1, 1, 1, 1),
+            )
+            # ✅ ใช้ default arg c=choice กัน closure bug
+            btn.bind(on_press=lambda inst, c=choice: self._pick_skill(c))
+            box.add_widget(btn)
+            grid.add_widget(box)
+
+        return grid
+
+    def _pick_skill(self, choice):
+        stats = self.game_screen.player_stats
+        skill = choice["skill"]
+
+        if choice["is_new"]:
+            skill._timer = 0.0      # ให้ยิงทันทีที่ได้รับสกิล
+            stats.skills.append(skill)
+        else:
+            skill.upgrade()
+
+        self._close()
+
+    # ── โหมด stat เดิม (fallback ถ้าไม่ส่ง choices) ──────────────────────
+    def _build_stat_cards(self):
+        grid = GridLayout(cols=3, spacing=15)
         upgrades = [
-            {"text": "+ Damage\n(ตีแรงขึ้น)", "stat": "damage"},
+            {"text": "+ Damage\n(ตีแรงขึ้น)",    "stat": "damage"},
             {"text": "+ Max HP\n(เลือดเยอะขึ้น)", "stat": "hp"},
-            {"text": "+ Speed\n(วิ่งเร็วขึ้น)", "stat": "speed"},
+            {"text": "+ Speed\n(วิ่งเร็วขึ้น)",   "stat": "speed"},
         ]
-
-        for idx, upg in enumerate(upgrades):
+        for upg in upgrades:
             btn = Button(
                 text=upg["text"],
                 font_size=20,
@@ -48,112 +121,24 @@ class LevelUpPopup(Popup):
                 background_color=(0.1, 0.15, 0.2, 0.8),
                 color=(0.9, 0.95, 1, 1),
             )
-            # ผูกปุ่มเข้ากับฟังก์ชันอัปเกรด
-            btn.bind(on_press=lambda inst, s=upg["stat"]: self.select_upgrade(s))
-            self.selectable_buttons.append(btn)
-            cards_layout.add_widget(btn)
+            btn.bind(on_press=lambda inst, s=upg["stat"]: self._pick_stat(s))
+            grid.add_widget(btn)
+        return grid
 
-        layout.add_widget(cards_layout)
-        self.content = layout
-
-    def select_upgrade(self, stat_type):
+    def _pick_stat(self, stat_type):
         player = self.game_screen.player_stats
-
-        # 🌟 อัปเกรดตามที่ผู้เล่นกดเลือก
         if stat_type == "damage":
             player.damage += 5
         elif stat_type == "hp":
             player.hp += 20
-            player.current_hp += 20  # เพิ่มเลือดปัจจุบันให้ด้วย
+            player.current_hp += 20
         elif stat_type == "speed":
             player.speed += 0.5
+        self._close()
 
-        # อัปเดต UI และสั่งให้เกมเริ่มเดินต่อ
-        self.game_screen.hud.update_ui(player)
+    # ── ปิด popup และ resume เกม ────────────────────────────────────────────
+    def _close(self):
+        self.game_screen.hud.update_ui(self.game_screen.player_stats)
+        self.dismiss()
         self.game_screen.resume_game()
-        self.dismiss()  # ปิดหน้าต่าง Popup
 
-    # ==========================================
-    # --- [ระบบ Navigation ด้วยจอย/เมาส์] ---
-    # ==========================================
-    def setup_joy(self, *args):
-        Window.bind(
-            on_joy_axis=self._on_joy_axis,
-            on_joy_hat=self._on_joy_hat,
-            on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos,
-        )
-        self.selected_index = 0
-        self.show_highlight = False
-        self.update_highlight()
-
-    def remove_joy(self, *args):
-        Window.unbind(
-            on_joy_axis=self._on_joy_axis,
-            on_joy_hat=self._on_joy_hat,
-            on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos,
-        )
-
-    def _on_mouse_pos(self, window, pos):
-        for i, btn in enumerate(self.selectable_buttons):
-            if btn.collide_point(*pos):
-                self.selected_index = i
-                self.show_highlight = True
-                self.update_highlight()
-                return
-
-        if self.show_highlight:
-            self.show_highlight = False
-            self.update_highlight()
-
-    def _reset_cooldown(self, dt):
-        self.joy_cooldown = False
-
-    def navigate(self, direction):
-        if self.joy_cooldown:
-            return
-        self.joy_cooldown = True
-        self.show_highlight = True
-        Clock.schedule_once(self._reset_cooldown, 0.2)
-
-        if direction == "next":
-            self.selected_index = (self.selected_index + 1) % len(self.selectable_buttons)
-        elif direction == "prev":
-            self.selected_index = (self.selected_index - 1) % len(self.selectable_buttons)
-
-        self.update_highlight()
-
-    def update_highlight(self):
-        for i, btn in enumerate(self.selectable_buttons):
-            if i == self.selected_index and self.show_highlight:
-                btn.background_color = (0.25, 0.4, 0.6, 1.0)
-                btn.font_size = 22
-            else:
-                btn.background_color = (0.1, 0.15, 0.2, 0.8)
-                btn.font_size = 20
-
-    def _on_joy_axis(self, window, stickid, axisid, value):
-        normalized = value / 32767.0
-        if abs(normalized) > 0.5:
-            # ใช้อนาล็อกซ้าย/ขวา หรือบน/ล่าง เลื่อนการ์ด
-            if axisid in (0, 1):
-                self.navigate("next" if normalized > 0 else "prev")
-
-    def _on_joy_hat(self, window, stickid, hatid, value):
-        x, y = value
-        if x == 1 or y == -1:
-            self.navigate("next")
-        elif x == -1 or y == 1:
-            self.navigate("prev")
-
-    def _on_joy_button_down(self, window, stickid, buttonid):
-        self.show_highlight = True
-        self.update_highlight()
-
-        if buttonid == 0:  # ปุ่ม A ยืนยัน
-            self.selectable_buttons[self.selected_index].dispatch("on_press")
-        elif buttonid == 1:  # ปุ่ม B = ยกเลิกเลือก (ไม่อัปเกรด) แล้วกลับเกมต่อ
-            # ถ้าอยากบังคับให้ต้องเลือก สามารถคอมเมนต์ block นี้ทิ้งก็ได้
-            self.game_screen.resume_game()
-            self.dismiss()
