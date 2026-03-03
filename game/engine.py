@@ -374,8 +374,20 @@ class GameScreen(Screen):
         if not self.dash_cooldown and not self.is_dashing and (self.last_dir_x or self.last_dir_y):
             self.is_dashing = True
             self.dash_cooldown = True
+            
+            # 1. เปลี่ยนเป็นสีเหลืองตอนเริ่ม Dash
             self.player_widget.color_inst.rgba = (1, 1, 0, 1)
-            Clock.schedule_once(lambda dt: setattr(self, 'is_dashing', False), self.dash_duration)
+            
+            # 2. เมื่อ Dash จบ (dash_duration) ให้หยุด Dash และคืนสีเป็นสีขาว
+            def end_dash(dt):
+                self.is_dashing = False
+                # คืนสีเป็นสีขาวปกติ (หรือแดงถ้ายังเป็นอมตะอยู่)
+                if not self.is_invincible:
+                    self.player_widget.color_inst.rgba = (1, 1, 1, 1)
+            
+            Clock.schedule_once(end_dash, self.dash_duration)
+            
+            # 3. คืนค่า Cooldown ตามปกติ
             Clock.schedule_once(lambda dt: setattr(self, 'dash_cooldown', False), self.dash_cooldown_time)
 
     def _on_joy_axis(self, window, stickid, axisid, value):

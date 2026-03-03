@@ -11,7 +11,7 @@ Config.set("graphics", "resizable", "0")
 Config.set("graphics", "width", "1280")
 Config.set("graphics", "height", "720")
 
-class VampireApp(App):
+class Apocalite(App):
     def build(self):
         self.current_player = None
         sm = ScreenManager()
@@ -21,4 +21,4 @@ class VampireApp(App):
         return sm
 
 if __name__ == "__main__":
-    VampireApp().run()
+    Apocalite().run()
