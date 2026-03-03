@@ -49,7 +49,7 @@ class HUD(FloatLayout):
         top_left_ui = BoxLayout(
             orientation="vertical",
             size_hint=(None, None),
-            size=(360, 60),
+            size=(360, 85),
             pos_hint={"x": 0.02, "top": 0.98},
             spacing=5,
         )
@@ -91,10 +91,28 @@ class HUD(FloatLayout):
         exp_container.add_widget(self.lbl_level)
         exp_container.add_widget(self.exp_bar)
 
-        # นำทั้งสองแถวใส่เข้ากล่องรวม แล้วแปะลงบนหน้าจอ
+        # นำสองแถว (HP / EXP) ใส่เข้ากล่องรวม แล้วแปะลงบนหน้าจอมุมซ้ายบน
         top_left_ui.add_widget(hp_container)
         top_left_ui.add_widget(exp_container)
         self.add_widget(top_left_ui)
+
+        # Label แสดง Wave ปัจจุบัน ตรงกลางด้านบนของหน้าจอ
+        self.lbl_wave = Label(
+            text="WAVE 0",
+            size_hint=(None, None),
+            size=(240, 30),
+            pos_hint={"center_x": 0.5, "top": 0.98},
+            font_size=18,
+            bold=True,
+            color=(0.9, 0.95, 1, 1),
+            outline_width=2,
+            outline_color=(0, 0, 0, 1),
+            halign="center",
+            valign="middle",
+        )
+        # ให้ข้อความจัดกึ่งกลางในกรอบของตัวเอง
+        self.lbl_wave.bind(size=lambda inst, val: setattr(inst, "text_size", val))
+        self.add_widget(self.lbl_wave)
 
         # ให้อัปเดตเลือดแบบเรียลไทม์ 60 เฟรมต่อวินาที
         Clock.schedule_interval(self.update_hp_realtime, 1.0 / 60.0)
@@ -193,6 +211,9 @@ class HUD(FloatLayout):
         self.health_bar.current_hp = stats.current_hp
         self.hp_label.text = f"{int(stats.current_hp)} / {int(stats.hp)}"
 
+    def update_wave(self, wave_num: int):
+        self.lbl_wave.text = f"WAVE {wave_num}"
+
     def update_hp_realtime(self, dt):
         if hasattr(self.game_screen, "player_stats") and self.game_screen.player_stats:
             player_stats = self.game_screen.player_stats
@@ -208,24 +229,29 @@ class CountdownOverlay(Label):
         super().__init__(**kwargs)
         self.callback = callback
         self.count = 3
-        self.text = "3"
+        self.text = "GET READY\n3"
         self.font_size = 200
         self.bold = True
         self.color = (0.9, 0.95, 1, 1)
         self.outline_width = 4
         self.outline_color = (0, 0, 0, 1)
         self.pos_hint = {"center_x": 0.5, "center_y": 0.5}
+        self.halign = "center"
+        self.valign = "middle"
+        # ให้ข้อความจัดกึ่งกลางในกรอบของ Label
+        self.bind(size=self._update_text_size)
         Clock.schedule_interval(self.update_countdown, 1)
+
+    def _update_text_size(self, *args):
+        self.text_size = self.size
 
     def update_countdown(self, dt):
         self.count -= 1
         if self.count > 0:
-            self.text = str(self.count)
-        elif self.count == 0:
-            self.text = "S U R V I V E !"
-            self.font_size = 120
-            self.color = (0.8, 0.2, 0.2, 1)
+            self.text = f"GET READY\n{self.count}"
         else:
+            # นับจบแล้ว เริ่มเกม/เริ่ม Wave แรก
             self.callback()
-            self.parent.remove_widget(self)
+            if self.parent:
+                self.parent.remove_widget(self)
             return False
