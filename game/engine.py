@@ -3,14 +3,22 @@ from kivy.uix.floatlayout import FloatLayout
 from kivy.core.window import Window
 from kivy.uix.label import Label
 from kivy.graphics import (
-    Rectangle, Color, PushMatrix, PopMatrix,
-    Translate, Scale, InstructionGroup, Ellipse,
+    Rectangle,
+    Color,
+    PushMatrix,
+    PopMatrix,
+    Translate,
+    Scale,
+    InstructionGroup,
+    Ellipse,
 )
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
+from kivy.graphics.texture import Texture
 import kivy.app
 import math
 import random
+from io import BytesIO
 
 from game.player_widget import PlayerWidget
 from ui.hud import HUD, CountdownOverlay
@@ -20,6 +28,65 @@ from ui.game_over import GameOverPopup
 from game.enemy_widget import EnemyWidget
 from game.projectile_widget import EnemyProjectile
 from game.skills import get_upgrade_choices, _hit_enemy
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# Helper function to extract sprite sheet frames
+# ═════════════════════════════════════════════════════════════════════════
+def extract_sprite_sheet_frames(image_path, rows, cols):
+    """
+    Extract individual frames from a sprite sheet image
+
+    Args:
+        image_path: Path to the sprite sheet image
+        rows: Number of rows in the grid
+        cols: Number of columns in the grid
+
+    Returns:
+        List of Kivy Texture objects for each frame (row-major order)
+    """
+    try:
+        from PIL import Image
+
+        # Load image using PIL
+        img = Image.open(image_path)
+        img_width, img_height = img.size
+
+        # Calculate frame dimensions
+        frame_width = img_width // cols
+        frame_height = img_height // rows
+
+        frames = []
+
+        # Extract frames in row-major order (top-left to bottom-right)
+        for row in range(rows):
+            for col in range(cols):
+                # Crop the frame
+                left = col * frame_width
+                top = row * frame_height
+                right = left + frame_width
+                bottom = top + frame_height
+
+                frame_img = img.crop((left, top, right, bottom))
+
+                # Convert PIL image to Kivy Texture
+                # Save to bytes
+                png_data = BytesIO()
+                frame_img.save(png_data, format="PNG")
+                png_data.seek(0)
+
+                # Create Kivy texture from image data
+                texture = CoreImage(BytesIO(png_data.getvalue()), ext="png").texture
+                frames.append(texture)
+
+        print(f"✓ Extracted {len(frames)} frames from {image_path} ({rows}x{cols})")
+        return frames
+    except ImportError as e:
+        print(f"[Error] PIL not available: {e}")
+        return None
+    except Exception as e:
+        print(f"[Error] Failed to extract sprite frames: {e}")
+        return None
 
 
 class GameScreen(Screen):
@@ -75,18 +142,8 @@ class GameScreen(Screen):
         self.zoom_target = 2.0
         self.zoom_lerp_speed = 1.5
 
-        # ── Slash textures ────────────────────────────────
+        # ── Slash textures (will be loaded based on character) ────
         self.slash_textures = []
-        for path in [
-            "assets/effect/NPT100.png",
-            "assets/effect/NPT101.png",
-            "assets/effect/NPT102.png",
-            "assets/effect/NPT103.png",
-        ]:
-            try:
-                self.slash_textures.append(CoreImage(path).texture)
-            except Exception:
-                pass
 
         # ── Layout ────────────────────────────────────────
         self.root_layout = FloatLayout(size_hint=(None, None))
@@ -116,9 +173,9 @@ class GameScreen(Screen):
                 Rectangle(pos=(0, 0), size=(5000, 5000))
             Color(0, 0, 0, 0.85)
             Rectangle(pos=(-3000, -3000), size=(3000, 11000))
-            Rectangle(pos=(5000, -3000),  size=(3000, 11000))
-            Rectangle(pos=(0, -3000),     size=(5000, 3000))
-            Rectangle(pos=(0, 5000),      size=(5000, 3000))
+            Rectangle(pos=(5000, -3000), size=(3000, 11000))
+            Rectangle(pos=(0, -3000), size=(5000, 3000))
+            Rectangle(pos=(0, 5000), size=(5000, 3000))
 
         with self.world_layout.canvas.after:
             PopMatrix()
@@ -154,8 +211,12 @@ class GameScreen(Screen):
 
         # boss intro → โฟกัสบอส
         if self.is_boss_intro and self.boss and self.boss.parent:
-            bx = self.boss.pos[0] + (self.boss.enemy_size[0] / 2 if hasattr(self.boss, 'enemy_size') else 20)
-            by = self.boss.pos[1] + (self.boss.enemy_size[1] / 2 if hasattr(self.boss, 'enemy_size') else 20)
+            bx = self.boss.pos[0] + (
+                self.boss.enemy_size[0] / 2 if hasattr(self.boss, "enemy_size") else 20
+            )
+            by = self.boss.pos[1] + (
+                self.boss.enemy_size[1] / 2 if hasattr(self.boss, "enemy_size") else 20
+            )
             self.camera.x = (rw / 2) - bx
             self.camera.y = (rh / 2) - by
         else:
@@ -212,6 +273,9 @@ class GameScreen(Screen):
         if not self.player_stats:
             return
 
+        # Load character-specific attack effects
+        self._load_attack_effects()
+
         self.player_stats.reset()
         self._reset_state()
 
@@ -236,11 +300,19 @@ class GameScreen(Screen):
         self.countdown = CountdownOverlay(callback=self.start_actual_game)
         self.root_layout.add_widget(self.countdown)
 
-        Window.unbind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
-        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+        Window.unbind(
+            on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up
+        )
+        Window.unbind(
+            on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down
+        )
         Window.unbind(mouse_pos=self._on_mouse_pos)
-        Window.bind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
-        Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+        Window.bind(
+            on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up
+        )
+        Window.bind(
+            on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down
+        )
         Window.bind(mouse_pos=self._on_mouse_pos)
 
         Clock.unschedule(self.update_frame)
@@ -250,9 +322,66 @@ class GameScreen(Screen):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
             self.attack_event.cancel()
-        Window.unbind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
-        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+        Window.unbind(
+            on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up
+        )
+        Window.unbind(
+            on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down
+        )
         Window.unbind(mouse_pos=self._on_mouse_pos)
+
+    def _load_attack_effects(self):
+        """Load character-specific attack effect textures"""
+        self.slash_textures = []
+
+        if self.player_stats.name == "PTae":
+            # PTae uses aoeptae01-04 frames for all attacks
+            ptae_frames = [
+                "assets/PTae/skill1/aoeptae01.png",
+                "assets/PTae/skill1/aoeptae02.png",
+                "assets/PTae/skill1/aoeptae03.png",
+                "assets/PTae/skill1/aoeptae04.png",
+            ]
+
+            try:
+                for path in ptae_frames:
+                    try:
+                        texture = CoreImage(path).texture
+                        self.slash_textures.append(texture)
+                    except Exception as e:
+                        print(f"[Warning] Could not load {path}: {e}")
+                        continue
+
+                if self.slash_textures:
+                    print(
+                        f"✓ Successfully loaded PTae attacks: {len(self.slash_textures)} frames (aoeptae01-04)"
+                    )
+                    return
+                else:
+                    print("[Fallback] No PTae frames loaded, using Lostman effects")
+                    self._load_lostman_effects()
+            except Exception as e:
+                print(f"[Error] Failed to load PTae attack effects: {e}")
+                # Fallback to Lostman effects
+                self._load_lostman_effects()
+        else:
+            # Default to Lostman effects for other characters (Lostman, Monkey)
+            self._load_lostman_effects()
+
+    def _load_lostman_effects(self):
+        """Load Lostman's attack effect textures (NPT100-103 animation frames)"""
+        for path in [
+            "assets/effect/NPT100.png",
+            "assets/effect/NPT101.png",
+            "assets/effect/NPT102.png",
+            "assets/effect/NPT103.png",
+        ]:
+            try:
+                texture = CoreImage(path).texture
+                self.slash_textures.append(texture)
+            except Exception:
+                pass
+                pass
 
     # ── Game Start ────────────────────────────────────────
     def start_actual_game(self):
@@ -325,7 +454,7 @@ class GameScreen(Screen):
         self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
-        self.zoom_target = 3.0   # zoom in ตอน boss
+        self.zoom_target = 3.0  # zoom in ตอน boss
         self.is_boss_intro = True
         self._show_boss_overlay()
 
@@ -346,14 +475,19 @@ class GameScreen(Screen):
 
     def _end_boss_intro(self, dt):
         self.is_boss_intro = False
-        self.zoom_target = 2.0   # zoom กลับ
+        self.zoom_target = 2.0  # zoom กลับ
         if self.boss_overlay and self.boss_overlay.parent:
             self.root_layout.remove_widget(self.boss_overlay)
         self.boss_overlay = None
 
     # ── Main Loop ─────────────────────────────────────────
     def update_frame(self, dt):
-        if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
+        if (
+            not self.player_stats
+            or self.is_paused
+            or not self.player_widget
+            or self.is_dead
+        ):
             return
 
         # Wave ใหม่ถ้าศัตรูหมด
@@ -361,7 +495,7 @@ class GameScreen(Screen):
             self.start_next_wave()
 
         # ✅ Tick สกิลทุกตัว
-        if self.game_started and hasattr(self.player_stats, 'skills'):
+        if self.game_started and hasattr(self.player_stats, "skills"):
             for skill in self.player_stats.skills:
                 skill.tick(dt, self)
 
@@ -370,8 +504,12 @@ class GameScreen(Screen):
             b.update(dt)
             hit = False
             for enemy in list(self.enemies):
-                if math.hypot(b.pos[0] - (enemy.pos[0] + 20),
-                              b.pos[1] - (enemy.pos[1] + 20)) < 40:
+                if (
+                    math.hypot(
+                        b.pos[0] - (enemy.pos[0] + 20), b.pos[1] - (enemy.pos[1] + 20)
+                    )
+                    < 40
+                ):
                     _hit_enemy(self, enemy, b.damage)
                     if enemy is self.boss and enemy not in self.enemies:
                         self.boss = None
@@ -379,8 +517,13 @@ class GameScreen(Screen):
                     hit = True
                     break
             if not hit and b in self.player_bullets:
-                if math.hypot(b.pos[0] - (self.player_pos[0] + 32),
-                              b.pos[1] - (self.player_pos[1] + 32)) > 700:
+                if (
+                    math.hypot(
+                        b.pos[0] - (self.player_pos[0] + 32),
+                        b.pos[1] - (self.player_pos[1] + 32),
+                    )
+                    > 700
+                ):
                     self._remove_player_bullet(b)
 
         # อัปเดตกระสุนศัตรู
@@ -400,10 +543,14 @@ class GameScreen(Screen):
         dir_x, dir_y = 0, 0
 
         if not self.is_dashing:
-            if "w" in self.keys_pressed: dir_y += 1
-            if "s" in self.keys_pressed: dir_y -= 1
-            if "a" in self.keys_pressed: dir_x -= 1
-            if "d" in self.keys_pressed: dir_x += 1
+            if "w" in self.keys_pressed:
+                dir_y += 1
+            if "s" in self.keys_pressed:
+                dir_y -= 1
+            if "a" in self.keys_pressed:
+                dir_x -= 1
+            if "d" in self.keys_pressed:
+                dir_x += 1
             if dir_x == 0 and dir_y == 0:
                 dir_x, dir_y = self.joy_x, self.joy_y
             if dir_x != 0 or dir_y != 0:
@@ -426,7 +573,9 @@ class GameScreen(Screen):
         else:
             self.facing_right = self.mouse_dir[0] >= 0
 
-        self.player_widget.set_state((dir_x != 0 or dir_y != 0), self.facing_right, speed)
+        self.player_widget.set_state(
+            (dir_x != 0 or dir_y != 0), self.facing_right, speed
+        )
         aim_x = self.joy_right_x if abs(self.joy_right_x) > 0.1 else self.mouse_dir[0]
         aim_y = self.joy_right_y if abs(self.joy_right_y) > 0.1 else self.mouse_dir[1]
         self.player_widget.update_aim(True, aim_x, aim_y)
@@ -449,8 +598,12 @@ class GameScreen(Screen):
                     self.world_layout.add_widget(p)
                     enemy.shoot_cooldown = 0
 
-            ex = enemy.pos[0] + (enemy.enemy_size[0] / 2 if hasattr(enemy, 'enemy_size') else 20)
-            ey = enemy.pos[1] + (enemy.enemy_size[1] / 2 if hasattr(enemy, 'enemy_size') else 20)
+            ex = enemy.pos[0] + (
+                enemy.enemy_size[0] / 2 if hasattr(enemy, "enemy_size") else 20
+            )
+            ey = enemy.pos[1] + (
+                enemy.enemy_size[1] / 2 if hasattr(enemy, "enemy_size") else 20
+            )
             dist = math.hypot(ex - p_cx, ey - p_cy)
             if dist < 45 and not self.is_invincible:
                 self.take_damage(enemy.damage)
@@ -493,8 +646,12 @@ class GameScreen(Screen):
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
-        Window.unbind(on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up)
-        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down)
+        Window.unbind(
+            on_key_down=self._on_window_key_down, on_key_up=self._on_window_key_up
+        )
+        Window.unbind(
+            on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button_down
+        )
         Window.unbind(mouse_pos=self._on_mouse_pos)
         GameOverPopup().open()
 
@@ -508,6 +665,9 @@ class GameScreen(Screen):
             self.player_stats.level += 1
             self.is_paused = True
             choices = get_upgrade_choices(self.player_stats)
+            print(
+                f"[DEBUG] level up choices returned: {[c['skill'].name for c in choices]} if any"
+            )
             if choices:
                 LevelUpPopup(self, choices).open()
             else:
@@ -516,7 +676,11 @@ class GameScreen(Screen):
 
     # ── Dash ──────────────────────────────────────────────
     def start_dash(self):
-        if not self.dash_cooldown and not self.is_dashing and (self.last_dir_x or self.last_dir_y):
+        if (
+            not self.dash_cooldown
+            and not self.is_dashing
+            and (self.last_dir_x or self.last_dir_y)
+        ):
             self.is_dashing = True
             self.dash_cooldown = True
             self.player_widget.color_inst.rgba = (1, 1, 0, 1)
@@ -589,11 +753,16 @@ class GameScreen(Screen):
         val = value / 32767.0
         if abs(val) < self.joy_deadzone:
             val = 0.0
-        if axisid == 0:   self.joy_x = val
-        elif axisid == 1: self.joy_y = -val
-        elif axisid == 2: self.joy_right_x = val
-        elif axisid == 3: self.joy_right_y = -val
-        elif axisid == 5 and val > 0.5: self.start_dash()
+        if axisid == 0:
+            self.joy_x = val
+        elif axisid == 1:
+            self.joy_y = -val
+        elif axisid == 2:
+            self.joy_right_x = val
+        elif axisid == 3:
+            self.joy_right_y = -val
+        elif axisid == 5 and val > 0.5:
+            self.start_dash()
 
     def _on_joy_button_down(self, window, stickid, buttonid):
         if buttonid == 7:

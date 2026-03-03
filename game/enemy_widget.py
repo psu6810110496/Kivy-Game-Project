@@ -11,6 +11,7 @@ class EnemyWidget(Widget):
     # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
     # bosses may be updated by placing a file named boss.png in assets/enemy
     import os
+
     boss_path = "assets/enemy/boss.png"
     if not os.path.exists(boss_path):
         boss_path = "assets/enemy/enemy4.png"
