@@ -46,7 +46,7 @@ def extract_sprite_sheet_frames(image_path, rows, cols):
         List of Kivy Texture objects for each frame (row-major order)
     """
     try:
-        from PIL import Image
+        from PIL import Image  # type: ignore
 
         # Load image using PIL
         img = Image.open(image_path)
