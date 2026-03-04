@@ -135,6 +135,7 @@ class GameScreen(Screen):
 
         # ── Boss ──────────────────────────────────────────
         self.boss = None
+        self.big_boss = None
         self.is_boss_intro = False
         self.boss_overlay = None
 
@@ -215,16 +216,22 @@ class GameScreen(Screen):
             self.zoom.z = self.zoom.x
 
         # Determine target camera position
-        # boss intro → โฟกัสบอส
-        if self.is_boss_intro and self.boss and self.boss.parent:
-            bx = self.boss.pos[0] + (
-                self.boss.enemy_size[0] / 2 if hasattr(self.boss, "enemy_size") else 20
-            )
-            by = self.boss.pos[1] + (
-                self.boss.enemy_size[1] / 2 if hasattr(self.boss, "enemy_size") else 20
-            )
-            self.camera_target[0] = (rw / 2) - bx
-            self.camera_target[1] = (rh / 2) - by
+        # boss intro → โฟกัสบอสหรือบิ๊กบอส
+        if self.is_boss_intro:
+            focus = None
+            if self.boss and self.boss.parent:
+                focus = self.boss
+            elif hasattr(self, "big_boss") and self.big_boss and self.big_boss.parent:
+                focus = self.big_boss
+            if focus:
+                bx = focus.pos[0] + (
+                    focus.enemy_size[0] / 2 if hasattr(focus, "enemy_size") else 20
+                )
+                by = focus.pos[1] + (
+                    focus.enemy_size[1] / 2 if hasattr(focus, "enemy_size") else 20
+                )
+                self.camera_target[0] = (rw / 2) - bx
+                self.camera_target[1] = (rh / 2) - by
         else:
             self.camera_target[0] = (rw / 2) - self.player_pos[0] - 32
             self.camera_target[1] = (rh / 2) - self.player_pos[1] - 32
@@ -259,6 +266,7 @@ class GameScreen(Screen):
         self.current_wave = 0
         self.is_dead = False
         self.boss = None
+        self.big_boss = None
         self.is_boss_intro = False
         self.zoom_target = 2.0
         self.keys_pressed.clear()
@@ -422,11 +430,21 @@ class GameScreen(Screen):
         if self.is_dead or not self.game_started:
             self.is_spawning_wave = False
             return
-        for _ in range(5 + self.current_wave * 2):
-            self.spawn_single_enemy()
-        # Boss spawns on waves ending in 5 (5, 15, 25, 35, ...)
-        if self.current_wave % 10 == 5:
+            
+        # เช็คว่าเป็น Wave ของ Boss หรือ Big Boss หรือไม่
+        is_boss_wave = (self.current_wave % 10 == 5)
+        is_big_boss_wave = (self.current_wave % 10 == 0 and self.current_wave > 0)
+
+        # ถ้าเป็น Wave บอส ให้เรียกบอสอย่างเดียว
+        if is_boss_wave:
             self.start_boss_fight()
+        elif is_big_boss_wave:
+            self.start_big_boss_fight()
+        else:
+            # ถ้าเป็น Wave ปกติ ค่อยให้มอนสเตอร์ลูกน้องเกิด
+            for _ in range(5 + self.current_wave * 2):
+                self.spawn_single_enemy()
+
         self.is_spawning_wave = False
 
     def spawn_single_enemy(self, force_type=None):
@@ -439,6 +457,8 @@ class GameScreen(Screen):
         spawn_x = self.player_pos[0] + math.cos(angle) * radius
         spawn_y = self.player_pos[1] + math.sin(angle) * radius
         enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y), enemy_type=etype)
+        # give enemy reference back to game for special behaviors
+        enemy.game = self
         self.enemies.append(enemy)
         self.world_layout.add_widget(enemy)
 
@@ -465,18 +485,50 @@ class GameScreen(Screen):
         self.wave_label = None
 
     # ── Boss ──────────────────────────────────────────────
+    # ── Boss ──────────────────────────────────────────────
     def start_boss_fight(self, *args):
-        if self.boss is not None:
-            return
+        # เอา if self.boss is not None: return ออกไปเลยครับ ให้มันเสกใหม่ทับไปเลย
+        
         angle = random.uniform(0, 2 * math.pi)
         bx = self.player_pos[0] + math.cos(angle) * 900
         by = self.player_pos[1] + math.sin(angle) * 900
         self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
+        self.boss.game = self
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
         self.zoom_target = 3.0  # zoom in ตอน boss
         self.is_boss_intro = True
         self._show_boss_overlay()
+
+    def start_big_boss_fight(self, *args):
+        # เอา if self.big_boss is not None: return ออกเช่นกันครับ
+        
+        angle = random.uniform(0, 2 * math.pi)
+        bx = self.player_pos[0] + math.cos(angle) * 900
+        by = self.player_pos[1] + math.sin(angle) * 900
+        boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="big_boss")
+        boss.game = self
+        self.big_boss = boss
+        self.enemies.append(boss)
+        self.world_layout.add_widget(boss)
+        self.zoom_target = 3.0
+        self.is_boss_intro = True
+        self._show_big_boss_overlay()
+        
+    def _show_big_boss_overlay(self):
+        if self.boss_overlay and self.boss_overlay.parent:
+            self.root_layout.remove_widget(self.boss_overlay)
+        self.boss_overlay = Label(
+            text="[b]BIG BOSS ARRIVES[/b]",
+            markup=True,
+            font_size=120,
+            color=(0.8, 0.1, 0.8, 1),
+            outline_width=3,
+            outline_color=(0, 0, 0, 1),
+            pos_hint={"center_x": 0.5, "center_y": 0.7},
+        )
+        self.root_layout.add_widget(self.boss_overlay)
+        Clock.schedule_once(self._end_boss_intro, 2.0)
 
     def _show_boss_overlay(self):
         if self.boss_overlay and self.boss_overlay.parent:
@@ -527,13 +579,17 @@ class GameScreen(Screen):
 
                 if math.hypot(b.pos[0] - (enemy.pos[0] + 20),
                               b.pos[1] - (enemy.pos[1] + 20)) < 40:
-                    # Check if it's the boss before hitting
-                    is_boss = (enemy is self.boss)
+                    # Check if it's any boss before hitting
+                    is_boss = (enemy is self.boss or enemy is getattr(self, 'big_boss', None))
 
                     _hit_enemy(self, enemy, b.damage)
                     # If it was the boss and is now gone from enemies list, clear reference
                     if is_boss and enemy not in self.enemies:
-                        self.boss = None
+                        # clear whichever boss reference was hit
+                        if enemy is self.boss:
+                            self.boss = None
+                        if hasattr(self, 'big_boss') and enemy is self.big_boss:
+                            self.big_boss = None
                     self._remove_player_bullet(b)
                     hit = True
                     break
@@ -651,7 +707,9 @@ class GameScreen(Screen):
         self.hud.update_ui(self.player_stats)
         if self.player_stats.current_hp <= 0:
             self.is_dead = True
-            self.show_game_over()
+            # เพิ่มดีเลย์เล็กน้อยก่อนแสดงหน้า Game Over
+            # เพื่อให้ผู้เล่นเห็นการตาย/อนิเมชันก่อน
+            Clock.schedule_once(lambda dt: self.show_game_over(), 1.0)
         else:
             self.is_invincible = True
             self.player_widget.color_inst.rgba = (1, 0, 0, 1)

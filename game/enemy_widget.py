@@ -3,6 +3,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 import math
+import random
 from game.projectile_widget import EnemyProjectile
 
 
@@ -21,6 +22,7 @@ class EnemyWidget(Widget):
         "stalker": CoreImage("assets/enemy/enemy2.png").texture,
         "ranger": CoreImage("assets/enemy/enemy3.png").texture,
         "boss": CoreImage(boss_path).texture,
+        "big_boss": CoreImage(boss_path).texture,
     }
 
     def __init__(self, spawn_pos=(0, 0), enemy_type="normal", **kwargs):
@@ -31,6 +33,11 @@ class EnemyWidget(Widget):
         # ระบบโจมตี (สำหรับ Ranger)
         self.attack_cooldown = 0
         self.shoot_delay = 2.0  # ยิงทุกๆ 2 วินาที
+
+        # คูลดาวน์สำหรับบิ๊กบอส หากเป็นชนิดนั้น
+        self.slam_cooldown = random.uniform(3.0, 6.0)
+        self.swipe_cooldown = random.uniform(2.0, 4.0)
+        self.missile_cooldown = random.uniform(3.0, 5.0)
 
         # --- [ Enemy Stats ] ---
         stats = {
@@ -62,6 +69,14 @@ class EnemyWidget(Widget):
                 "damage": 30,
                 "color": (0.9, 0.2, 0.2, 1),
                 "size": (96, 96),
+            },
+            # Big boss type with additional special attacks
+            "big_boss": {
+                "hp": 1200,
+                "speed": 1.0,
+                "damage": 40,
+                "color": (0.5, 0.1, 0.7, 1),
+                "size": (128, 128),
             },
         }
 
@@ -120,6 +135,33 @@ class EnemyWidget(Widget):
             if dist > 0:
                 vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
 
+        # --- [ Big boss special behavior ] ---
+        if self.enemy_type == "big_boss":
+            # always move toward player
+            if dist > 0:
+                vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+
+            # decrement cooldowns (approximate dt=1/60)
+            dec = 1.0 / 60.0
+            self.slam_cooldown -= dec
+            self.swipe_cooldown -= dec
+            self.missile_cooldown -= dec
+
+            # slam when close
+            if self.slam_cooldown <= 0 and dist < 300:
+                self.do_slam()
+                self.slam_cooldown = random.uniform(4.0, 6.0)
+
+            # swipe attack periodically
+            if self.swipe_cooldown <= 0:
+                self.do_swipe(player_pos)
+                self.swipe_cooldown = random.uniform(3.0, 5.0)
+
+            # missile barrage periodically
+            if self.missile_cooldown <= 0:
+                self.do_missile(player_pos)
+                self.missile_cooldown = random.uniform(4.0, 6.0)
+
         # --- [ Separation (ไม่ให้ทับกัน) ] ---
         sep_x, sep_y = 0, 0
         for other in all_enemies:
@@ -135,6 +177,53 @@ class EnemyWidget(Widget):
                 sep_y += (ey - oy) * 0.15
 
         self.pos = (self.pos[0] + vx + sep_x, self.pos[1] + vy + sep_y)
+
+    # --- Big boss attacks helpers ---
+    def do_slam(self):
+        if not hasattr(self, "game"):
+            return
+        ex = self.pos[0] + self.enemy_size[0] / 2
+        ey = self.pos[1] + self.enemy_size[1] / 2
+        for i in range(12):
+            angle = 2 * math.pi * i / 12
+            tx = ex + math.cos(angle) * 500
+            ty = ey + math.sin(angle) * 500
+            proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(tx, ty), damage=self.damage)
+            proj.speed = 250
+            self.parent.add_widget(proj)
+            game_screen = self.parent
+            while game_screen and not hasattr(game_screen, "enemy_projectiles"):
+                game_screen = game_screen.parent
+            if game_screen:
+                game_screen.enemy_projectiles.append(proj)
+
+    def do_swipe(self, player_pos):
+        if not hasattr(self, "game"):
+            return
+        ex = self.pos[0] + self.enemy_size[0] / 2
+        ey = self.pos[1] + self.enemy_size[1] / 2
+        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
+        proj.speed = 700
+        self.parent.add_widget(proj)
+        game_screen = self.parent
+        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
+            game_screen = game_screen.parent
+        if game_screen:
+            game_screen.enemy_projectiles.append(proj)
+
+    def do_missile(self, player_pos):
+        if not hasattr(self, "game"):
+            return
+        ex = self.pos[0] + self.enemy_size[0] / 2
+        ey = self.pos[1] + self.enemy_size[1] / 2
+        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 0.8)
+        proj.speed = 300
+        self.parent.add_widget(proj)
+        game_screen = self.parent
+        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
+            game_screen = game_screen.parent
+        if game_screen:
+            game_screen.enemy_projectiles.append(proj)
 
     def shoot(self, player_pos):
         if not self.parent:
