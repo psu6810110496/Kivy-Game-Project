@@ -85,8 +85,8 @@ class AxeTSkill(BaseSkill):
 
     def _on_upgrade(self):
         if self.level % 2 == 0:
-            self.bullet_count += 1   # Lv2, Lv4 → +1 กระสุน
-        self.damage_mult += 0.25     # ทุก level +25% damage
+            self.bullet_count += 1  # Lv2, Lv4 → +1 กระสุน
+        self.damage_mult += 0.25  # ทุก level +25% damage
 
     def activate(self, game):
         if not game.enemies:
@@ -97,16 +97,22 @@ class AxeTSkill(BaseSkill):
 
         sorted_enemies = sorted(
             game.enemies,
-            key=lambda e: math.hypot(px - (e.pos[0] + 20), py - (e.pos[1] + 20))
+            key=lambda e: math.hypot(px - (e.pos[0] + 20), py - (e.pos[1] + 20)),
         )
-        targets = sorted_enemies[:self.bullet_count]
+        targets = sorted_enemies[: self.bullet_count]
 
         for enemy in targets:
             tx, ty = enemy.pos[0] + 20, enemy.pos[1] + 20
             _spawn_bullet(
-                game, px, py, tx, ty,
-                self.bullet_speed, self.bullet_range,
-                dmg, self.anim_frames          # ✅ ส่ง anim_frames
+                game,
+                px,
+                py,
+                tx,
+                ty,
+                self.bullet_speed,
+                self.bullet_range,
+                dmg,
+                self.anim_frames,  # ✅ ส่ง anim_frames
             )
 
 
@@ -147,8 +153,10 @@ class SlashSkill(BaseSkill):
         dmg = game.player_stats.damage * self.damage_mult
         aim_angle = math.degrees(math.atan2(game.mouse_dir[1], game.mouse_dir[0]))
 
-        _show_slash_vfx(game, px, py, self.radius, aim_angle, self.arc / 2,
-                        self.anim_frames)     # ✅ ส่ง anim_frames
+        # ใช้เอฟเฟกต์ที่โหลดจากตัวละคร (PTae=aoeptae1, Lostman=NPT100-103)
+        _show_slash_vfx(
+            game, px, py, self.radius, aim_angle, self.arc / 2, game.slash_textures
+        )  # ✅ ใช้ slash_textures แทน
 
         for enemy in list(game.enemies):
             ex, ey = enemy.pos[0] + 20, enemy.pos[1] + 20
@@ -175,6 +183,54 @@ class AoESkill(BaseSkill):
     name = "Nova Burst"
     description = "ชาร์จพลังระเบิดรอบตัว กวาดศัตรูทั้งหมดในรัศมี"
 
+
+# ═════════════════════════════════════════════════════════════════════════
+#  NEW SKILL: Rocket Volley (for PTae)
+# ═════════════════════════════════════════════════════════════════════════
+class RocketSkill(BaseSkill):
+    """สกิลของ PTae: เรียกจรวดแท่ง 10 ลูกจากรอบผู้เล่น
+    ทุกลูกจะบินแบบตรงมาเข้าหาตัวเรา
+    """
+
+    name = "Rocket"
+    description = "เรียกแท่งจรวด 10 ลูกจากรอบตัว มาทำ 50 ดาเมจแต่ละลูก"
+
+    def __init__(self):
+        super().__init__()
+        self.damage = 50
+        self.rocket_speed = 300
+        self.rocket_range = 1200
+        # ปกติไม่มี sprite ใช้รูปสี่เหลี่ยมแทน
+        self.anim_frames = []
+
+    @property
+    def cooldown(self):
+        # ขอให้เรียกได้ทุก 5 วินาที
+        return 5.0
+
+    def activate(self, game):
+        px = game.player_pos[0] + 32
+        py = game.player_pos[1] + 32
+
+        # วางจรวด 10 ลูกกระจายรอบวงจร
+        count = 10
+        radius = 800
+        for i in range(count):
+            ang = 2 * math.pi * i / count
+            sx = px + math.cos(ang) * radius
+            sy = py + math.sin(ang) * radius
+            # สร้างจรวดแบบสี่เหลี่ยม
+            from game.projectile_widget import RocketBullet
+
+            r = RocketBullet(
+                start_pos=(sx, sy),
+                target_pos=(px, py),
+                speed=self.rocket_speed,
+                proj_range=self.rocket_range,
+                damage=self.damage,
+            )
+            game.player_bullets.append(r)
+            game.world_layout.add_widget(r)
     def __init__(self):
         super().__init__()
         self.radius = 180
@@ -202,10 +258,12 @@ class AoESkill(BaseSkill):
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
 
-        _show_aoe_vfx(game, px, py, self.radius,
-                      self.anim_frames)        # ✅ ส่ง anim_frames
+        # ใช้เอฟเฟกต์ที่โหลดจากตัวละคร (PTae=aoeptae1, Lostman=NPT100-103)
+        _show_aoe_vfx(
+            game, px, py, self.radius, game.slash_textures
+        )  # ✅ ใช้ slash_textures แทน
 
-        for enemy in list(game.enemies):      # ✅ ลบ for-targets ที่ค้างอยู่ใน AoE
+        for enemy in list(game.enemies):  # ✅ ลบ for-targets ที่ค้างอยู่ใน AoE
             ex, ey = enemy.pos[0] + 20, enemy.pos[1] + 20
             dist = math.hypot(ex - px, ey - py)
             if dist <= self.radius:
@@ -234,13 +292,14 @@ def _spawn_bullet(game, sx, sy, tx, ty, speed, rng, dmg, anim_frames=None):
     """สร้างกระสุนพร้อม animation และเพิ่มเข้า world"""
     try:
         from game.projectile_widget import PlayerBullet
+
         b = PlayerBullet(
             start_pos=(sx, sy),
             target_pos=(tx, ty),
             speed=speed,
             proj_range=rng,
             damage=dmg,
-            anim_frames=anim_frames or [],    # ✅ ส่ง frames เสมอ
+            anim_frames=anim_frames or [],  # ✅ ส่ง frames เสมอ
         )
         game.player_bullets.append(b)
         game.world_layout.add_widget(b)
@@ -262,15 +321,18 @@ def _show_slash_vfx(game, px, py, radius, angle_deg, spread, anim_frames=None):
 
     # ── Fallback: arc สีเหลือง ────────────────────────
     from kivy.graphics import Color, Ellipse, InstructionGroup
+
     kivy_angle = 90 - angle_deg
     ig = InstructionGroup()
     ig.add(Color(1, 1, 0, 0.45))
-    ig.add(Ellipse(
-        pos=(px - radius, py - radius),
-        size=(radius * 2, radius * 2),
-        angle_start=kivy_angle - spread,
-        angle_end=kivy_angle + spread,
-    ))
+    ig.add(
+        Ellipse(
+            pos=(px - radius, py - radius),
+            size=(radius * 2, radius * 2),
+            angle_start=kivy_angle - spread,
+            angle_end=kivy_angle + spread,
+        )
+    )
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.12)
 
@@ -286,16 +348,15 @@ def _show_aoe_vfx(game, px, py, radius, anim_frames=None):
     if anim_frames:
         # ให้ขนาดวิชวลใหญ่กว่ารัศมีเล็กน้อย แต่ไม่ล้นจอเกินไป
         size = radius * 2.2
-        _play_vfx_sprite(game, px, py, size, size, anim_frames,
-                         duration=0.2)
+        _play_vfx_sprite(game, px, py, size, size, anim_frames, duration=0.2)
         return
 
     # ── Fallback: วงกลมสีแดง ──────────────────────────
     from kivy.graphics import Color, Ellipse, InstructionGroup
+
     ig = InstructionGroup()
     ig.add(Color(1, 0.2, 0.2, 0.4))
-    ig.add(Ellipse(pos=(px - radius, py - radius),
-                   size=(radius * 2, radius * 2)))
+    ig.add(Ellipse(pos=(px - radius, py - radius), size=(radius * 2, radius * 2)))
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.15)
 
@@ -441,13 +502,17 @@ ALL_SKILLS: List[Type[BaseSkill]] = [AxeTSkill, SlashSkill, AoESkill]
 CHAR_DEFAULT_SKILLS: Dict[str, List[Type[BaseSkill]]] = {
     # Lostman เริ่มด้วยสกิลตีใกล้เท่านั้น
     "Lostman": [SlashSkill],
-    # PTae / Monkey ยังไม่ใส่สกิล เริ่มต้นด้วย stat-only upgrade
+    # PTae เริ่มด้วยสกิลเดียวกัน (Slash) แต่สามารถปลด RocketSkill ได้
+    "PTae": [SlashSkill],
+    # Monkey ยังไม่ใส่สกิล เริ่มต้นด้วย stat-only upgrade
 }
 
 # สกิลที่ "อนุญาต" ให้สุ่ม / ปลดล็อกต่อคาแรกเตอร์
 CHARACTER_SKILL_POOL: Dict[str, List[Type[BaseSkill]]] = {
     # Lostman สามารถปลดได้ครบ 3 สกิล
     "Lostman": [SlashSkill, AxeTSkill, AoESkill],
+    # PTae มีสกิลเดียวกับ Lostman + RocketSkill
+    "PTae": [SlashSkill, AxeTSkill, AoESkill, RocketSkill],
     # ตัวอื่นสามารถเพิ่ม mapping ภายหลังได้ง่าย ๆ
 }
 
@@ -459,8 +524,14 @@ def get_upgrade_choices(player_stats, count=3):
     """
     import random
 
+    # debug log for tracing
+    print(
+        f"[DEBUG] get_upgrade_choices called for {player_stats.name} lvl{player_stats.level} current skills: {[type(s).__name__ for s in player_stats.skills]}"
+    )
+
     # เลือก pool สกิลที่อนุญาตตามชื่อคาแรกเตอร์
     allowed_pool = CHARACTER_SKILL_POOL.get(player_stats.name, [])
+    print(f"[DEBUG] allowed_pool = {[cls.__name__ for cls in allowed_pool]}")
     if not allowed_pool:
         # คาแรกเตอร์นี้ยังไม่ออกแบบระบบสกิล → กลับไปใช้โหมดอัป stat
         return []
@@ -470,19 +541,37 @@ def get_upgrade_choices(player_stats, count=3):
     new_skills = [cls() for cls in allowed_pool if cls not in owned_types]
 
     pool = upgradeable + new_skills
+
     random.shuffle(pool)
     selected = pool[:count]
+
+    # PTae special rule: guarantee RocketSkill appears when available
+    if player_stats.name == "PTae":
+        from game.skills import RocketSkill
+        # check if player already owns it
+        if not any(isinstance(s, RocketSkill) for s in player_stats.skills):
+            # if not in selected, force one instance
+            if not any(isinstance(s, RocketSkill) for s in selected):
+                if len(selected) < count:
+                    selected.append(RocketSkill())
+                else:
+                    selected[-1] = RocketSkill()
 
     choices = []
     for skill in selected:
         is_new = skill not in player_stats.skills
-        label = (f"[NEW] {skill.name}" if is_new
-                 else f"[Lv{skill.level}→{skill.level+1}] {skill.name}")
-        choices.append({
-            "skill": skill,
-            "label": label,
-            "description": skill.description,
-            "is_new": is_new,
-        })
+        label = (
+            f"[NEW] {skill.name}"
+            if is_new
+            else f"[Lv{skill.level}→{skill.level+1}] {skill.name}"
+        )
+        choices.append(
+            {
+                "skill": skill,
+                "label": label,
+                "description": skill.description,
+                "is_new": is_new,
+            }
+        )
 
     return choices

@@ -1,6 +1,14 @@
 from kivy.uix.widget import Widget
 from kivy.uix.image import Image
-from kivy.graphics import Color, Ellipse, Rectangle, PushMatrix, PopMatrix, Translate, Rotate
+from kivy.graphics import (
+    Color,
+    Ellipse,
+    Rectangle,
+    PushMatrix,
+    PopMatrix,
+    Translate,
+    Rotate,
+)
 from kivy.core.image import Image as CoreImage
 import math
 
@@ -46,7 +54,9 @@ class EnemyProjectile(Widget):
             self.translate = Translate(self.pos[0], self.pos[1])
             self.rotate = Rotate(angle=self.angle, origin=(0, 0))
             Color(1, 1, 1, 1)
-            first_tex = self.RANGERSHOOT_TEXTURES[0] if self.RANGERSHOOT_TEXTURES else None
+            first_tex = (
+                self.RANGERSHOOT_TEXTURES[0] if self.RANGERSHOOT_TEXTURES else None
+            )
             self.bullet_rect = Rectangle(
                 pos=(-self.size[0] / 2, -self.size[1] / 2),
                 size=self.size,
@@ -68,7 +78,9 @@ class EnemyProjectile(Widget):
                 self.animation_time = 0
                 if self.current_frame < len(self.RANGERSHOOT_TEXTURES) - 1:
                     self.current_frame += 1
-                    self.bullet_rect.texture = self.RANGERSHOOT_TEXTURES[self.current_frame]
+                    self.bullet_rect.texture = self.RANGERSHOOT_TEXTURES[
+                        self.current_frame
+                    ]
 
         # เคลื่อนที่
         self.pos = (
@@ -84,8 +96,16 @@ class PlayerBullet(Widget):
     - ขยับตาม dt ทุก frame
     """
 
-    def __init__(self, start_pos, target_pos, speed, proj_range, damage,
-                 anim_frames=None, **kwargs):
+    def __init__(
+        self,
+        start_pos,
+        target_pos,
+        speed,
+        proj_range,
+        damage,
+        anim_frames=None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.pos = start_pos
         self.damage = damage
@@ -147,4 +167,51 @@ class PlayerBullet(Widget):
         self._traveled += math.hypot(move_x, move_y)
 
         # คืน True ถ้ายังในระยะ
+        return self._traveled < self._range
+
+
+# ═════════════════════════════════════════════════════════════════
+#  Rocket projectile for PTae skill
+# ═════════════════════════════════════════════════════════════════
+class RocketBullet(Widget):
+    """จรวดสี่เหลี่ยมบินตรงมาหาผู้เล่น"""
+
+    def __init__(
+        self,
+        start_pos,
+        target_pos,
+        speed,
+        proj_range,
+        damage,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.pos = start_pos
+        self.damage = damage
+        self.speed = speed
+        self._range = proj_range
+        self._traveled = 0.0
+
+        dx = target_pos[0] - start_pos[0]
+        dy = target_pos[1] - start_pos[1]
+        mag = math.hypot(dx, dy)
+        self.dir = (dx / mag, dy / mag) if mag > 0 else (1, 0)
+
+        self.size = (12, 32)
+        with self.canvas:
+            Color(1, 0.2, 0.2, 1)
+            self.rect = Rectangle(
+                pos=(start_pos[0] - self.size[0] / 2, start_pos[1] - self.size[1] / 2),
+                size=self.size,
+            )
+        self.bind(pos=self._update_graphics)
+
+    def _update_graphics(self, *args):
+        self.rect.pos = (self.pos[0] - self.size[0] / 2, self.pos[1] - self.size[1] / 2)
+
+    def update(self, dt):
+        move_x = self.dir[0] * self.speed * dt
+        move_y = self.dir[1] * self.speed * dt
+        self.pos = (self.pos[0] + move_x, self.pos[1] + move_y)
+        self._traveled += math.hypot(move_x, move_y)
         return self._traveled < self._range

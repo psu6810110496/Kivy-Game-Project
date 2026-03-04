@@ -267,6 +267,23 @@ class HUD(FloatLayout):
         self.health_bar.current_hp = stats.current_hp
         self.hp_label.text = f"{int(stats.current_hp)} / {int(stats.hp)}"
 
+        # update skill buttons with names and cooldowns
+        for idx, btn in enumerate(self.skill_buttons):
+            if hasattr(stats, "skills") and idx < len(stats.skills):
+                skill = stats.skills[idx]
+                # timer counts down; show as integer or 1 decimal
+                cd = max(0.0, skill._timer)
+                btn.text = f"{skill.name}\nCD:{cd:.1f}s"
+                # change color if ready
+                if cd <= 0:
+                    btn.background_color = (0.2, 0.6, 0.2, 1)
+                else:
+                    btn.background_color = (0.2, 0.2, 0.2, 0.6)
+            else:
+                # empty slots
+                btn.text = f"S{idx+1}"
+                btn.background_color = (0.2, 0.2, 0.2, 0.6)
+
     def update_wave(self, wave_num: int):
         self.lbl_wave.text = f"WAVE {wave_num}"
 
