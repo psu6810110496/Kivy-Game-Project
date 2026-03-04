@@ -142,6 +142,11 @@ class GameScreen(Screen):
         self.zoom_target = 2.0
         self.zoom_lerp_speed = 1.5
 
+        # ── Camera follow smoothing ────────────────────────
+        self.camera_pos = [0, 0]  # Current camera position
+        self.camera_target = [0, 0]  # Target camera position
+        self.camera_follow_speed = 5.0  # Damping factor (higher = faster follow)
+
         # ── Slash textures (will be loaded based on character) ────
         self.slash_textures = []
 
@@ -198,7 +203,7 @@ class GameScreen(Screen):
         self.root_layout.size = (new_w, new_h)
         self.root_layout.pos = ((win_w - new_w) / 2, (win_h - new_h) / 2)
 
-    # ── Camera (lerp zoom) ────────────────────────────────
+    # ── Camera (lerp zoom + smooth follow) ────────────────────────────────
     def update_camera(self, dt=0):
         rw, rh = self.root_layout.size
         self.zoom.origin = (rw / 2, rh / 2)
@@ -209,6 +214,7 @@ class GameScreen(Screen):
             self.zoom.y += (self.zoom_target - self.zoom.y) * self.zoom_lerp_speed * dt
             self.zoom.z = self.zoom.x
 
+        # Determine target camera position
         # boss intro → โฟกัสบอส
         if self.is_boss_intro and self.boss and self.boss.parent:
             bx = self.boss.pos[0] + (
@@ -217,11 +223,24 @@ class GameScreen(Screen):
             by = self.boss.pos[1] + (
                 self.boss.enemy_size[1] / 2 if hasattr(self.boss, "enemy_size") else 20
             )
-            self.camera.x = (rw / 2) - bx
-            self.camera.y = (rh / 2) - by
+            self.camera_target[0] = (rw / 2) - bx
+            self.camera_target[1] = (rh / 2) - by
         else:
-            self.camera.x = (rw / 2) - self.player_pos[0] - 32
-            self.camera.y = (rh / 2) - self.player_pos[1] - 32
+            self.camera_target[0] = (rw / 2) - self.player_pos[0] - 32
+            self.camera_target[1] = (rh / 2) - self.player_pos[1] - 32
+
+        # Smoothly follow target position with damping
+        if dt > 0:
+            # Linear interpolation towards target (damped follow)
+            self.camera_pos[0] += (self.camera_target[0] - self.camera_pos[0]) * self.camera_follow_speed * dt
+            self.camera_pos[1] += (self.camera_target[1] - self.camera_pos[1]) * self.camera_follow_speed * dt
+        else:
+            # First frame or dt=0, snap to target
+            self.camera_pos = self.camera_target[:]
+
+        # Apply smoothed camera position
+        self.camera.x = self.camera_pos[0]
+        self.camera.y = self.camera_pos[1]
 
     # ── Reset ─────────────────────────────────────────────
     def _reset_state(self):
