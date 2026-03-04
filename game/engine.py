@@ -708,7 +708,11 @@ class GameScreen(Screen):
                 if not hasattr(enemy, "shoot_cooldown"):
                     enemy.shoot_cooldown = 0.0
                 enemy.shoot_cooldown += dt
-                if enemy.shoot_cooldown >= 2.5:
+                # ตรวจสอบระยะ + cooldown
+                ex_ranger = enemy.pos[0] + enemy.enemy_size[0] / 2
+                ey_ranger = enemy.pos[1] + enemy.enemy_size[1] / 2
+                dist_ranger = math.hypot(ex_ranger - p_cx, ey_ranger - p_cy)
+                if dist_ranger < 600 and enemy.shoot_cooldown >= 4.0:
                     p = EnemyProjectile(
                         start_pos=(enemy.pos[0] + 20, enemy.pos[1] + 20),
                         target_pos=(p_cx, p_cy),
@@ -716,7 +720,7 @@ class GameScreen(Screen):
                     )
                     self.enemy_projectiles.append(p)
                     self.world_layout.add_widget(p)
-                    enemy.shoot_cooldown = 0
+                    enemy.shoot_cooldown = 0.0
 
             ex = enemy.pos[0] + (
                 enemy.enemy_size[0] / 2 if hasattr(enemy, "enemy_size") else 20

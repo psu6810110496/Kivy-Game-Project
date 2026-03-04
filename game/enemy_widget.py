@@ -32,7 +32,7 @@ class EnemyWidget(Widget):
 
         # ระบบโจมตี (สำหรับ Ranger)
         self.attack_cooldown = 0
-        self.shoot_delay = 2.0  # ยิงทุกๆ 2 วินาที
+        self.shoot_delay = 3.0  # ยิงทุกๆ 2 วินาที
 
         # คูลดาวน์สำหรับบิ๊กบอส หากเป็นชนิดนั้น
         self.slam_cooldown = random.uniform(3.0, 6.0)
@@ -44,21 +44,21 @@ class EnemyWidget(Widget):
             "normal": {
                 "hp": 30,
                 "speed": 2.2,
-                "damage": 10,
+                "damage": 5,
                 "color": (1, 1, 1, 1),
                 "size": (40, 40),
             },
             "stalker": {
                 "hp": 15,
                 "speed": 3.8,
-                "damage": 5,
+                "damage": 2,
                 "color": (0.8, 0.2, 1, 1),
                 "size": (30, 30),
             },
             "ranger": {
                 "hp": 25,
                 "speed": 1.8,
-                "damage": 15,
+                "damage": 8,
                 "color": (0.2, 0.9, 0.3, 1),
                 "size": (45, 45),
             },
