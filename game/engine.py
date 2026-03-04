@@ -440,6 +440,17 @@ class GameScreen(Screen):
         if self.is_dead or not self.game_started:
             self.is_spawning_wave = False
             return
+        
+        # เพิ่ม max_level ของสกิลทุก wave เพื่อให้ผู้เล่นได้อัพสกิลต่อเนื่อง
+        if self.player_stats and hasattr(self.player_stats, 'skills'):
+            for skill in self.player_stats.skills:
+                skill.max_level = 5 + self.current_wave
+
+        # เพิ่ม max_exp +50 ทุก wave (ต้องการ exp มากขึ้นต่อ level)
+        if self.player_stats:
+            self.player_stats.max_exp += 50
+            if hasattr(self, 'hud') and self.hud:
+                self.hud.update_ui(self.player_stats)
             
         # เช็คว่าเป็น Wave ของ Boss หรือ Big Boss หรือไม่
         is_boss_wave = (self.current_wave % 10 == 5)
@@ -476,6 +487,14 @@ class GameScreen(Screen):
         enemy = EnemyWidget(spawn_pos=(spawn_x, spawn_y), enemy_type=etype)
         # give enemy reference back to game for special behaviors
         enemy.game = self
+        
+        # Scale normal enemies every 5 waves: +3.5 damage, +2.5 hp
+        if etype == "normal":
+            wave_multiplier = (self.current_wave // 5)
+            enemy.damage += wave_multiplier * 3.5
+            enemy.hp += wave_multiplier * 2.5
+            enemy.max_hp = enemy.hp
+        
         self.enemies.append(enemy)
         self.world_layout.add_widget(enemy)
         # แจ้ง HUD ว่าจำนวนศัตรูเปลี่ยน
@@ -513,6 +532,12 @@ class GameScreen(Screen):
         bx = self.player_pos[0] + math.cos(angle) * 900
         by = self.player_pos[1] + math.sin(angle) * 900
         self.boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="boss")
+        # เพิ่ม HP ตามจำนวน wave (ทุก 5 wave เลือดเพิ่ม 200) + damage ทุก 10 wave
+        wave_multiplier = (self.current_wave // 5)
+        damage_multiplier = (self.current_wave // 10)
+        self.boss.hp += wave_multiplier * 200
+        self.boss.max_hp = self.boss.hp
+        self.boss.damage += damage_multiplier * 3.5
         self.boss.game = self
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
@@ -529,6 +554,12 @@ class GameScreen(Screen):
         bx = self.player_pos[0] + math.cos(angle) * 900
         by = self.player_pos[1] + math.sin(angle) * 900
         boss = EnemyWidget(spawn_pos=(bx, by), enemy_type="big_boss")
+        # เพิ่ม HP ตามจำนวน wave (ทุก 5 wave เลือดเพิ่ม 400) + damage ทุก 10 wave
+        wave_multiplier = (self.current_wave // 5)
+        damage_multiplier = (self.current_wave // 10)
+        boss.hp += wave_multiplier * 400
+        boss.max_hp = boss.hp
+        boss.damage += damage_multiplier * 3.5
         boss.game = self
         self.big_boss = boss
         self.enemies.append(boss)

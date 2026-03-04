@@ -322,16 +322,17 @@ class EnemyWidget(Widget):
         """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ"""
         self.hp -= amount
 
-        # เอฟเฟกต์กระพริบม่วง
-        orig_color = self.color_inst.rgba
+        # เอฟเฟกต์กระพริบม่วง (capture orig_color ด้วย default arg เพื่อป้องกัน closure bug)
+        orig_color = tuple(self.color_inst.rgba)
         self.color_inst.rgba = (1, 0, 1, 1)  # ม่วง
         Clock.schedule_once(
-            lambda dt: setattr(self.color_inst, "rgba", orig_color), 0.1
+            lambda dt, c=orig_color: setattr(self.color_inst, "rgba", c), 0.1
         )
 
         # แรงสะท้อน (Knockback)
-        kb = 25
-        self.pos = (
-            self.pos[0] + knockback_dir[0] * kb,
-            self.pos[1] + knockback_dir[1] * kb,
-        )
+        if knockback_dir[0] != 0 or knockback_dir[1] != 0:
+            kb = 25
+            self.pos = (
+                self.pos[0] + knockback_dir[0] * kb,
+                self.pos[1] + knockback_dir[1] * kb,
+            )

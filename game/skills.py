@@ -183,6 +183,48 @@ class AoESkill(BaseSkill):
     name = "Nova Burst"
     description = "ชาร์จพลังระเบิดรอบตัว กวาดศัตรูทั้งหมดในรัศมี"
 
+    def __init__(self):
+        super().__init__()
+        self.radius = 180
+        self.damage_mult = 1.2
+        self.knockback = 80
+        self.anim_frames = [
+            "assets/Lostman/skill3/c4_trap1.png",
+            "assets/Lostman/skill3/c4_trap2.png",
+            "assets/Lostman/skill3/c4_trap3.png",
+            "assets/Lostman/skill3/c4_trap4.png",
+        ]
+
+    @property
+    def cooldown(self):
+        # Lv1=4.0s → Lv5=2.0s
+        return max(2.0, 4.0 - (self.level - 1) * 0.5)
+
+    def _on_upgrade(self):
+        self.radius += 20
+        self.damage_mult += 0.3
+        self.knockback += 20
+
+    def activate(self, game):
+        px = game.player_pos[0] + 32
+        py = game.player_pos[1] + 32
+        dmg = game.player_stats.damage * self.damage_mult
+
+        # ใช้เอฟเฟกต์ที่โหลดจากตัวละคร (PTae=aoeptae1, Lostman=NPT100-103)
+        _show_aoe_vfx(
+            game, px, py, self.radius, game.slash_textures
+        )  # ✅ ใช้ slash_textures แทน
+
+        for enemy in list(game.enemies):  # ✅ ลบ for-targets ที่ค้างอยู่ใน AoE
+            ex, ey = enemy.pos[0] + 20, enemy.pos[1] + 20
+            dist = math.hypot(ex - px, ey - py)
+            if dist <= self.radius:
+                _hit_enemy(game, enemy, dmg)
+                if dist > 0:
+                    kx = (ex - px) / dist * self.knockback
+                    ky = (ey - py) / dist * self.knockback
+                    enemy.pos = (enemy.pos[0] + kx, enemy.pos[1] + ky)
+
 
 # ═════════════════════════════════════════════════════════════════════════
 #  NEW SKILL: Rocket Volley (for PTae)
@@ -231,47 +273,6 @@ class RocketSkill(BaseSkill):
             )
             game.player_bullets.append(r)
             game.world_layout.add_widget(r)
-    def __init__(self):
-        super().__init__()
-        self.radius = 180
-        self.damage_mult = 1.2
-        self.knockback = 80
-        self.anim_frames = [
-            "assets/Lostman/skill3/c4_trap1.png",
-            "assets/Lostman/skill3/c4_trap2.png",
-            "assets/Lostman/skill3/c4_trap3.png",
-            "assets/Lostman/skill3/c4_trap4.png",
-        ]
-
-    @property
-    def cooldown(self):
-        # Lv1=4.0s → Lv5=2.0s
-        return max(2.0, 4.0 - (self.level - 1) * 0.5)
-
-    def _on_upgrade(self):
-        self.radius += 20
-        self.damage_mult += 0.3
-        self.knockback += 20
-
-    def activate(self, game):
-        px = game.player_pos[0] + 32
-        py = game.player_pos[1] + 32
-        dmg = game.player_stats.damage * self.damage_mult
-
-        # ใช้เอฟเฟกต์ที่โหลดจากตัวละคร (PTae=aoeptae1, Lostman=NPT100-103)
-        _show_aoe_vfx(
-            game, px, py, self.radius, game.slash_textures
-        )  # ✅ ใช้ slash_textures แทน
-
-        for enemy in list(game.enemies):  # ✅ ลบ for-targets ที่ค้างอยู่ใน AoE
-            ex, ey = enemy.pos[0] + 20, enemy.pos[1] + 20
-            dist = math.hypot(ex - px, ey - py)
-            if dist <= self.radius:
-                _hit_enemy(game, enemy, dmg)
-                if dist > 0:
-                    kx = (ex - px) / dist * self.knockback
-                    ky = (ey - py) / dist * self.knockback
-                    enemy.pos = (enemy.pos[0] + kx, enemy.pos[1] + ky)
 
 
 # ══════════════════════════════════════════════════════
@@ -279,33 +280,35 @@ class RocketSkill(BaseSkill):
 # ══════════════════════════════════════════════════════
 def _hit_enemy(game, enemy, dmg):
     """ทำ damage ศัตรู และลบออกถ้า HP หมด"""
+    import random as _random
     enemy.hp -= dmg
     if enemy.hp <= 0:
         if enemy in game.enemies:
             game.enemies.remove(enemy)
         if enemy.parent:
             game.world_layout.remove_widget(enemy)
-        # chance to drop health pickup (1 in 8)
-        try:
-            import random
-            if random.randint(1, 8) == 1:
-                # spawn health pickup where the enemy died
-                try:
-                    from game.projectile_widget import HealthPickup
-                    px = enemy.pos[0] + enemy.enemy_size[0] / 2 - 14
-                    py = enemy.pos[1] + enemy.enemy_size[1] / 2 - 14
-                    pickup = HealthPickup(pos=(px, py), heal_amount=25)
-                    game.world_layout.add_widget(pickup)
-                    # ensure game has dropped_items list
-                    if not hasattr(game, 'dropped_items'):
-                        game.dropped_items = []
-                    game.dropped_items.append(pickup)
-                    print(f"[spawn pickup] at ({px:.1f},{py:.1f}) - total items: {len(game.dropped_items)}")
-                except Exception as e:
-                    print(f"[spawn pickup error] {e}")
-        except Exception:
-            pass
-        # update enemy count on HUD after kill
+
+        # ── Clear boss/big_boss reference เมื่อตาย (รองรับทุกกรณีรวม skill hit) ──
+        if hasattr(game, "boss") and enemy is game.boss:
+            game.boss = None
+        if hasattr(game, "big_boss") and enemy is game.big_boss:
+            game.big_boss = None
+
+        # ── Drop HealthPickup (โอกาส 25%) ──
+        if _random.random() < 0.25:
+            try:
+                from game.projectile_widget import HealthPickup
+                px = enemy.pos[0] + (enemy.enemy_size[0] / 2 - 14 if hasattr(enemy, "enemy_size") else 6)
+                py = enemy.pos[1] + (enemy.enemy_size[1] / 2 - 14 if hasattr(enemy, "enemy_size") else 6)
+                pickup = HealthPickup(pos=(px, py), heal_amount=25)
+                game.world_layout.add_widget(pickup)
+                if not hasattr(game, "dropped_items"):
+                    game.dropped_items = []
+                game.dropped_items.append(pickup)
+            except Exception:
+                pass
+
+        # ── อัปเดต HUD + EXP ──
         if hasattr(game, "hud") and game.hud:
             game.hud.update_enemy_count(len(game.enemies))
         game.gain_exp(10)
@@ -547,14 +550,8 @@ def get_upgrade_choices(player_stats, count=3):
     """
     import random
 
-    # debug log for tracing
-    print(
-        f"[DEBUG] get_upgrade_choices called for {player_stats.name} lvl{player_stats.level} current skills: {[type(s).__name__ for s in player_stats.skills]}"
-    )
-
     # เลือก pool สกิลที่อนุญาตตามชื่อคาแรกเตอร์
     allowed_pool = CHARACTER_SKILL_POOL.get(player_stats.name, [])
-    print(f"[DEBUG] allowed_pool = {[cls.__name__ for cls in allowed_pool]}")
     if not allowed_pool:
         # คาแรกเตอร์นี้ยังไม่ออกแบบระบบสกิล → กลับไปใช้โหมดอัป stat
         return []
