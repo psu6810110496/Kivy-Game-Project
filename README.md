@@ -145,7 +145,7 @@ Kivy-Game-Project/
 - [ ] Difficulty settings
 - [ ] Additional character types
 - [ ] Boss variations and unique mechanics
-## แผนพัฒนาในอนาคต
+## แผนที่สามารถนำไปพัฒนาในอนาคตได้
 - [ ] ใส่เสียงและเพลงพื้นหลัง
 - [ ] เพิ่มประเภทสกิลและการผสมกัน
 - [ ] ระบบบอร์ดคะแนน/Leaderboard

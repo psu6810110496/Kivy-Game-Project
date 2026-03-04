@@ -26,7 +26,7 @@ from ui.level_up import LevelUpPopup
 from ui.pause import PausePopup
 from ui.game_over import GameOverPopup
 from game.enemy_widget import EnemyWidget
-from game.projectile_widget import EnemyProjectile
+from game.projectile_widget import EnemyProjectile, HealthPickup
 from game.skills import get_upgrade_choices, _hit_enemy
 
 
@@ -122,6 +122,7 @@ class GameScreen(Screen):
         self.enemies = []
         self.enemy_projectiles = []
         self.player_bullets = []
+        self.dropped_items = []
         self.attack_event = None
 
         # ── Wave / State ──────────────────────────────────
@@ -285,6 +286,11 @@ class GameScreen(Screen):
             if p.parent:
                 self.world_layout.remove_widget(p)
         self.enemy_projectiles = []
+
+        for item in getattr(self, 'dropped_items', [])[:]:
+            if item.parent:
+                self.world_layout.remove_widget(item)
+        self.dropped_items = []
 
         for b in self.player_bullets:
             if b.parent:
@@ -633,6 +639,25 @@ class GameScreen(Screen):
             elif dist > 1200:
                 self._remove_enemy_projectile(proj)
 
+        # --- ตรวจสอบการเก็บของ (dropped_items) ---
+        for item in list(self.dropped_items):
+            item_w = item.size[0] if item.size else 28
+            item_h = item.size[1] if item.size else 28
+            ix = item.pos[0] + item_w / 2
+            iy = item.pos[1] + item_h / 2
+            if math.hypot(ix - p_cx, iy - p_cy) < 50:
+                # เก็บของ: บวก HP และอัปเดต HUD
+                heal = getattr(item, 'heal_amount', 25)
+                self.player_stats.current_hp = min(
+                    self.player_stats.hp,
+                    self.player_stats.current_hp + heal
+                )
+                self.hud.update_ui(self.player_stats)
+                # ลบ item ออกจาก world
+                self.dropped_items.remove(item)
+                if item.parent:
+                    self.world_layout.remove_widget(item)
+
         # การเคลื่อนที่ผู้เล่น
         speed = self.player_stats.speed * (3.0 if self.is_dashing else 1.0)
         dir_x, dir_y = 0, 0
@@ -864,3 +889,16 @@ class GameScreen(Screen):
     def _on_joy_button_down(self, window, stickid, buttonid):
         if buttonid == 7:
             self.toggle_pause()
+
+    def spawn_drop_item(self, pos):
+        """ สุ่มดรอป HealthPickup เมื่อศัตรูตาย (โอกาส 15%) """
+        if not hasattr(self, 'dropped_items'):
+            self.dropped_items = []
+            
+        if random.random() < 0.15:  # โอกาสดรอป 15%
+            try:
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
+                self.dropped_items.append(heal)
+                self.world_layout.add_widget(heal)
+            except Exception as e:
+                print(f"[Error] ไม่สามารถดรอป Heal ได้: {e}")

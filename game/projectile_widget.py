@@ -11,6 +11,8 @@ from kivy.graphics import (
 )
 from kivy.core.image import Image as CoreImage
 import math
+import random
+from kivy.uix.label import Label
 
 
 class EnemyProjectile(Widget):
@@ -215,3 +217,32 @@ class RocketBullet(Widget):
         self.pos = (self.pos[0] + move_x, self.pos[1] + move_y)
         self._traveled += math.hypot(move_x, move_y)
         return self._traveled < self._range
+
+
+class HealthPickup(Widget):
+    """Simple health pickup that can be collected by the player.
+    
+    Appearance: green rectangle with "+" label.
+    """
+
+    def __init__(self, pos=(0, 0), heal_amount=25, **kwargs):
+        kwargs.setdefault('size_hint', (None, None))
+        kwargs.setdefault('size', (28, 28))
+        super().__init__(**kwargs)
+        self.pos = pos
+        self.heal_amount = heal_amount
+        self.size = (28, 28)
+        
+        # Draw green rectangle + label
+        with self.canvas:
+            Color(0.1, 0.8, 0.3, 1)
+            self._rect = Rectangle(pos=self.pos, size=self.size)
+        self._lbl = Label(text="+", size_hint=(None, None), size=self.size, pos=self.pos, color=(1, 1, 1, 1), bold=True, font_size=16)
+        self.add_widget(self._lbl)
+        self.bind(pos=self._update_graphics)
+
+    def _update_graphics(self, instance, value):
+        if hasattr(self, "_rect"):
+            self._rect.pos = value
+        if hasattr(self, "_lbl"):
+            self._lbl.pos = value

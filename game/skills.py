@@ -285,6 +285,26 @@ def _hit_enemy(game, enemy, dmg):
             game.enemies.remove(enemy)
         if enemy.parent:
             game.world_layout.remove_widget(enemy)
+        # chance to drop health pickup (1 in 8)
+        try:
+            import random
+            if random.randint(1, 8) == 1:
+                # spawn health pickup where the enemy died
+                try:
+                    from game.projectile_widget import HealthPickup
+                    px = enemy.pos[0] + enemy.enemy_size[0] / 2 - 14
+                    py = enemy.pos[1] + enemy.enemy_size[1] / 2 - 14
+                    pickup = HealthPickup(pos=(px, py), heal_amount=25)
+                    game.world_layout.add_widget(pickup)
+                    # ensure game has dropped_items list
+                    if not hasattr(game, 'dropped_items'):
+                        game.dropped_items = []
+                    game.dropped_items.append(pickup)
+                    print(f"[spawn pickup] at ({px:.1f},{py:.1f}) - total items: {len(game.dropped_items)}")
+                except Exception as e:
+                    print(f"[spawn pickup error] {e}")
+        except Exception:
+            pass
         # update enemy count on HUD after kill
         if hasattr(game, "hud") and game.hud:
             game.hud.update_enemy_count(len(game.enemies))
