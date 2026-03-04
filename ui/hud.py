@@ -7,6 +7,7 @@ from kivy.clock import Clock
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Rectangle
 from kivy.properties import NumericProperty
+import os
 import kivy.app
 from ui.level_up import LevelUpPopup
 
@@ -72,7 +73,6 @@ class HUD(FloatLayout):
         )
         hp_container.add_widget(self.health_bar)
         hp_container.add_widget(self.hp_label)
-
         # แถวล่าง: เลเวล + หลอด EXP
         exp_container = BoxLayout(orientation="horizontal", size_hint=(1, 1), spacing=5)
         self.lbl_level = Label(
@@ -114,9 +114,39 @@ class HUD(FloatLayout):
         self.lbl_wave.bind(size=lambda inst, val: setattr(inst, "text_size", val))
         self.add_widget(self.lbl_wave)
 
+        # --- [ใหม่] กล่องแสดงจำนวนศัตรูที่เหลือ ---
+        # วางไว้เหนือตัวหนังสือ "WAVE" นิดหน่อย (ขึ้นไปอีก)
+        self.enemy_icon_box = BoxLayout(
+            orientation="horizontal",
+            size_hint=(None, None),
+            size=(160, 30),
+            # ขยับลงให้ใต้ข้อความ Wave
+            pos_hint={"center_x": 0.5, "top": 0.90},
+            spacing=4,
+        )
+        # วาดพื้นหลังโปร่งไว้เป็นกรอบ
+        with self.enemy_icon_box.canvas.before:
+            Color(0, 0, 0, 0.5)
+            self._enemy_box_bg = Rectangle(pos=self.enemy_icon_box.pos, size=self.enemy_icon_box.size)
+        # อัพเดทแบ็กกราวน์เมื่อขยับหรือเปลี่ยนไซส์
+        self.enemy_icon_box.bind(pos=self._update_enemy_box_bg, size=self._update_enemy_box_bg)
+        self.add_widget(self.enemy_icon_box)
+
         # ให้อัปเดตเลือดแบบเรียลไทม์ 60 เฟรมต่อวินาที
         Clock.schedule_interval(self.update_hp_realtime, 1.0 / 60.0)
         # --------------------------------------------------------
+
+        # แสดงค่าจำนวนศัตรูเริ่มต้น (มักจะเป็น 0)
+        try:
+            self.update_enemy_count(len(self.game_screen.enemies))
+        except Exception:
+            pass
+
+    def _update_enemy_box_bg(self, instance, value):
+        # synchronize the background rectangle with the box layout
+        if hasattr(self, '_enemy_box_bg'):
+            self._enemy_box_bg.pos = instance.pos
+            self._enemy_box_bg.size = instance.size
 
         # ปุ่มเมนูด้านขวาบน
         btn_pause = Button(
@@ -258,6 +288,10 @@ class HUD(FloatLayout):
             if proj.parent:
                 proj.parent.remove_widget(proj)
         self.game_screen.enemy_projectiles.clear()
+        # อัปเดต HUD ด้วย
+        if hasattr(self.game_screen, "hud"):
+            self.game_screen.hud.update_enemy_count(0)
+
 
     def update_ui(self, stats):
         self.lbl_level.text = f"LV : {stats.level}"
@@ -286,6 +320,42 @@ class HUD(FloatLayout):
 
     def update_wave(self, wave_num: int):
         self.lbl_wave.text = f"WAVE {wave_num}"
+
+    def update_enemy_count(self, count: int):
+        """ปรับปรุงข้อความจำนวนศัตรูที่เหลือบน HUD
+
+        แสดงเป็นไอคอน (placeholder) และตัวเลขพร้อมคำว่า "left".
+        """
+        if count is None:
+            count = 0
+        self.enemy_icon_box.clear_widgets()
+        # ใช้ภาพไอคอนจากโฟลเดอร์ assets/enemy
+        try:
+            from kivy.uix.image import Image
+            icon_path = "assets/enemy/enemy1.png"
+            if os.path.exists(icon_path):
+                icon = Image(source=icon_path, size_hint=(None, None), size=(24, 24))
+            else:
+                raise FileNotFoundError
+        except Exception:
+            # fallback เป็นกล่องสีแทน
+            from kivy.graphics import Color, Rectangle
+            icon = Label(text=" ", size_hint=(None, None), size=(24, 24))
+            with icon.canvas.before:
+                Color(1, 0, 0, 1)
+                Rectangle(pos=icon.pos, size=icon.size)
+            # อัพเดทเมื่อ icon ย้าย/ขยาย
+            icon.bind(pos=lambda i, v: setattr(icon.canvas.before.children[0], 'pos', v),
+                      size=lambda i, v: setattr(icon.canvas.before.children[0], 'size', v))
+
+        # ตัวเลขแสดงจำนวนนำฟอนต์ต่างออกไป
+        txt = Label(text=f"{int(count)} left",
+                    size_hint=(None, None), size=(100, 24),
+                    font_size=18,
+                    bold=True,
+                    color=(1, 0.9, 0.2, 1))
+        self.enemy_icon_box.add_widget(icon)
+        self.enemy_icon_box.add_widget(txt)
 
     def update_hp_realtime(self, dt):
         if hasattr(self.game_screen, "player_stats") and self.game_screen.player_stats:

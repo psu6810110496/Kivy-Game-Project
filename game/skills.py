@@ -285,6 +285,9 @@ def _hit_enemy(game, enemy, dmg):
             game.enemies.remove(enemy)
         if enemy.parent:
             game.world_layout.remove_widget(enemy)
+        # update enemy count on HUD after kill
+        if hasattr(game, "hud") and game.hud:
+            game.hud.update_enemy_count(len(game.enemies))
         game.gain_exp(10)
 
 

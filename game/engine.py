@@ -291,6 +291,10 @@ class GameScreen(Screen):
                 self.world_layout.remove_widget(b)
         self.player_bullets = []
 
+        # reset HUD enemy count
+        if hasattr(self, "hud") and self.hud:
+            self.hud.update_enemy_count(0)
+
         self.update_camera()
 
     # ── Lifecycle ─────────────────────────────────────────
@@ -461,6 +465,9 @@ class GameScreen(Screen):
         enemy.game = self
         self.enemies.append(enemy)
         self.world_layout.add_widget(enemy)
+        # แจ้ง HUD ว่าจำนวนศัตรูเปลี่ยน
+        if hasattr(self, "hud") and self.hud:
+            self.hud.update_enemy_count(len(self.enemies))
 
     def show_wave_title(self):
         if self.wave_label and self.wave_label.parent:
@@ -496,6 +503,8 @@ class GameScreen(Screen):
         self.boss.game = self
         self.enemies.append(self.boss)
         self.world_layout.add_widget(self.boss)
+        if hasattr(self, "hud") and self.hud:
+            self.hud.update_enemy_count(len(self.enemies))
         self.zoom_target = 3.0  # zoom in ตอน boss
         self.is_boss_intro = True
         self._show_boss_overlay()
@@ -511,6 +520,8 @@ class GameScreen(Screen):
         self.big_boss = boss
         self.enemies.append(boss)
         self.world_layout.add_widget(boss)
+        if hasattr(self, "hud") and self.hud:
+            self.hud.update_enemy_count(len(self.enemies))
         self.zoom_target = 3.0
         self.is_boss_intro = True
         self._show_big_boss_overlay()
