@@ -276,7 +276,8 @@ class GameScreen(Screen):
             return
         for _ in range(5 + self.current_wave * 2):
             self.spawn_single_enemy()
-        if self.current_wave == 5:
+        # Boss spawns on waves ending in 5 (5, 15, 25, 35, ...)
+        if self.current_wave % 10 == 5:
             self.start_boss_fight()
         self.is_spawning_wave = False
 
@@ -372,8 +373,11 @@ class GameScreen(Screen):
             for enemy in list(self.enemies):
                 if math.hypot(b.pos[0] - (enemy.pos[0] + 20),
                               b.pos[1] - (enemy.pos[1] + 20)) < 40:
+                    # Check if it's the boss before hitting
+                    is_boss = (enemy is self.boss)
                     _hit_enemy(self, enemy, b.damage)
-                    if enemy is self.boss and enemy not in self.enemies:
+                    # If it was the boss and is now gone from enemies list, clear reference
+                    if is_boss and enemy not in self.enemies:
                         self.boss = None
                     self._remove_player_bullet(b)
                     hit = True

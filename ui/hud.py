@@ -179,6 +179,22 @@ class HUD(FloatLayout):
         btn_boss.bind(on_press=self.test_summon_boss)
         self.add_widget(btn_boss)
 
+        # ปุ่มล้างศัตรู
+        btn_clear = Button(
+            text="CLEAR\nENEMY",
+            font_size=14,
+            bold=True,
+            halign="center",
+            size_hint=(None, None),
+            size=(80, 50),
+            pos_hint={"right": 0.98, "top": 0.58},
+            background_normal="",
+            background_color=(0.1, 0.2, 0.3, 0.85),
+            color=(1, 1, 1, 1),
+        )
+        btn_clear.bind(on_press=self.clear_all_enemies)
+        self.add_widget(btn_clear)
+
         # --- [⚡ ช่องแสดงสกิล 3 ช่อง ด้านซ้ายล่าง] ---
         # วางก่อนเพราะเริ่มต้นจะยังไม่มีการใช้งานจริง
         skill_box = BoxLayout(
@@ -228,6 +244,20 @@ class HUD(FloatLayout):
         # เรียกใช้ฟังก์ชันเริ่ม Boss Fight จาก GameScreen
         if hasattr(self.game_screen, "start_boss_fight"):
             self.game_screen.start_boss_fight()
+
+    def clear_all_enemies(self, instance):
+        """ล้างศัตรูทั้งหมดออกจากเกม (เพื่อการทดสอบ)"""
+        # ลบศัตรูทั้งหมดออกจาก world_layout
+        for enemy in self.game_screen.enemies[:]:  # ใช้ slice เพื่อ iterate over copy
+            if enemy.parent:
+                enemy.parent.remove_widget(enemy)
+        self.game_screen.enemies.clear()
+        
+        # ล้าง projectiles ของศัตรูด้วย
+        for proj in self.game_screen.enemy_projectiles[:]:
+            if proj.parent:
+                proj.parent.remove_widget(proj)
+        self.game_screen.enemy_projectiles.clear()
 
     def update_ui(self, stats):
         self.lbl_level.text = f"LV : {stats.level}"
