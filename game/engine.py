@@ -441,9 +441,16 @@ class GameScreen(Screen):
 
         # ถ้าเป็น Wave บอส ให้เรียกบอสอย่างเดียว
         if is_boss_wave:
+            # boss waves should still have minions to fight alongside the boss
             self.start_boss_fight()
+            # spawn a handful of extras so the player isn't fighting boss alone
+            for _ in range(5):
+                self.spawn_single_enemy()
         elif is_big_boss_wave:
             self.start_big_boss_fight()
+            # big boss waves get even more support enemies
+            for _ in range(8):
+                self.spawn_single_enemy()
         else:
             # ถ้าเป็น Wave ปกติ ค่อยให้มอนสเตอร์ลูกน้องเกิด
             for _ in range(5 + self.current_wave * 2):
