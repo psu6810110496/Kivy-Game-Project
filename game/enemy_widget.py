@@ -1,5 +1,5 @@
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 import math
@@ -180,15 +180,60 @@ class EnemyWidget(Widget):
 
     # --- Big boss attacks helpers ---
     def do_slam(self):
+        """Ground slam: warns with red circle, then deals damage after delay"""
         if not hasattr(self, "game"):
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
+        slam_radius = 250
+        
+        # Show warning highlight first (yellow/orange)
+        self._show_slam_warning(ex, ey, slam_radius)
+        
+        # Delay the actual damage and projectiles by 0.4 seconds
+        Clock.schedule_once(
+            lambda dt: self._execute_slam_damage(ex, ey, slam_radius),
+            0.4
+        )
+
+    def _show_slam_warning(self, cx, cy, radius):
+        """Show yellow/orange warning circle before slam hits"""
+        if not hasattr(self, "game") or not self.parent:
+            return
+        
+        effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
+        effect_widget.pos = (cx - radius, cy - radius)
+        
+        with effect_widget.canvas:
+            Color(1, 1, 0, 0.5)  # Yellow warning with transparency
+            Ellipse(pos=effect_widget.pos, size=effect_widget.size)
+        
+        self.parent.add_widget(effect_widget)
+        Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.4)
+
+    def _execute_slam_damage(self, cx, cy, slam_radius):
+        """Actually deal damage and show red impact circle"""
+        if not hasattr(self, "game"):
+            return
+        
+        # Direct melee damage to player if they're in slam radius
+        player_pos = self.game.player_pos
+        px, py = player_pos[0] + 32, player_pos[1] + 32
+        dist_to_player = math.hypot(cx - px, cy - py)
+        
+        if dist_to_player < slam_radius:
+            # Direct damage to player from the slam
+            self.game.take_damage(self.damage * 1.5)
+        
+        # Show red damage impact circle
+        self._show_slam_impact(cx, cy, slam_radius)
+        
+        # Create radial projectiles for visual effect and additional coverage
         for i in range(12):
             angle = 2 * math.pi * i / 12
-            tx = ex + math.cos(angle) * 500
-            ty = ey + math.sin(angle) * 500
-            proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(tx, ty), damage=self.damage)
+            tx = cx + math.cos(angle) * 500
+            ty = cy + math.sin(angle) * 500
+            proj = EnemyProjectile(start_pos=(cx, cy), target_pos=(tx, ty), damage=self.damage)
             proj.speed = 250
             self.parent.add_widget(proj)
             game_screen = self.parent
@@ -196,6 +241,21 @@ class EnemyWidget(Widget):
                 game_screen = game_screen.parent
             if game_screen:
                 game_screen.enemy_projectiles.append(proj)
+
+    def _show_slam_impact(self, cx, cy, radius):
+        """Show red impact circle after damage is dealt"""
+        if not hasattr(self, "game") or not self.parent:
+            return
+        
+        effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
+        effect_widget.pos = (cx - radius, cy - radius)
+        
+        with effect_widget.canvas:
+            Color(1, 0, 0, 0.6)  # Red impact with transparency
+            Ellipse(pos=effect_widget.pos, size=effect_widget.size)
+        
+        self.parent.add_widget(effect_widget)
+        Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.25)
 
     def do_swipe(self, player_pos):
         if not hasattr(self, "game"):
@@ -224,6 +284,11 @@ class EnemyWidget(Widget):
             game_screen = game_screen.parent
         if game_screen:
             game_screen.enemy_projectiles.append(proj)
+
+    def _remove_effect_widget(self, widget):
+        """Remove effect widget from parent"""
+        if widget.parent:
+            widget.parent.remove_widget(widget)
 
     def shoot(self, player_pos):
         if not self.parent:
