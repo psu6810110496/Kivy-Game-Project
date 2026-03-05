@@ -42,39 +42,39 @@ class EnemyWidget(Widget):
         # --- [ Enemy Stats ] ---
         stats = {
             "normal": {
-                "hp": 30,
+                "hp": 50,
                 "speed": 2.2,
-                "damage": 5,
+                "damage": 8,
                 "color": (1, 1, 1, 1),
                 "size": (40, 40),
             },
             "stalker": {
-                "hp": 15,
+                "hp": 40,
                 "speed": 3.8,
-                "damage": 2,
+                "damage": 5,
                 "color": (0.8, 0.2, 1, 1),
                 "size": (30, 30),
             },
             "ranger": {
-                "hp": 25,
+                "hp": 40,
                 "speed": 1.8,
-                "damage": 8,
+                "damage": 12,
                 "color": (0.2, 0.9, 0.3, 1),
                 "size": (45, 45),
             },
             # Boss: ศัตรูตัวใหญ่ HP เยอะ เดินช้าแต่ตีแรง
             "boss": {
-                "hp": 400,
+                "hp": 600,
                 "speed": 1.2,
-                "damage": 30,
+                "damage": 40,
                 "color": (0.9, 0.2, 0.2, 1),
                 "size": (96, 96),
             },
             # Big boss type with additional special attacks
             "big_boss": {
-                "hp": 1200,
+                "hp": 2000,
                 "speed": 1.0,
-                "damage": 40,
+                "damage": 55,
                 "color": (0.5, 0.1, 0.7, 1),
                 "size": (128, 128),
             },
@@ -104,7 +104,7 @@ class EnemyWidget(Widget):
     def _update_rect(self, instance, value):
         self.rect.pos = value
 
-    def update_movement(self, player_pos, all_enemies):
+    def update_movement(self, player_pos, all_enemies, dt: float = 1/60.0):
         """ระบบ AI: แยกตามประเภทศัตรู"""
         px, py = player_pos[0] + 32, player_pos[1] + 32
         ex, ey = (

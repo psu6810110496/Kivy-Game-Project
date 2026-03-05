@@ -21,12 +21,14 @@ class CharacterSelectScreen(Screen):
         # ---------------------------
 
         # 1. ใช้ข้อมูลตัวละครใหม่ของเรา (PTae, Lostman, Monke)
+        # 1. ใช้ข้อมูลตัวละครใหม่ของเรา (PTae, Lostman, Monke)
         self.char_data = {
             "PTae": PlayerStats(
                 name="PTae",
                 hp=150,
-                speed=3.5,
-                damage=14,
+                speed=4.0,
+                damage=15,
+                size=(64, 64),  # 🌟 เพิ่มขนาดของ PTae (ตัวใหญ่)
                 idle_frames=[
                     "assets/PTae/PTIdle/PTTG1.png",
                     "assets/PTae/PTIdle/PTTG2.png",
@@ -42,7 +44,8 @@ class CharacterSelectScreen(Screen):
                 name="Lostman",
                 hp=100,
                 speed=5.0,
-                damage=17,
+                damage=12,
+                size=(64, 64),  # 🌟 เพิ่มขนาดของ Lostman (ตัวมาตรฐาน)
                 idle_frames=[
                     "assets/Lostman/idle/idleman1.png",
                     "assets/Lostman/idle/idleman2.png",
@@ -56,9 +59,11 @@ class CharacterSelectScreen(Screen):
             ),
             "Monkey": PlayerStats(
                 name="Monkey",
-                hp=90,
+                hp=80,
                 speed=7.0,
-                damage=12,
+                damage=10,
+                melee_cooldown=0.2,
+                size=(32, 32),  # 🌟 เพิ่มขนาดของ Monkey (ตัวเล็ก ว่องไว)
                 idle_frames=[
                     "assets/Monkey/IdleM/IdleM01.png",
                     "assets/Monkey/IdleM/IdleM02.png",

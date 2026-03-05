@@ -1,0 +1,334 @@
+"""game/projectile_widget.py"""
+import math
+from kivy.clock import Clock
+from kivy.core.image import Image as CoreImage
+from kivy.graphics import Color, Ellipse, Rectangle, PushMatrix, PopMatrix, Translate, Rotate
+from kivy.uix.image import Image
+from kivy.uix.label import Label
+from kivy.uix.widget import Widget
+
+
+class _Linear(Widget):
+    def __init__(self, start_pos, target_pos, speed, damage, **kw):
+        super().__init__(**kw)
+        self.pos = start_pos; self.speed = speed; self.damage = damage
+        dx = target_pos[0]-start_pos[0]; dy = target_pos[1]-start_pos[1]
+        mag = math.hypot(dx, dy)
+        self.direction = (dx/mag, dy/mag) if mag > 0 else (1, 0)
+
+    def _move(self, dt):
+        self.pos = (self.pos[0]+self.direction[0]*self.speed*dt,
+                    self.pos[1]+self.direction[1]*self.speed*dt)
+
+
+class EnemyProjectile(_Linear):
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            try: cls._TEXTURES = [CoreImage(f"assets/effect/rangershoot/1_{i}.png").texture for i in range(30)]
+            except: cls._TEXTURES = []
+
+    def __init__(self, start_pos, target_pos, damage=10, **kw):
+        super().__init__(start_pos, target_pos, speed=400.0, damage=damage, **kw)
+        self._load(); self.size=(80,80); self._frame=0; self._at=0.0; self._fd=0.02
+        angle = math.degrees(math.atan2(self.direction[1], self.direction[0]))
+        with self.canvas:
+            PushMatrix()
+            self.tr = Translate(self.pos[0], self.pos[1])
+            self.ro = Rotate(angle=angle, origin=(0,0))
+            Color(1,1,1,1)
+            self.br = Rectangle(pos=(-40,-40), size=(80,80),
+                                 texture=self._TEXTURES[0] if self._TEXTURES else None)
+            PopMatrix()
+        self.bind(pos=lambda i,v: [setattr(self.tr,'x',v[0]),setattr(self.tr,'y',v[1])])
+
+    def update(self, dt):
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                if self._frame < len(self._TEXTURES)-1:
+                    self._frame += 1; self.br.texture = self._TEXTURES[self._frame]
+        self._move(dt)
+
+
+class PlayerBullet(_Linear):
+    def __init__(self, start_pos, target_pos, speed, proj_range, damage, anim_frames=None, **kw):
+        super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
+        self._range=proj_range; self._traveled=0.0
+        self._anim=anim_frames or []; self._ai=0; self._at=0.0; self._fd=0.06
+        if self._anim:
+            self._sprite = Image(source=self._anim[0], size=(48,48),
+                                  pos=(start_pos[0]-24,start_pos[1]-24),
+                                  allow_stretch=True, keep_ratio=False)
+            self.add_widget(self._sprite)
+        else:
+            with self.canvas:
+                Color(0.3,1,1,1)
+                self._ell = Ellipse(pos=(start_pos[0]-6,start_pos[1]-6), size=(12,12))
+        self.bind(pos=self._sync)
+
+    def _sync(self, *_):
+        if hasattr(self,'_sprite'):
+            self._sprite.pos = (self.pos[0]-self._sprite.width/2, self.pos[1]-self._sprite.height/2)
+        elif hasattr(self,'_ell'):
+            self._ell.pos = (self.pos[0]-6, self.pos[1]-6)
+
+    def update(self, dt) -> bool:
+        if self._anim and len(self._anim)>1:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at=0.0; self._ai=(self._ai+1)%len(self._anim)
+                if hasattr(self,'_sprite'): self._sprite.source=self._anim[self._ai]
+        mx=self.direction[0]*self.speed*dt; my=self.direction[1]*self.speed*dt
+        self.pos=(self.pos[0]+mx,self.pos[1]+my); self._traveled+=math.hypot(mx,my)
+        return self._traveled < self._range
+
+
+class RocketBullet(_Linear):
+    """PTae Rocket Volley — สี่เหลี่ยมแดง"""
+    def __init__(self, start_pos, target_pos, speed, proj_range, damage, **kw):
+        super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
+        self._range=proj_range; self._traveled=0.0; self.size=(12,32)
+        with self.canvas:
+            Color(1,0.2,0.2,1)
+            self.rect=Rectangle(pos=(start_pos[0]-6,start_pos[1]-16), size=(12,32))
+        self.bind(pos=lambda i,v: setattr(self.rect,'pos',(v[0]-6,v[1]-16)))
+
+    def update(self, dt) -> bool:
+        mx=self.direction[0]*self.speed*dt; my=self.direction[1]*self.speed*dt
+        self.pos=(self.pos[0]+mx,self.pos[1]+my); self._traveled+=math.hypot(mx,my)
+        return self._traveled < self._range
+
+
+class RPGRocket(_Linear):
+    """Monkey RPG — จรวดส้มระเบิด AoE เมื่อโดนศัตรู"""
+    def __init__(self, start_pos, target_pos, speed, proj_range, damage,
+                 splash_damage=60, splash_radius=150, **kw):
+        super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
+        self._range=proj_range; self._traveled=0.0
+        self.splash_damage=splash_damage; self.splash_radius=splash_radius
+        self.exploded=False; self.size=(16,40)
+        with self.canvas:
+            Color(1,0.4,0.0,1)
+            self.rect=Rectangle(pos=(start_pos[0]-8,start_pos[1]-20), size=(16,40))
+        self.bind(pos=lambda i,v: setattr(self.rect,'pos',(v[0]-8,v[1]-20)))
+
+    def explode(self, game):
+        self.exploded=True
+        px,py=self.pos[0],self.pos[1]
+        from game.skills import _hit_enemy, _show_aoe_vfx
+        _show_aoe_vfx(game, px, py, self.splash_radius)
+        for enemy in list(game.enemies):
+            ex,ey=enemy.pos[0]+20,enemy.pos[1]+20
+            if math.hypot(ex-px,ey-py)<=self.splash_radius:
+                _hit_enemy(game, enemy, self.splash_damage)
+
+    def update(self, dt) -> bool:
+        if self.exploded: return False
+        mx=self.direction[0]*self.speed*dt; my=self.direction[1]*self.speed*dt
+        self.pos=(self.pos[0]+mx,self.pos[1]+my); self._traveled+=math.hypot(mx,my)
+        return self._traveled < self._range
+
+
+class HealthPickup(Widget):
+    def __init__(self, pos=(0,0), heal_amount=25, texture_path=None, **kw):
+        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(28,28))
+        super().__init__(**kw)
+        self.pos=pos; self.heal_amount=heal_amount; self.size=(28,28)
+        with self.canvas:
+            Color(0.1,0.8,0.3,1)
+            self._rect=Rectangle(pos=self.pos, size=self.size)
+        self._lbl=Label(text="+",size_hint=(None,None),size=self.size,pos=self.pos,
+                        color=(1,1,1,1),bold=True,font_size=16)
+        self.add_widget(self._lbl)
+        self.bind(pos=self._sync)
+
+    def _sync(self,i,v):
+        if hasattr(self,'_rect'): self._rect.pos=v
+        if hasattr(self,'_lbl'): self._lbl.pos=v
+
+
+class ExpOrb(Widget):
+    """EXP orb ที่ drop จากศัตรู — ต้องเดินไปเก็บ"""
+    def __init__(self, pos=(0,0), exp_amount=10, texture_path=None, **kw):
+        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(20,20))
+        super().__init__(**kw)
+        self.pos=pos; self.exp_amount=exp_amount; self.size=(20,20)
+        with self.canvas:
+            if texture_path:
+                try:
+                    tex=CoreImage(texture_path).texture
+                    Color(1,1,1,1)
+                    self._shape=Rectangle(pos=self.pos, size=self.size, texture=tex)
+                    self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
+                    return
+                except Exception:
+                    pass
+            Color(1,0.9,0.1,1)
+            self._shape=Ellipse(pos=self.pos, size=self.size)
+        self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
+
+
+class DinoProjectile(_Linear):
+    """PTae Dino Summon — จรวดรูปไดโน (fallback สีเขียว)"""
+    def __init__(self, start_pos, target_pos, speed, proj_range, damage, **kw):
+        super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
+        self._range = proj_range; self._traveled = 0.0; self.size = (28, 28)
+        with self.canvas:
+            Color(0.2, 0.9, 0.3, 1)
+            self.rect = Rectangle(pos=(start_pos[0]-14, start_pos[1]-14), size=(28, 28))
+        self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-14, v[1]-14)))
+
+    def update(self, dt) -> bool:
+        mx = self.direction[0]*self.speed*dt; my = self.direction[1]*self.speed*dt
+        self.pos = (self.pos[0]+mx, self.pos[1]+my); self._traveled += math.hypot(mx, my)
+        return self._traveled < self._range
+
+class HomingDino(_Linear):
+    """PTae Skill 2 — ไดโนเสาร์ติดตามศัตรู (homing)"""
+    TURN_SPEED = 4.0   # rad/s
+
+    def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, **kw):
+        # target_ref = enemy widget (ติดตาม live pos)
+        tx = target_ref.pos[0] + 20
+        ty = target_ref.pos[1] + 20
+        super().__init__(start_pos, (tx, ty), speed=speed, damage=damage, **kw)
+        self._target = target_ref
+        self._range = proj_range
+        self._traveled = 0.0
+        self.size = (28, 28)
+        with self.canvas:
+            Color(0.3, 1.0, 0.4, 1)
+            self.rect = Rectangle(
+                pos=(start_pos[0]-14, start_pos[1]-14), size=(28,28))
+        self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-14, v[1]-14)))
+
+    def update(self, dt) -> bool:
+        # ถ้า target ยังมีชีวิตอยู่ ให้หมุนทิศทางเข้าหา
+        if self._target and self._target.parent and getattr(self._target, 'hp', 0) > 0:
+            tx = self._target.pos[0] + 20 - self.pos[0]
+            ty = self._target.pos[1] + 20 - self.pos[1]
+            dist = math.hypot(tx, ty)
+            if dist > 0:
+                desired_angle = math.atan2(ty, tx)
+                current_angle = math.atan2(self.direction[1], self.direction[0])
+                diff = (desired_angle - current_angle + math.pi) % (2*math.pi) - math.pi
+                turn = max(-self.TURN_SPEED*dt, min(self.TURN_SPEED*dt, diff))
+                new_angle = current_angle + turn
+                self.direction = (math.cos(new_angle), math.sin(new_angle))
+        mx = self.direction[0]*self.speed*dt
+        my = self.direction[1]*self.speed*dt
+        self.pos = (self.pos[0]+mx, self.pos[1]+my)
+        self._traveled += math.hypot(mx, my)
+        return self._traveled < self._range
+
+
+class DinoBeam(Widget):
+    """PTae Skill 3 — ลำแสงตรงไปตามทิศเมาส์ ทำดาเมจทุก enemy ที่ผ่าน"""
+    DEFAULT_WIDTH = 160  # ความกว้างเริ่มต้น (กว้างขึ้นเยอะ)
+    DURATION = 0.55      # วินาทีที่แสดง (อยู่นานขึ้น)
+    SPEED = 900          # px/s (ความเร็วหัว beam)
+
+    def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
+        kw.setdefault('size_hint', (None, None))
+        kw.setdefault('size', (1, 1))
+        super().__init__(**kw)
+        self.pos = start_pos
+        self.damage = damage
+        self._dir = direction
+        self._length = length
+        self._width = width if width is not None else self.DEFAULT_WIDTH
+        self._traveled = 0.0
+        self._hit_enemies: set = set()
+        self._alive = True
+
+        angle_deg = math.degrees(math.atan2(direction[1], direction[0]))
+        with self.canvas:
+            PushMatrix()
+            self._tr = Translate(start_pos[0], start_pos[1])
+            Rotate(angle=angle_deg, origin=(0, 0))
+            # เงากว้างด้านนอก (สีอ่อน โปร่งแสง)
+            Color(0.4, 1.0, 0.5, 0.30)
+            self._rect_outer = Rectangle(
+                pos=(0, -self._width // 2),
+                size=(0, self._width))
+            # แกนกลาง (สีสว่าง)
+            inner_w = max(20, self._width // 4)
+            Color(0.7, 1.0, 0.6, 0.95)
+            self._rect_inner = Rectangle(
+                pos=(0, -inner_w // 2),
+                size=(0, inner_w))
+            PopMatrix()
+        self.bind(pos=lambda i, v: setattr(self._tr, 'x', v[0]) or
+                                    setattr(self._tr, 'y', v[1]))
+        Clock.schedule_once(self._expire, self.DURATION)
+
+    def update(self, dt: float, game) -> bool:
+        if not self._alive:
+            return False
+        step = self.SPEED * dt
+        self._traveled = min(self._traveled + step, self._length)
+
+        # ขยาย beam ตาม traveled
+        self._rect_outer.size = (self._traveled, self._width)
+        inner_w = max(20, self._width // 4)
+        self._rect_inner.size = (self._traveled, inner_w)
+
+        # เช็ค hit ทุก enemy ในแนว beam
+        sx, sy = self.pos
+        perp = (-self._dir[1], self._dir[0])
+        half_w = self._width / 2
+
+        for enemy in list(game.enemies):
+            eid = id(enemy)
+            if eid in self._hit_enemies:
+                continue
+            ecx = enemy.pos[0] + 20
+            ecy = enemy.pos[1] + 20
+            along = (ecx - sx)*self._dir[0] + (ecy - sy)*self._dir[1]
+            perp_d = abs((ecx - sx)*perp[0] + (ecy - sy)*perp[1])
+            if 0 <= along <= self._traveled and perp_d <= half_w:
+                from game.skills import _hit_enemy
+                _hit_enemy(game, enemy, self.damage)
+                self._hit_enemies.add(eid)
+
+        return self._alive
+
+    def _expire(self, _dt):
+        self._alive = False
+        if self.parent:
+            self.parent.remove_widget(self)
+
+
+class BombWidget(Widget):
+    """Lostman Bomb Trap — countdown widget แสดงตัวเลข 3-2-1"""
+    def __init__(self, pos=(0,0), fuse=3.0, damage=100, radius=160, **kw):
+        kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (32, 32))
+        super().__init__(**kw)
+        self.pos = pos; self.damage = damage; self.radius = radius; self.size = (32, 32)
+        self._fuse = fuse; self._elapsed = 0.0
+        with self.canvas:
+            Color(0.9, 0.5, 0.1, 1)
+            self._bg = Ellipse(pos=self.pos, size=self.size)
+        self._lbl = Label(
+            text=str(int(fuse)), font_size=20, bold=True,
+            color=(1, 1, 1, 1), size_hint=(None, None), size=(32, 32), pos=self.pos,
+            halign='center', valign='middle'
+        )
+        self._lbl.bind(size=lambda i, v: setattr(i, 'text_size', v))
+        self.add_widget(self._lbl)
+        self.bind(pos=self._sync)
+        Clock.schedule_interval(self._tick, 1.0)
+
+    def _sync(self, i, v):
+        if hasattr(self, '_bg'): self._bg.pos = v
+        if hasattr(self, '_lbl'): self._lbl.pos = v
+
+    def _tick(self, dt):
+        self._elapsed += 1
+        remaining = max(0, int(self._fuse - self._elapsed))
+        if hasattr(self, '_lbl'): self._lbl.text = str(remaining)
+        if remaining <= 0: return False
