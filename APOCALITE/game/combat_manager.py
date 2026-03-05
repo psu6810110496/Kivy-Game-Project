@@ -45,6 +45,14 @@ class CombatManager:
                     else:
                         is_boss = (enemy is g.boss or enemy is getattr(g,'big_boss',None))
                         _hit_enemy(g, enemy, b.damage)
+                        
+                        # 🌟 Lifesteal for HomingDino (PTae Skill 2)
+                        if type(b).__name__ == "HomingDino":
+                            heal_amount = b.damage * 0.5
+                            g.player_stats.current_hp = min(g.player_stats.hp, g.player_stats.current_hp + heal_amount)
+                            if hasattr(g, 'hud') and g.hud:
+                                g.hud.update_ui(g.player_stats)
+                                
                         if is_boss and enemy not in g.enemies:
                             if enemy is g.boss: g.boss = None
                             if hasattr(g,'big_boss') and enemy is g.big_boss: g.big_boss = None

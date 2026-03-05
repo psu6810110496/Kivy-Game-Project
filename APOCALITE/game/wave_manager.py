@@ -20,29 +20,6 @@ class WaveManager:
     def try_start_next_wave(self):
         if self.is_spawning or self.game.is_dead or self._wave_stopped:
             return
-        self.is_spawning = True 
-        """game/wave_manager.py — Wave/Boss spawning + progression scaling"""
-import math
-import random
-
-from kivy.clock import Clock
-from kivy.uix.label import Label
-
-from game.enemy_widget import EnemyWidget
-
-
-class WaveManager:
-    def __init__(self, game):
-        self.game = game
-        self.current_wave: int = 0
-        self.is_spawning: bool = False
-        self._wave_label = None
-        self._boss_overlay = None
-        self._wave_stopped: bool = False  # debug: stop wave
-
-    def try_start_next_wave(self):
-        if self.is_spawning or self.game.is_dead or self._wave_stopped:
-            return
         self.is_spawning = True
         self.current_wave += 1
         self._show_wave_title()
@@ -254,13 +231,16 @@ class WaveManager:
         is_boss = (w % 10 == 5)
 
         if is_big_boss:
-            count = self._big_boss_count(w)
-            for _ in range(count):
+            bb_count = self._big_boss_count(w)
+            b_count = self._boss_count_in_big_boss_wave(w)
+            for _ in range(bb_count):
                 self._spawn_big_boss(intro=False)
+            for _ in range(b_count):
+                self._spawn_boss(intro=False)
             for _ in range(8):
                 self._spawn_single()
             self.is_spawning = False
-            Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=True), 0.1)
+            Clock.schedule_once(lambda _: self.start_boss_intro(bb_count, is_big=True), 0.1)
         elif is_boss:
             count = self._boss_count(w)
             for _ in range(count):
@@ -279,20 +259,32 @@ class WaveManager:
         return min(10, 1 + (wave - 5) // 10)
 
     def _big_boss_count(self, wave: int) -> int:
-        """wave 10,20,30,40=1, wave 45=2 (ไม่มี), wave 50=1
-        จริงๆ: wave 45 ไม่ใช่ big boss wave (45%10=5 เป็น boss)
-        spec: wave 45 = 2 big boss → แต่ 45%10=5 เป็น boss wave
-        ตีความว่า wave 40=1, wave 50=1,... wave ที่ >= 100 = 3"""
-        if wave >= 100:
-            return 3
-        if wave >= 45:
-            return 2
-        return 1
+        w_index = wave // 10
+        if w_index <= 0: return 1
+        return math.ceil((w_index + 0.1) / 2)
+
+    def _boss_count_in_big_boss_wave(self, wave: int) -> int:
+        if wave < 30 or (wave // 10) % 2 == 0:
+            return 0
+        w_index = wave // 10
+        return 4 + (w_index - 3) // 2
 
     def _spawn_single(self, force_type=None):
         game = self.game
-        etype = force_type or random.choices(
-            ["normal", "stalker", "ranger"], weights=[60, 25, 15])[0]
+        # ค่อยๆ เพิ่มโอกาสเจอ Mini-Boss ตาม wave
+        w = self.current_wave
+        
+        weights = [60, 25, 15] # normal, stalker, ranger
+        choices = ["normal", "stalker", "ranger"]
+        
+        if w >= 2:
+            choices.extend(["charger", "bomber"])
+            weights.extend([8, 10])
+        if w >= 4:
+            choices.extend(["shielder", "sniper"])
+            weights.extend([7, 6])
+            
+        etype = force_type or random.choices(choices, weights=weights)[0]
         angle = random.uniform(0, 2 * math.pi)
         r = random.uniform(850, 1100)
         sx = game.player_pos[0] + math.cos(angle) * r

@@ -422,20 +422,9 @@ class GameScreen(Screen):
                 angle_diff = abs(math.atan2(math.sin(enemy_angle - mouse_angle), math.cos(enemy_angle - mouse_angle)))
                 
                 if angle_diff <= angle_spread:
-                    # ทำดาเมจ
-                    enemy.take_damage(self.player_stats.damage)
-                    
-                    # เช็คตาย
-                    if enemy.hp <= 0:
-                        drop_pos = enemy.pos
-                        if enemy in self.enemies:
-                            self.enemies.remove(enemy)
-                        if enemy.parent:
-                            self.world_layout.remove_widget(enemy)
-                        self.spawn_exp_orb(drop_pos)
-                        self.spawn_drop_item(drop_pos)
-                        if hasattr(self, 'hud') and self.hud:
-                            self.hud.update_enemy_count(len(self.enemies))
+                    # ทำดาเมจ (หักจากของเก่า แล้วใช้ _hit_enemy เพื่อให้โค้ดส่วนตาย(boss/exp) ตรงกับ skills.py)
+                    from game.skills import _hit_enemy
+                    _hit_enemy(self, enemy, self.player_stats.damage)
 
     def take_damage(self, amount: float):
         """ผู้เล่นรับดาเมจ (ถอดระบบ i-frames ออกแล้ว)"""

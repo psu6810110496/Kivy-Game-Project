@@ -191,12 +191,13 @@ class HomingDino(_Linear):
     """PTae Skill 2 — ไดโนเสาร์ติดตามศัตรู (homing)"""
     TURN_SPEED = 4.0   # rad/s
 
-    def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, **kw):
+    def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, game=None, **kw):
         # target_ref = enemy widget (ติดตาม live pos)
         tx = target_ref.pos[0] + 20
         ty = target_ref.pos[1] + 20
         super().__init__(start_pos, (tx, ty), speed=speed, damage=damage, **kw)
         self._target = target_ref
+        self._game = game  # 🌟 เก็บ reference ของเกมเพื่อหาเป้าหมายใหม่
         self._range = proj_range
         self._traveled = 0.0
         self.size = (28, 28)
@@ -207,7 +208,14 @@ class HomingDino(_Linear):
         self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-14, v[1]-14)))
 
     def update(self, dt) -> bool:
-        # ถ้า target ยังมีชีวิตอยู่ ให้หมุนทิศทางเข้าหา
+        # ถ้า target เดิมตาย ลองหาตัวใหม่
+        if not (self._target and self._target.parent and getattr(self._target, 'hp', 0) > 0):
+            if hasattr(self, '_game') and self._game and self._game.enemies:
+                # หาตัวที่ใกล้ HomingDino ที่สุด
+                nearest_e = min(self._game.enemies, key=lambda e: math.hypot((e.pos[0]+20) - self.pos[0], (e.pos[1]+20) - self.pos[1]))
+                self._target = nearest_e
+        
+        # ถ้ายังมี target ให้หมุนทิศทางเข้าหา
         if self._target and self._target.parent and getattr(self._target, 'hp', 0) > 0:
             tx = self._target.pos[0] + 20 - self.pos[0]
             ty = self._target.pos[1] + 20 - self.pos[1]
@@ -219,6 +227,7 @@ class HomingDino(_Linear):
                 turn = max(-self.TURN_SPEED*dt, min(self.TURN_SPEED*dt, diff))
                 new_angle = current_angle + turn
                 self.direction = (math.cos(new_angle), math.sin(new_angle))
+                
         mx = self.direction[0]*self.speed*dt
         my = self.direction[1]*self.speed*dt
         self.pos = (self.pos[0]+mx, self.pos[1]+my)
@@ -332,3 +341,57 @@ class BombWidget(Widget):
         remaining = max(0, int(self._fuse - self._elapsed))
         if hasattr(self, '_lbl'): self._lbl.text = str(remaining)
         if remaining <= 0: return False
+
+class BossBombWidget(Widget):
+    """Boss Bomb — explosion that damages the player after 3 seconds"""
+    def __init__(self, pos=(0,0), fuse=3.0, damage=100, radius=200, game=None, **kw):
+        kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (64, 64))
+        super().__init__(**kw)
+        self.pos = pos; self.damage = damage; self.radius = radius; self.size = (64, 64)
+        self._fuse = fuse; self._elapsed = 0.0
+        self._game = game
+        
+        with self.canvas:
+            Color(1, 0.2, 0.2, 0.8) # สีแดงน่ากลัว
+            self._bg = Ellipse(pos=self.pos, size=self.size)
+        
+        self._lbl = Label(
+            text=str(int(fuse)), font_size=32, bold=True,
+            color=(1, 1, 1, 1), size_hint=(None, None), size=(64, 64), pos=self.pos,
+            halign='center', valign='middle'
+        )
+        self._lbl.bind(size=lambda i, v: setattr(i, 'text_size', v))
+        self.add_widget(self._lbl)
+        self.bind(pos=self._sync)
+        
+        Clock.schedule_interval(self._tick, 1.0)
+        Clock.schedule_once(self._explode, fuse)
+
+    def _sync(self, i, v):
+        if hasattr(self, '_bg'): self._bg.pos = v
+        if hasattr(self, '_lbl'): self._lbl.pos = v
+
+    def _tick(self, dt):
+        self._elapsed += 1
+        remaining = max(0, int(self._fuse - self._elapsed))
+        if hasattr(self, '_lbl'): self._lbl.text = str(remaining)
+        if remaining <= 0: return False
+        
+    def _explode(self, dt):
+        if not self._game: return
+        px = self.pos[0] + 32
+        py = self.pos[1] + 32
+        
+        # วาดวงกลมวงกว้างโชว์รัศมีระเบิด (ใช้ effect)
+        from game.skills import _show_aoe_vfx
+        _show_aoe_vfx(self._game, px, py, self.radius)
+        
+        # ดาเมจคนเล่นที่อยู่ในรัศมี
+        player_x = self._game.player_pos[0] + 32
+        player_y = self._game.player_pos[1] + 32
+        dist = math.hypot(player_x - px, player_y - py)
+        if dist <= self.radius:
+            self._game.take_damage(self.damage)
+            
+        if self.parent:
+            self.parent.remove_widget(self)

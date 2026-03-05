@@ -209,6 +209,7 @@ class DinoSummon(BaseSkill):
                 speed=self.dino_speed,
                 proj_range=self.dino_range,
                 damage=dmg,
+                game=game, # 🌟 เพิ่ม game parameter เพื่อให้ retarget ได้
             )
             game.player_bullets.append(proj)
             game.world_layout.add_widget(proj)
@@ -225,17 +226,20 @@ class DinoPunch(StackSkill):
         super().__init__()
         self.damage_mult = 5.0
         self.beam_length = 1200
-        self.beam_width  = 120   # กว้างเริ่มต้น Lv1
 
     @property
     def recharge_time(self):
         return max(4.0, self.STACK_RECHARGE - (self.level - 1) * 0.5)
 
+    @property
+    def beam_width(self):
+        if self.level <= 5:
+            return int(50 + (self.level - 1) * 12.5)
+        return int(100 + (self.level - 5) * 10)
+
     def _on_upgrade(self):
         self.damage_mult += 1.0
         self.beam_length  = min(2000, self.beam_length + 80)
-        # กว้างขึ้น +30 ต่อ level
-        self.beam_width += 30
 
     def activate(self, game):
         from game.projectile_widget import DinoBeam
@@ -769,12 +773,31 @@ def _hit_enemy(game, enemy, dmg: float):
         return
     if enemy in game.enemies:
         game.enemies.remove(enemy)
-    if enemy.parent:
-        game.world_layout.remove_widget(enemy)
+        
+    # เช็คว่าเป็นบอสหรือไม่ เพื่อดรอประเบิดตัวเอง
+    is_any_boss = False
     if hasattr(game, "boss") and enemy is game.boss:
         game.boss = None
+        is_any_boss = True
     if hasattr(game, "big_boss") and enemy is game.big_boss:
         game.big_boss = None
+        is_any_boss = True
+        
+    if is_any_boss:
+        from game.projectile_widget import BossBombWidget
+        bx = enemy.pos[0] + (enemy.enemy_size[0]/2 if hasattr(enemy, 'enemy_size') else 20) - 32
+        by = enemy.pos[1] + (enemy.enemy_size[1]/2 if hasattr(enemy, 'enemy_size') else 20) - 32
+        bomb = BossBombWidget(
+            pos=(bx, by),
+            fuse=3.0,
+            damage=300, # ดาเมจมหาศาล
+            radius=250, # รัศมีกว้าง
+            game=game
+        )
+        game.world_layout.add_widget(bomb)
+
+    if enemy.parent:
+        game.world_layout.remove_widget(enemy)
     game.spawn_exp_orb(enemy.pos)
     if random.random() < 0.25:
         game.spawn_drop_item(enemy.pos)
