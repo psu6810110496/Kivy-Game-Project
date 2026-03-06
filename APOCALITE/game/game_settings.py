@@ -30,6 +30,14 @@ class GameSettings:
         "pause":      "escape",
     }
 
+    DEFAULT_JOY_KEYS = {
+        "dash":       "0",  # Joy Btn 0 (A)
+        "skill1":     "2",  # Joy Btn 2 (X)
+        "skill2":     "3",  # Joy Btn 3 (Y)
+        "skill3":     "5",  # Joy Btn 5 (RB)
+        "pause":      "7",  # Joy Btn 7 (Start)
+    }
+
     KEY_DISPLAY_NAMES = {
         "move_up":    "เดินขึ้น (Move Up)",
         "move_down":  "เดินลง (Move Down)",
@@ -69,6 +77,7 @@ class GameSettings:
 
         # --- Key Bindings ---
         self.key_bindings: dict = dict(self.DEFAULT_KEYS)
+        self.joy_bindings: dict = dict(self.DEFAULT_JOY_KEYS)
 
         self.load()
 
@@ -84,6 +93,7 @@ class GameSettings:
             "health_drop_rate": self.health_drop_rate,
             "screen_shake_intensity": self.screen_shake_intensity,
             "key_bindings": self.key_bindings,
+            "joy_bindings": self.joy_bindings,
         }
         try:
             with open(self.SETTINGS_FILE, "w", encoding="utf-8") as f:
@@ -109,12 +119,18 @@ class GameSettings:
             for k, v in loaded_keys.items():
                 if k in self.key_bindings:
                     self.key_bindings[k] = v
+
+            loaded_joy_keys = data.get("joy_bindings", {})
+            for k, v in loaded_joy_keys.items():
+                if k in self.joy_bindings:
+                    self.joy_bindings[k] = str(v)
         except Exception as e:
             print(f"[Settings] Load failed: {e}")
 
     def reset_keys(self):
         """Reset key bindings to default"""
         self.key_bindings = dict(self.DEFAULT_KEYS)
+        self.joy_bindings = dict(self.DEFAULT_JOY_KEYS)
         self.save()
 
 

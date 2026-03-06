@@ -17,5 +17,12 @@
     "skill2": "e",
     "skill3": "lmb",
     "pause": "escape"
+  },
+  "joy_bindings": {
+    "dash": "5",
+    "skill1": "2",
+    "skill2": "3",
+    "skill3": "4",
+    "pause": "7"
   }
 }

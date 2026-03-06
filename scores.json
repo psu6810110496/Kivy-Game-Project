@@ -8,6 +8,14 @@
         "kills": 35
     },
     {
+        "name": ":P",
+        "score": 2062,
+        "character": "Lostman",
+        "time_survived": "02:57",
+        "level": 3,
+        "kills": 28
+    },
+    {
         "name": "player1",
         "score": 1029,
         "character": "Lostman",
@@ -22,5 +30,13 @@
         "time_survived": "00:56",
         "level": 1,
         "kills": 6
+    },
+    {
+        "name": ":P",
+        "score": 187,
+        "character": "Monkey",
+        "time_survived": "00:12",
+        "level": 1,
+        "kills": 2
     }
 ]

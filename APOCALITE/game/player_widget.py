@@ -23,51 +23,47 @@ class PlayerWidget(Widget):
             self.rect = Rectangle(source=self.current_anim[0], pos=start_pos, size=(64, 64))
             
         with self.canvas.after:
-            # เปลี่ยนสีเป็นสีขาว (1, 1, 1) และค่า Alpha เริ่มต้นเป็น 0
-            self.aim_color = Color(1, 1, 1, 0) 
+            from kivy.graphics import PushMatrix, PopMatrix, Translate, Rotate, Scale, Ellipse
+            self.weapon_group = []
             
-            # ใช้ Line วาดหัวลูกศรแบบ >
-            # points จะรับ [x_base_top, y_base_top, x_tip, y_tip, x_base_bottom, y_base_bottom]
-            self.aim_line = Line(points=[0, 0, 0, 0, 0, 0], width=1.5, joint='miter')
+            PushMatrix()
+            self.weapon_trans = Translate(0, 0)
+            self.weapon_rot = Rotate(angle=0, origin=(0, 0))
+            self.weapon_scale = Scale(1, 1, 1, origin=(0, 0))
+            
+            self.c_tube = Color(1, 1, 1, 0) # Alpha toggled by update_aim
+            # Adjusting pos: X decreased to bring closer to player, Y decreased (more negative) to move down
+            self.r_tube = Rectangle(source="assets/Monkey/Weapon/RPG.png", pos=(0, -45), size=(96, 96))
+
+            self.weapon_group = [self.c_tube]
+            PopMatrix()
 
         Clock.schedule_interval(self.animate, 1.0/60.0)
 
-    def update_aim(self, is_aiming, aim_x, aim_y):
-        """ อัปเดตตำแหน่งและทิศทางของลูกศรเล็งแบบ > """
-        if is_aiming and (aim_x != 0 or aim_y != 0):
-            self.aim_color.a = 1.0 # แสดงลูกศรสีขาว
+    def update_aim(self, is_aiming, aim_x, aim_y, has_rpg=False):
+        """ อัปเดตตำแหน่งและให้ตัวละครดึง RPG ออกมาถือเล็ง (เฉพาะ Monkey ที่มีสกิลแล้ว) """
+        if is_aiming and has_rpg and (aim_x != 0 or aim_y != 0):
+            for c in self.weapon_group: c.a = 1.0  # Show RPG
             
             cx = self.rect.pos[0] + (self.rect.size[0] / 2)
             cy = self.rect.pos[1] + (self.rect.size[1] / 2)
             
-            # ปรับทิศทางเป็น Unit Vector
             mag = (aim_x**2 + aim_y**2) ** 0.5
             ux, uy = aim_x / mag, aim_y / mag
             
-            # ตั้งค่ารูปร่างลูกศร
-            dist = 50        # ระยะห่างจากตัวละคร
-            arrow_size = 10  # ความยาวก้านของหัวศร
-            spread = 1     # ความกว้างของปากลูกศร (ยิ่งเยอะยิ่งอ้ากว้าง)
+            # Update transformation
+            self.weapon_trans.x = cx
+            self.weapon_trans.y = cy
+            self.weapon_rot.angle = math.degrees(math.atan2(uy, ux))
             
-            # Vector ตั้งฉาก
-            px, py = -uy, ux
-            
-            # 1. จุดยอด (Tip) ของลูกศร >
-            tip_x = cx + (ux * dist)
-            tip_y = cy + (uy * dist)
-            
-            # 2. จุดปลายก้านบน
-            p2_x = cx + (ux * (dist - arrow_size)) + (px * arrow_size * spread)
-            p2_y = cy + (uy * (dist - arrow_size)) + (py * arrow_size * spread)
-            
-            # 3. จุดปลายก้านล่าง
-            p3_x = cx + (ux * (dist - arrow_size)) - (px * arrow_size * spread)
-            p3_y = cy + (uy * (dist - arrow_size)) - (py * arrow_size * spread)
-            
-            # อัปเดตเส้น Line ให้ลากจาก (ปลายก้านบน -> จุดยอด -> ปลายก้านล่าง)
-            self.aim_line.points = [p2_x, p2_y, tip_x, tip_y, p3_x, p3_y]
+            # Flip weapon vertically if aiming left so grips face down
+            if ux < 0:
+                self.weapon_scale.y = -1
+            else:
+                self.weapon_scale.y = 1
         else:
-            self.aim_color.a = 0.0 # ซ่อนเมื่อไม่ได้เล็ง
+            for c in self.weapon_group: c.a = 0.0 # Hide RPG
+
 
     # --- ฟังก์ชันอื่นๆ (set_state, animate, update_pos) คงเดิมเหมือนโค้ดก่อนหน้า ---
     def set_state(self, is_moving, facing_right, current_speed):

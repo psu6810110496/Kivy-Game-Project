@@ -41,6 +41,8 @@ class LeaderboardScreen(Screen):
         self.add_widget(main_layout)
 
     def on_enter(self):
+        from kivy.core.window import Window
+        Window.bind(on_joy_button_down=self._on_joy_button_down, on_joy_axis=self._on_joy_axis)
         """Update the list every time we enter the screen"""
         self.list_layout.clear_widgets()
         scores = ScoreManager.load_scores()
@@ -74,3 +76,17 @@ class LeaderboardScreen(Screen):
 
     def go_back(self, instance):
         App.get_running_app().root.current = "main_menu"
+
+    def on_leave(self):
+        from kivy.core.window import Window
+        Window.unbind(on_joy_button_down=self._on_joy_button_down, on_joy_axis=self._on_joy_axis)
+
+    def _on_joy_button_down(self, win, stickid, buttonid):
+        # B Button to go back
+        if buttonid == 1:
+            self.go_back(None)
+            
+    def _on_joy_axis(self, win, stickid, axisid, value):
+        normalized = value / 32767.0
+        if abs(normalized) > 0.5 and axisid == 1:  # Y-axis scrolling
+            self.scroll_view.scroll_y = max(0.0, min(1.0, self.scroll_view.scroll_y - (normalized * 0.1)))

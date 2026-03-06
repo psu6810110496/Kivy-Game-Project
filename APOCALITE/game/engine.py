@@ -450,7 +450,13 @@ class GameScreen(Screen):
                 self.mouse_dir[0] = aim_x / mag_aim
                 self.mouse_dir[1] = aim_y / mag_aim
 
-        self.player_widget.update_aim(True, aim_x, aim_y)
+        # Check if RPG should be shown (Only Monkey character with Skill 3 unlocked)
+        has_rpg = False
+        if self.player_stats and self.player_stats.name == "Monkey":
+            if self.player_stats.skill3 is not None:
+                has_rpg = True
+
+        self.player_widget.update_aim(True, aim_x, aim_y, has_rpg=has_rpg)
 
     # ── Combat (Melee Logic) ───────────────────────────────
     def perform_melee_attack(self):
@@ -714,21 +720,15 @@ class GameScreen(Screen):
         # Left Trigger fallback? Actually, let's use RB (Button 5) and A (Button 0) for main actions to be safe.
         
     def _on_joy_button(self, _win, _stick, buttonid):
-        # Generic XInput:
-        # 0: A/Cross (Dash)
-        # 1: B/Circle
-        # 2: X/Square
-        # 3: Y/Triangle
-        # 4: LB
-        # 5: RB (Skill 3)
-        # 6: Back/Share
-        # 7: Start/Options
+        from game.game_settings import settings
+        jb = settings.joy_bindings
+        bid = str(buttonid)
         
-        if buttonid == 7: # Start
+        if bid == jb.get('pause'):
             self.toggle_pause()
-        elif buttonid == 0 or buttonid == 4: # A Button or LB (Left Bumper)
+        elif bid == jb.get('dash'):
             self.start_dash()
-        elif buttonid == 5 or buttonid == 4: # RB or LB
+        elif bid == jb.get('skill3'):
             if (self.game_started and not self.is_dead
                     and hasattr(self, 'player_stats') and self.player_stats):
                 s3 = getattr(self.player_stats, 'skill3', None)
