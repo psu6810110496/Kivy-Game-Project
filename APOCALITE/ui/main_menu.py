@@ -103,7 +103,7 @@ class MainMenuScreen(Screen):
 
         # 4. ปุ่มเข้ากับธีมฝน (Rain Theme: กระจกโปร่งแสงสีเข้ม)
         btn_layout = BoxLayout(
-            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 180)
+            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 270)
         )
 
         btn_start = Button(
@@ -114,6 +114,16 @@ class MainMenuScreen(Screen):
             size=(350, 70),
             background_normal="",  # ต้องมีบรรทัดนี้ ไม่งั้นปุ่มจะเป็นก้อนสีขาว
             background_color=(0.1, 0.15, 0.2, 0.85),  # สีเทาเข้มอมฟ้า โปร่งแสง
+            color=(0.9, 0.95, 1, 1),
+        )
+        btn_leaderboard = Button(
+            text="LEADERBOARD",
+            font_size=22,
+            bold=True,
+            size_hint=(None, None),
+            size=(350, 70),
+            background_normal="",
+            background_color=(0.1, 0.15, 0.2, 0.85),
             color=(0.9, 0.95, 1, 1),
         )
         btn_quit = Button(
@@ -128,13 +138,16 @@ class MainMenuScreen(Screen):
         )
 
         btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
+        btn_leaderboard.bind(on_press=lambda x: self.change_screen("leaderboard_screen"))
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
 
         btn_layout.add_widget(btn_start)
+        btn_layout.add_widget(btn_leaderboard)
         btn_layout.add_widget(btn_quit)
 
         # --- [เก็บปุ่มลงใน List สำหรับจอย] ---
         self.selectable_buttons.append(btn_start)
+        self.selectable_buttons.append(btn_leaderboard)
         self.selectable_buttons.append(btn_quit)
         # --------------------------------
 

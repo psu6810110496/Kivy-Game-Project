@@ -5,6 +5,7 @@ from ui.main_menu import MainMenuScreen
 from ui.char_select import CharacterSelectScreen
 from game.engine import GameScreen
 from ui.credits import CreditsScreen
+from ui.leaderboard import LeaderboardScreen
 from kivy.config import Config
 
 # ตั้งค่าการปรับขนาดหน้าจอ
@@ -24,6 +25,7 @@ class Apocalite(App):
         sm.add_widget(CharacterSelectScreen(name="char_select_screen"))
         sm.add_widget(GameScreen(name="game_screen"))
         sm.add_widget(CreditsScreen(name="credits_screen"))
+        sm.add_widget(LeaderboardScreen(name="leaderboard_screen"))
         return sm
 
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):

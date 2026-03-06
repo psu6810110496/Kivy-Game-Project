@@ -228,6 +228,8 @@ class GameScreen(Screen):
         self.keys_pressed.clear()
         self.mouse_dir = [1, 0]
         self.melee_timer = 0.0 # 🌟 รีเซ็ต Cooldown การตี
+        self.total_kills = 0
+        self.play_time = 0.0
 
         if self.attack_event:
             self.attack_event.cancel()
@@ -327,6 +329,9 @@ class GameScreen(Screen):
     def update_frame(self, dt: float):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
+
+        if self.game_started:
+            self.play_time += dt
 
         # Wave check
         if self.game_started and not self.enemies and not self.wave_manager.is_spawning:
@@ -516,6 +521,7 @@ class GameScreen(Screen):
 
     def spawn_exp_orb(self, pos):
         """Drop EXP orb เมื่อศัตรูตาย — ต้องเดินเก็บ"""
+        self.total_kills += 1
         from game.projectile_widget import ExpOrb
         texture = getattr(self.player_stats, 'exp_texture', None) if self.player_stats else None
         orb = ExpOrb(pos=(pos[0] + 5, pos[1] + 5), exp_amount=10, texture_path=texture)
@@ -561,7 +567,7 @@ class GameScreen(Screen):
             self.attack_event.cancel()
             self.attack_event = None
         self._unbind_input()
-        GameOverPopup(win=win).open()
+        GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────
     def _bind_input(self):
