@@ -487,24 +487,48 @@ class BossSpike(Widget):
             self.parent.remove_widget(self)
 
 class BombWidget(Widget):
-    """Lostman Bomb Trap — countdown widget แสดงตัวเลข 3-2-1"""
+    """Lostman Bomb Trap — countdown widget แสดงตัวเลข 3-2-1 และ C4 sprite"""
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            for i in range(1, 5):
+                try:
+                    cls._TEXTURES.append(CoreImage(f"assets/Lostman/skill3/c4_trap{i}.png").texture)
+                except Exception:
+                    pass
+
     def __init__(self, pos=(0,0), fuse=3.0, damage=100, radius=160, **kw):
-        kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (32, 32))
+        kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (48, 48))
         super().__init__(**kw)
-        self.pos = pos; self.damage = damage; self.radius = radius; self.size = (32, 32)
+        self._load()
+        self.pos = pos; self.damage = damage; self.radius = radius; self.size = (48, 48)
         self._fuse = fuse; self._elapsed = 0.0
+        self._frame = 0; self._at = 0.0; self._fd = 0.15
+        
         with self.canvas:
-            Color(0.9, 0.5, 0.1, 1)
-            self._bg = Ellipse(pos=self.pos, size=self.size)
+            if self._TEXTURES:
+                Color(1, 1, 1, 1)
+                self._bg = Rectangle(pos=self.pos, size=self.size, texture=self._TEXTURES[0])
+            else:
+                Color(0.9, 0.5, 0.1, 1)
+                self._bg = Ellipse(pos=self.pos, size=self.size)
+                
         self._lbl = Label(
             text=str(int(fuse)), font_size=20, bold=True,
-            color=(1, 1, 1, 1), size_hint=(None, None), size=(32, 32), pos=self.pos,
+            color=(1, 1, 1, 1), size_hint=(None, None), size=self.size, pos=self.pos,
             halign='center', valign='middle'
         )
         self._lbl.bind(size=lambda i, v: setattr(i, 'text_size', v))
         self.add_widget(self._lbl)
         self.bind(pos=self._sync)
+        
+        # นับถอยหลังทุกๆ 1 วิ
         Clock.schedule_interval(self._tick, 1.0)
+        # รัน anim ทุกเสี้ยววิ
+        Clock.schedule_interval(self._anim_tick, 1/60.0)
 
     def _sync(self, i, v):
         if hasattr(self, '_bg'): self._bg.pos = v
@@ -515,6 +539,14 @@ class BombWidget(Widget):
         remaining = max(0, int(self._fuse - self._elapsed))
         if hasattr(self, '_lbl'): self._lbl.text = str(remaining)
         if remaining <= 0: return False
+
+    def _anim_tick(self, dt):
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                self._bg.texture = self._TEXTURES[self._frame]
 
 class BossBombWidget(Widget):
     """Boss Bomb — explosion that damages the player after 3 seconds"""
