@@ -27,15 +27,20 @@ class WaveManager:
         if self.is_spawning or self.game.is_dead or self._wave_stopped:
             return
             
-        # ตันที่ wave 45
-        if self.current_wave >= 45:
-            # เมื่อเคลียร์ Wave 45 แล้วมอนหมด ฟังก์ชันนี้จะถูกเรียก
-            # ให้จบเกมแบบชนะ
-            self.game.show_game_over(win=True)
+        self.current_wave += 1
+        
+        # Check Win Condition: Just finished Wave 45
+        if self.current_wave > 45:
+            # เมื่อเคลียร์ Wave 45 (Final Boss) แล้ว
+            # รอ 15 วินาทีก่อนจบเกมตามที่ User ต้องการ
+            def _delayed_victory(dt):
+                if not self.game.is_dead: # Don't win if player died in the last 15s
+                    self.game.show_game_over(win=True)
+            
+            Clock.schedule_once(_delayed_victory, 15.0)
             return
 
         self.is_spawning = True
-        self.current_wave += 1
         self._show_wave_title()
         Clock.schedule_once(self._spawn_enemies, 1.5)
 
@@ -119,6 +124,12 @@ class WaveManager:
                 
             game.hud.update_ui(game.player_stats)
 
+        if w == 45:
+            # Final Boss Wave: Spawn only the Final Boss
+            self._spawn_final_boss()
+            self.is_spawning = False
+            return
+
         is_big_boss = (w % 10 == 0 and w > 0)
         is_boss = (w % 10 == 5)
 
@@ -142,7 +153,7 @@ class WaveManager:
             self.is_spawning = False
             Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=False), 0.1)
         else:
-            for _ in range(5 + w * 2):
+            for _ in range(5 + w):
                 self._spawn_single()
             self.is_spawning = False
 
@@ -170,10 +181,10 @@ class WaveManager:
         
         if w >= 2:
             choices.extend(["charger", "bomber"])
-            weights.extend([8, 10])
+            weights.extend([12, 14])
         if w >= 4:
             choices.extend(["shielder", "sniper"])
-            weights.extend([7, 6])
+            weights.extend([18, 12])
             
         etype = force_type or random.choices(choices, weights=weights)[0]
         
@@ -184,11 +195,7 @@ class WaveManager:
         enemy.game = game
         
         # Stat scaling
-        mult = self.current_wave // 5
-        if mult > 0:
-            enemy.damage += mult * 4
-            enemy.hp += mult * 5
-            enemy.max_hp = enemy.hp
+        self._apply_wave_scaling(enemy)
             
         game.enemies.append(enemy)
         game.world_layout.add_widget(enemy)
@@ -202,9 +209,7 @@ class WaveManager:
         boss = EnemyWidget(spawn_pos=(bx, by), enemy_type=etype)
         boss.game = game
         
-        mult = self.current_wave // 5
-        boss.hp += mult * 100
-        boss.max_hp = boss.hp
+        self._apply_wave_scaling(boss)
         
         game.boss = boss
         game.enemies.append(boss)
@@ -221,9 +226,7 @@ class WaveManager:
         boss = EnemyWidget(spawn_pos=(bx, by), enemy_type=etype)
         boss.game = game
         
-        mult = self.current_wave // 5
-        boss.hp += mult * 250
-        boss.max_hp = boss.hp
+        self._apply_wave_scaling(boss)
         
         game.big_boss = boss
         game.enemies.append(boss)
@@ -232,12 +235,69 @@ class WaveManager:
         if intro:
             self.start_boss_intro(1, is_big=True)
 
-    def start_boss_intro(self, boss_count: int, is_big: bool):
+    def _spawn_final_boss(self):
+        game = self.game
+        etype = "final_boss"
+        bx, by = self._get_valid_spawn_pos(etype, r_min=850, r_max=950)
+        
+        boss = EnemyWidget(spawn_pos=(bx, by), enemy_type=etype)
+        boss.game = game
+        # Final Boss fixed stats, no extra wave scaling needed beyond definition
+        game.boss = boss
+        game.enemies.append(boss)
+        game.world_layout.add_widget(boss)
+        game.hud.update_enemy_count(len(game.enemies))
+        # Special Intro
+        Clock.schedule_once(lambda _: self.start_boss_intro(1, is_big=False, is_final=True), 0.1)
+        # 🌟 Start spawning XP periodically for Wave 45
+        Clock.schedule_interval(self._spawn_wave_45_xp, 5.0)
+
+    def _spawn_wave_45_xp(self, dt):
+        """สุ่มเสก XP ให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
+        if self.current_wave != 45 or self.game.is_dead or not self.game.game_started:
+            return False # Stop interval
+            
+        # เสก XP 8-12 เม็ด กระจายรอบตัวผู้เล่น (รัศมี 300-900)
+        for _ in range(random.randint(8, 12)):
+            pos = self._get_valid_spawn_pos("normal", r_min=300, r_max=900)
+            self.game.spawn_exp_orb(pos)
+        return True
+
+    def _apply_wave_scaling(self, enemy):
+        """ใส่ HP / DMG bonus ตาม wave ให้ศัตรู"""
+        w = self.current_wave
+        
+        if enemy.enemy_type == "boss":
+            # บอส: เลือดเพิ่มขึ้นทีละ +100 ทุก 5 wave
+            mult = w // 5
+            enemy.hp += mult * 100
+        elif enemy.enemy_type == "big_boss":
+            # มหาบอส: เลือดเพิ่มขึ้นทีละ +400 ทุก 10 wave
+            mult10 = w // 10
+            enemy.hp += mult10 * 400
+        elif enemy.enemy_type == "final_boss" or enemy.enemy_type == "final_boss_clone":
+            # Final Boss มีค่าคงที่แล้ว ไม่ต้องบวกเพิ่ม
+            pass
+        else:
+            # มอนปกติ: ดาเมจ +10, เลือด +15 ทุก 5 wave
+            mult = w // 5
+            enemy.damage += mult * 10
+            enemy.hp += mult * 15
+        
+        enemy.max_hp = enemy.hp
+
+    def start_boss_intro(self, boss_count: int, is_big: bool, is_final: bool = False):
         game = self.game
         game.zoom_target = 3.0
         game.is_boss_intro = True
-        tag = "BIG BOSS" if is_big else "BOSS"
-        color = (0.8, 0.1, 0.8, 1) if is_big else (0.9, 0.2, 0.2, 1)
+        
+        if is_final:
+            tag = "FINAL BOSS"
+            color = (0.5, 0.0, 1.0, 1) # Purple
+        else:
+            tag = "BIG BOSS" if is_big else "BOSS"
+            color = (0.8, 0.1, 0.8, 1) if is_big else (0.9, 0.2, 0.2, 1)
+            
         multiplier = f"  ×{boss_count}" if boss_count > 1 else ""
         self._show_boss_overlay(f"{tag}{multiplier}", color)
 

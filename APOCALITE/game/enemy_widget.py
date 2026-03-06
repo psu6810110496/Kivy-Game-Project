@@ -1,4 +1,5 @@
 from kivy.uix.widget import Widget
+from kivy.uix.label import Label
 from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
@@ -9,6 +10,7 @@ from game.projectile_widget import EnemyProjectile
 
 # --- [ Class สำหรับตัวศัตรู ] ---
 class EnemyWidget(Widget):
+    SHOW_DEBUG_STATS = False # Global toggle for HP/ATK display
     # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
     # bosses may be updated by placing a file named boss.png in assets/enemy
     import os
@@ -53,6 +55,7 @@ class EnemyWidget(Widget):
         self.has_shield = True
         # Sniper ยิงแบบแพทเทิร์น 3 นัด
         self.sniper_cooldown = random.uniform(1.0, 2.0)
+        self.time_counter = random.uniform(0, 5.0) # 🌟 สำหรับ Zigzag หรือ AI อื่นๆ
 
 
         # --- [ Enemy Stats ] ---
@@ -95,7 +98,7 @@ class EnemyWidget(Widget):
             "bomber": {
                 "hp": 80,
                 "speed": 2.5,
-                "damage": 60, # ระเบิดแรง
+                "damage": 20, # ระเบิดแรง
                 "color": (1.0, 1.0, 0.2, 1), # 🟡 เหลือง
                 "size": (50, 50),
             },
@@ -106,7 +109,6 @@ class EnemyWidget(Widget):
                 "color": (0.4, 0.8, 0.9, 1), # 🩵 ฟ้าอ่อน
                 "size": (45, 45),
             },
-            # Boss: ศัตรูตัวใหญ่ HP เยอะ เดินช้าแต่ตีแรง
             "boss": {
                 "hp": 450,
                 "speed": 1.2,
@@ -122,7 +124,31 @@ class EnemyWidget(Widget):
                 "color": (0.5, 0.1, 0.7, 1),
                 "size": (128, 128),
             },
+            # Final Boss: Wave 45 Exclusive
+            "final_boss": {
+                "hp": 50000, 
+                "speed": 0.4,
+                "damage": 60,
+                "color": (0.2, 0.0, 0.5, 1),
+                "size": (180, 180),
+            },
+            "final_boss_clone": {
+                "hp": 5000,
+                "speed": 0.2,
+                "damage": 30,
+                "color": (0.3, 0.1, 0.6, 0.6), # Semi-transparent
+                "size": (140, 140),
+            },
         }
+
+        # --- Final Boss Variables ---
+        self.final_phase = 1
+        self.final_attack_timer = 5.0
+        self.final_attack_index = 0
+        self.final_dash_count = 0
+        self.final_is_acting = False
+        self.lethal_cooldown = 0.0
+        self.final_clones = [] # To keep track of spawned clones
 
         current_stats = stats.get(enemy_type, stats["normal"])
         self.hp = current_stats["hp"]
@@ -133,7 +159,7 @@ class EnemyWidget(Widget):
 
         # เลือก texture ตามประเภทศัตรู (ถ้าไม่เจอใช้ normal แทน)
         self.texture = self.ENEMY_TEXTURES.get(
-            enemy_type, self.ENEMY_TEXTURES["normal"]
+            enemy_type, self.ENEMY_TEXTURES["boss"] if enemy_type == "final_boss" else self.ENEMY_TEXTURES["normal"]
         )
 
         with self.canvas:
@@ -142,11 +168,30 @@ class EnemyWidget(Widget):
             self.rect = Rectangle(
                 pos=self.pos, size=self.enemy_size, texture=self.texture
             )
-
+        self.shake_offset = [0, 0]
+        
+        # Debug Label
+        self._debug_label = Label(
+            text="", font_size=12, bold=True,
+            color=(1, 0.2, 0.2, 1), outline_width=1, outline_color=(0,0,0,1),
+            size_hint=(None, None), size=(100, 20),
+            opacity=1 if self.SHOW_DEBUG_STATS else 0
+        )
+        self.add_widget(self._debug_label)
+        
         self.bind(pos=self._update_rect)
 
     def _update_rect(self, instance, value):
-        self.rect.pos = value
+        new_pos = (value[0] + self.shake_offset[0], value[1] + self.shake_offset[1])
+        self.rect.pos = new_pos
+        # Sync debug label
+        if self._debug_label:
+            self._debug_label.pos = (new_pos[0] + self.enemy_size[0]/2 - 50, new_pos[1] + self.enemy_size[1] + 5)
+            if self.SHOW_DEBUG_STATS:
+                self._debug_label.text = f"HP:{int(self.hp)}  ATK:{int(self.damage)}"
+                self._debug_label.opacity = 1
+            else:
+                self._debug_label.opacity = 0
 
     def update_movement(self, player_pos, all_enemies, dt: float = 1/60.0):
         """ระบบ AI: แยกตามประเภทศัตรู"""
@@ -203,11 +248,22 @@ class EnemyWidget(Widget):
                     Clock.schedule_once(lambda dt: self._start_charge_dash(), 1.0)
 
         elif self.enemy_type == "shielder":
+            self.time_counter += dt
             if not self.has_shield:
-                self.speed = 3.0 # Enrage (เดินเร็วขึ้น)
+                self.speed = 4.5 # Enrage (วิ่งเร็วมาก)
                 self.color_inst.rgba = (1, 0, 0, 1) # กลายเป็นสีแดง
-            if dist > 0:
-                vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                if dist > 0:
+                    # เดินหาแบบซิกแซ็ก (Zigzag)
+                    vx = (dx / dist) * self.speed
+                    vy = (dy / dist) * self.speed
+                    # เพิ่มทิศทางตั้งฉากเพื่อทำซิกแซ็ก
+                    z_freq = 12.0
+                    z_mag = 4.0
+                    vx += (-dy / dist) * math.sin(self.time_counter * z_freq) * z_mag
+                    vy += (dx / dist) * math.sin(self.time_counter * z_freq) * z_mag
+            else:
+                if dist > 0:
+                    vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
 
         elif self.enemy_type == "bomber":
             if dist > 0:
@@ -247,6 +303,62 @@ class EnemyWidget(Widget):
             if self.missile_cooldown <= 0:
                 self.do_missile(player_pos)
                 self.missile_cooldown = random.uniform(4.0, 6.0)
+
+        # --- [ Final Boss Logic ] ---
+        if self.enemy_type == "final_boss":
+            self.final_attack_timer -= dt
+            
+            # Phase Change
+            if self.final_phase == 1 and self.hp < self.max_hp * 0.5:
+                self.final_phase = 2
+                self.speed = 5.0
+                self.color_inst.rgba = (0.8, 0.0, 0.2, 1) # Dark Red
+                self.final_attack_timer = 3.0 # Immediate reset
+
+            # Move
+            if not self.final_is_acting:
+                if dist > 0:
+                    vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+
+            # Attack Patterns
+            if self.final_attack_timer <= 0:
+                if self.final_phase == 1:
+                    # Phase 1: Spiral -> Beam -> Spawn Clones
+                    if self.final_attack_index == 0:
+                        self.do_final_spiral()
+                        self.final_attack_timer = 6.0
+                    elif self.final_attack_index == 1:
+                        self.do_final_beam()
+                        self.final_attack_timer = 6.0
+                    else:
+                        self.do_final_clones()
+                        self.final_attack_timer = 8.0 # Longer delay for clones
+                    
+                    self.final_attack_index = (self.final_attack_index + 1) % 3
+                else:
+                    # Phase 2: Systematic Pattern (+ Lethal Homing if ready)
+                    if self.lethal_cooldown <= 0:
+                        self.do_final_lethal_homing()
+                        self.lethal_cooldown = 30.0 # 30s cooldown
+                    
+                    if self.final_attack_index == 0:
+                        self.do_final_spiral()
+                        self.final_attack_timer = 7.0 
+                    elif self.final_attack_index == 1:
+                        self.do_final_dash(player_pos)
+                    elif self.final_attack_index == 2:
+                        self.do_final_spikes()
+                        self.final_attack_timer = 5.0
+                    elif self.final_attack_index == 3:
+                        self.do_final_beam()
+                        self.final_attack_timer = 7.0 
+                    else:
+                        self.do_final_slam(player_pos)
+                    
+                    self.final_attack_index = (self.final_attack_index + 1) % 5
+            
+            # Update cooldowns
+            self.lethal_cooldown -= dt
 
         # --- [ Separation (ไม่ให้ทับกัน) ] ---
         sep_x, sep_y = 0, 0
@@ -298,7 +410,7 @@ class EnemyWidget(Widget):
 
     def _show_slam_warning(self, cx, cy, radius):
         """Show yellow/orange warning circle before slam hits"""
-        if not hasattr(self, "game") or not self.parent:
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
@@ -308,12 +420,12 @@ class EnemyWidget(Widget):
             Color(1, 1, 0, 0.5)  # Yellow warning with transparency
             Ellipse(pos=effect_widget.pos, size=effect_widget.size)
         
-        self.parent.add_widget(effect_widget)
+        self.game.world_layout.add_widget(effect_widget)
         Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.4)
 
     def _execute_slam_damage(self, cx, cy, slam_radius):
         """Actually deal damage and show red impact circle"""
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         # Direct melee damage to player if they're in slam radius
@@ -335,16 +447,12 @@ class EnemyWidget(Widget):
             ty = cy + math.sin(angle) * 500
             proj = EnemyProjectile(start_pos=(cx, cy), target_pos=(tx, ty), damage=self.damage)
             proj.speed = 250
-            self.parent.add_widget(proj)
-            game_screen = self.parent
-            while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-                game_screen = game_screen.parent
-            if game_screen:
-                game_screen.enemy_projectiles.append(proj)
+            self.game.world_layout.add_widget(proj)
+            self.game.enemy_projectiles.append(proj)
 
     def _show_slam_impact(self, cx, cy, radius):
         """Show red impact circle after damage is dealt"""
-        if not hasattr(self, "game") or not self.parent:
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
@@ -354,36 +462,28 @@ class EnemyWidget(Widget):
             Color(1, 0, 0, 0.6)  # Red impact with transparency
             Ellipse(pos=effect_widget.pos, size=effect_widget.size)
         
-        self.parent.add_widget(effect_widget)
+        self.game.world_layout.add_widget(effect_widget)
         Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.25)
 
     def do_swipe(self, player_pos):
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
         proj.speed = 700
-        self.parent.add_widget(proj)
-        game_screen = self.parent
-        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-            game_screen = game_screen.parent
-        if game_screen:
-            game_screen.enemy_projectiles.append(proj)
+        self.game.world_layout.add_widget(proj)
+        self.game.enemy_projectiles.append(proj)
 
     def do_missile(self, player_pos):
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 0.8)
         proj.speed = 300
-        self.parent.add_widget(proj)
-        game_screen = self.parent
-        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-            game_screen = game_screen.parent
-        if game_screen:
-            game_screen.enemy_projectiles.append(proj)
+        self.game.world_layout.add_widget(proj)
+        self.game.enemy_projectiles.append(proj)
 
     def _remove_effect_widget(self, widget):
         """Remove effect widget from parent"""
@@ -407,23 +507,29 @@ class EnemyWidget(Widget):
             start_pos=(ex, ey), target_pos=(target_x, target_y), damage=self.damage
         )
 
-        # เพิ่มกระสุนเข้า world_layout (parent ของศัตรู)
-        self.parent.add_widget(proj)
-
-        # ส่งเข้า list ใน GameScreen เพื่อเช็ค Collision
         if hasattr(self, "game") and self.game is not None:
+            self.game.world_layout.add_widget(proj)
             self.game.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0, 0)):
-        """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ"""
+        """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ พร้อมเขย่าตัว"""
+        self._apply_hit_shake()
         
         # 🔵 Shielder damage reduction
         if getattr(self, "enemy_type", "") == "shielder" and getattr(self, "has_shield", False):
             amount *= 0.40  # รับดาเมจแค่ 40%
-            if self.hp - amount <= self.max_hp * 0.2: # เลือดเหลือ < 20% โล่แตก
+            if self.hp - amount <= self.max_hp * 0.5: # เลือดเหลือ < 50% โล่แตกและคลั่ง
                 self.has_shield = False
 
         self.hp -= amount
+        
+        # Check death for Final Boss Self-Destruct
+        if self.hp <= 0 and self.enemy_type == "final_boss":
+            from game.projectile_widget import FinalBossExplosion
+            cx, cy = self.pos[0]+self.enemy_size[0]/2, self.pos[1]+self.enemy_size[1]/2
+            exp = FinalBossExplosion(pos=(cx, cy), radius=1200, fuse=10.0, game=self.game)
+            if self.game:
+                self.game.world_layout.add_widget(exp)
 
         # เอฟเฟกต์กระพริบม่วง (capture orig_color ด้วย default arg เพื่อป้องกัน closure bug)
         orig_color = tuple(self.color_inst.rgba)
@@ -444,6 +550,20 @@ class EnemyWidget(Widget):
                 self.pos[0] + knockback_dir[0] * kb,
                 self.pos[1] + knockback_dir[1] * kb,
             )
+
+    def _apply_hit_shake(self, count=0):
+        """เขย่าตัวศัตรูเมื่อโดนดาเมจ"""
+        if count >= 4 or self.hp <= 0:
+            self.shake_offset = [0, 0]
+            self.rect.pos = self.pos
+            return
+
+        # สุ่ม offset ตามขนาดตัว (ประมาณ 12%)
+        mag = self.enemy_size[0] * 0.12
+        self.shake_offset = [random.uniform(-mag, mag), random.uniform(-mag, mag)]
+        self.rect.pos = (self.pos[0] + self.shake_offset[0], self.pos[1] + self.shake_offset[1])
+
+        Clock.schedule_once(lambda dt: self._apply_hit_shake(count + 1), 0.04)
 
     # --- Mini boss abilities helpers ---
     def _start_charge_dash(self):
@@ -482,11 +602,8 @@ class EnemyWidget(Widget):
         target_x = player_pos[0] + 32
         target_y = player_pos[1] + 32
         dx, dy = target_x - ex, target_y - ey
-        dist = math.hypot(dx, dy)
+        dist = max(1, math.hypot(dx, dy))
         
-        if dist == 0:
-            dx, dy = 1, 0
-            
         base_angle = math.atan2(dy, dx)
         spread_deg = math.radians(5) # Tightly (5 degrees offset)
         
@@ -498,8 +615,205 @@ class EnemyWidget(Widget):
             proj = EnemyProjectile(
                 start_pos=(ex, ey), target_pos=(tx, ty), damage=self.damage
             )
-            proj.speed = 450
-            self.parent.add_widget(proj)
-            
+            proj.speed = 550
             if hasattr(self, "game") and self.game is not None:
+                self.game.world_layout.add_widget(proj)
                 self.game.enemy_projectiles.append(proj)
+
+    # --- Final Boss Specials Implementation ---
+
+    def do_final_spiral(self):
+        self.final_is_acting = True
+        origins = [(self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2)]
+        # Also clean up dead clones
+        self.final_clones = [c for c in self.final_clones if c.parent and c.hp > 0]
+        for clone in self.final_clones:
+            origins.append((clone.pos[0] + clone.enemy_size[0]/2, clone.pos[1] + clone.enemy_size[1]/2))
+            
+        from game.projectile_widget import BossSpiralMissile
+        
+        def _spiral(dt, step=0):
+            if step >= 40:
+                self.final_is_acting = False
+                return
+            pulse_angle = step * 0.25
+            for ox, oy in origins:
+                for i in range(4):
+                    angle = pulse_angle + (i * math.pi / 2)
+                    m = BossSpiralMissile(start_pos=(ox, oy), angle=angle, speed=280, damage=35)
+                    if self.game:
+                        self.game.enemy_projectiles.append(m)
+                        self.game.world_layout.add_widget(m)
+            Clock.schedule_once(lambda d: _spiral(d, step+1), 0.1)
+        
+        _spiral(0)
+
+    def do_final_beam(self):
+        self.final_is_acting = True
+        origins = [(self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2)]
+        self.final_clones = [c for c in self.final_clones if c.parent and c.hp > 0]
+        for clone in self.final_clones:
+            origins.append((clone.pos[0] + clone.enemy_size[0]/2, clone.pos[1] + clone.enemy_size[1]/2))
+            
+        from game.projectile_widget import BossBeamHighlight
+        
+        start_angle = random.uniform(0, math.pi * 2)
+        rot_speed = random.choice([-20, 20, -40, 40])
+        highlights = []
+        
+        for ox, oy in origins:
+            for i in range(8):
+                a = start_angle + (i * math.pi / 4)
+                h = BossBeamHighlight(pos=(ox, oy), angle=a, duration=2.5, rotation_speed=rot_speed)
+                if self.game: self.game.world_layout.add_widget(h)
+                highlights.append(h)
+
+        def _rotate_highlights(dt, elapsed=0):
+            if elapsed >= 2.0: return
+            for h in highlights:
+                if h.parent: h.update_rotation(dt)
+            Clock.schedule_once(lambda d: _rotate_highlights(d, elapsed+dt), 0.016)
+        
+        _rotate_highlights(0.016)
+            
+        def _fire(dt):
+            self.final_is_acting = False
+            if not self.game: return
+            px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
+            final_rot = rot_speed * 2.0
+            from game.skills import _show_cone_vfx
+            
+            for ox, oy in origins:
+                for i in range(8):
+                    fa = start_angle + (i * math.pi / 4) + math.radians(final_rot)
+                    p_angle = math.atan2(py-oy, px-ox)
+                    diff = abs((p_angle - fa + math.pi) % (2*math.pi) - math.pi)
+                    if diff < 0.08 and math.hypot(px-ox, py-oy) < 2000:
+                        self.game.take_damage(50)
+                    _show_cone_vfx(self.game, ox, oy, 2000, math.degrees(fa), 6, None)
+
+        Clock.schedule_once(_fire, 2.0)
+
+    def do_final_dash(self, player_pos):
+        self.final_is_acting = True
+        self.final_dash_count = 0
+        
+        def _prep_dash(dt):
+            if self.final_dash_count >= 2: # Reduce to 2 for better pattern flow
+                self.final_is_acting = False
+                self.final_attack_timer = 3.0
+                return
+                
+            # Highlight 3s
+            self.color_inst.rgba = (1, 1, 1, 1) # Flash white warning
+            px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
+            cx, cy = self.pos[0]+self.enemy_size[0]/2, self.pos[1]+self.enemy_size[1]/2
+            dist = math.hypot(px-cx, py-cy)
+            if dist > 0:
+                self.charge_dir = ((px-cx)/dist, (py-cy)/dist)
+            
+            Clock.schedule_once(_execute_dash, 3.0)
+
+        def _execute_dash(dt):
+            # Rapid dash (teleport-like movement for speed 5 enemy)
+            self.speed = 15.0
+            self.is_charging = True
+            def _stop_dash(d):
+                self.is_charging = False
+                self.speed = 5.0
+                self.final_dash_count += 1
+                _prep_dash(0)
+            Clock.schedule_once(_stop_dash, 0.5)
+
+        _prep_dash(0)
+
+    def do_final_clones(self):
+        """Phase 1: Spawn 2 clones that copy attacks"""
+        if not self.game: return
+        self.final_is_acting = True
+        
+        # Clean up old clones
+        for c in self.final_clones:
+            if c.parent: c.parent.remove_widget(c)
+            if c in self.game.enemies: self.game.enemies.remove(c)
+        self.final_clones = []
+        
+        for _ in range(2):
+            # Spawn at random points around boss
+            dist = random.uniform(300, 500)
+            ang = random.uniform(0, 2*math.pi)
+            sx = self.pos[0] + math.cos(ang)*dist
+            sy = self.pos[1] + math.sin(ang)*dist
+            clone = EnemyWidget(spawn_pos=(sx, sy), enemy_type="final_boss_clone")
+            clone.game = self.game
+            self.game.enemies.append(clone)
+            self.game.world_layout.add_widget(clone)
+            self.final_clones.append(clone)
+            
+        # Visual effect
+        from game.skills import _show_aoe_vfx
+        _show_aoe_vfx(self.game, self.pos[0]+90, self.pos[1]+90, 250)
+        
+        def _done(dt): self.final_is_acting = False
+        Clock.schedule_once(_done, 2.0)
+
+    def do_final_lethal_homing(self):
+        """Phase 2: Fire a homing missile that deals 50% max HP damage"""
+        if not self.game: return
+        cx, cy = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
+        from game.projectile_widget import LethalHomingMissile
+        m = LethalHomingMissile(start_pos=(cx, cy), game=self.game)
+        self.game.enemy_projectiles.append(m)
+        self.game.world_layout.add_widget(m)
+
+    def do_final_spikes(self):
+        """Phase 2: Spawn random spikes around boss"""
+        if not self.game: return
+        self.final_is_acting = True
+        
+        cx, cy = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
+        from game.projectile_widget import BossSpike
+        
+        def _spawn_spike_wave(dt, wave_num=0):
+            if wave_num >= 3:
+                self.final_is_acting = False
+                return
+            
+            # Spawn 10 spikes in a circle
+            count = 10 + wave_num * 5
+            radius = 200 + wave_num * 180
+            for i in range(count):
+                angle = (i * 2 * math.pi / count) + random.uniform(-0.2, 0.2)
+                sx = cx + math.cos(angle) * radius
+                sy = cy + math.sin(angle) * radius
+                s = BossSpike(pos=(sx, sy), game=self.game, warning_duration=1.2)
+                self.game.world_layout.add_widget(s)
+                
+            Clock.schedule_once(lambda d: _spawn_spike_wave(d, wave_num+1), 0.8)
+            
+        _spawn_spike_wave(0)
+
+    def do_final_slam(self, player_pos):
+        self.final_is_acting = True
+        target_pos = (self.game.player_pos[0]+32, self.game.player_pos[1]+32)
+        from game.projectile_widget import BossJumpHighlight
+        h = BossJumpHighlight(pos=target_pos, radius=400, duration=5.0)
+        if self.game: self.game.world_layout.add_widget(h)
+        
+        # Invis/Jump effect
+        self.opacity = 0.3
+        
+        def _execute_slam(dt):
+            self.pos = (target_pos[0] - self.enemy_size[0]/2, target_pos[1] - self.enemy_size[1]/2)
+            self.opacity = 1.0
+            self.final_is_acting = False
+            self.final_attack_timer = 3.0
+            
+            if self.game:
+                px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
+                if math.hypot(px-target_pos[0], py-target_pos[1]) < 400:
+                    self.game.take_damage(70)
+                from game.skills import _show_aoe_vfx
+                _show_aoe_vfx(self.game, target_pos[0], target_pos[1], 400)
+
+        Clock.schedule_once(_execute_slam, 5.0)

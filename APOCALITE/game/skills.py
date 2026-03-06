@@ -110,7 +110,7 @@ class DinoCircle(BaseSkill):
 
     def __init__(self):
         super().__init__()
-        self.orbit_radius = 130
+        self.orbit_radius = 100
         self.dino_count = 1
         self.damage_mult = 1.5
         self.orbit_speed = 3.0       # rad/s
@@ -123,10 +123,10 @@ class DinoCircle(BaseSkill):
         return 0.016  # ~60fps
 
     def _on_upgrade(self):
-        if self.level % 2 == 0:
-            self.dino_count += 1
+        # เพิ่มจำนวนไดโนให้ตันที่ 15 ตัวที่เลเวล 25
+        self.dino_count = 1 + (self.level // 2) + (self.level // 12)
         self.damage_mult += 0.3
-        self.orbit_radius += 10
+        self.orbit_radius += 7
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
@@ -157,16 +157,25 @@ class DinoCircle(BaseSkill):
             eid = id(enemy)
             if eid in self._hit_cooldowns:
                 continue
+
             ec_x = enemy.pos[0] + 20
             ec_y = enemy.pos[1] + 20
+
+            # 🛡️ Proximity Protection: ตีมอนที่อยู่ชิดตัวผู้เล่นมากเกินไป (ระยะประชิด 60px)
+            dist_to_player = math.hypot(ec_x - px, ec_y - py)
+            if dist_to_player < 60:
+                _hit_enemy(game, enemy, dmg)
+                self._hit_cooldowns[eid] = 0.5
+                continue
+
             for (ox, oy) in positions:
                 if math.hypot(ox - ec_x, oy - ec_y) < 45:
                     _hit_enemy(game, enemy, dmg)
                     self._hit_cooldowns[eid] = 0.5  # hit cooldown 0.5s per enemy
                     break
 
-        # วาด dino indicators (วงกลมเล็ก)
-        _draw_orbit_indicators(game, positions, self._orbit_angle)
+        # วาด dino indicators และวงกลมป้องกันชั้นใน
+        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60)
 
     def activate(self, game):
         pass  # ใช้ tick แทน
@@ -199,7 +208,7 @@ class DinoSummon(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
-        count = self.level  # จำนวนไดโน = level
+        count = min(15, self.level)  # สูงสุด 15 ตัว
         # แต่ละตัวเลือก enemy สุ่ม (อาจซ้ำถ้า enemy น้อย)
         targets = random.choices(game.enemies, k=min(count, len(game.enemies)))
         for target in targets:
@@ -303,7 +312,8 @@ class PtaePunch(BaseSkill):
                 continue
             ang = math.atan2(ey - py, ex - px)
             diff = abs((ang - aim + math.pi) % (2 * math.pi) - math.pi)
-            if diff <= half:
+            # ตีได้ถ้าอยู่ในกรวย หรือถ้าอยู่ชิดตัวมาก (dist <= 45)
+            if dist <= 45 or diff <= half:
                 _hit_enemy(game, enemy, dmg)
 
 
@@ -372,7 +382,7 @@ class BombTrap(BaseSkill):
 
     @property
     def cooldown(self):
-        return max(3.0, 6.0 - (self.level - 1) * 0.6)
+        return max(0.8, 6.0 - (self.level - 1) * 0.6)
 
     def _on_upgrade(self):
         self.splash_damage_mult += 1.0
@@ -494,7 +504,8 @@ class LostmanAxe(BaseSkill):
                 continue
             ang = math.atan2(ey - py, ex - px)
             diff = abs((ang - aim + math.pi) % (2 * math.pi) - math.pi)
-            if diff <= half:
+            # ตีได้ถ้าอยู่ในขอบเขต หรือถ้าอยู่ชิดตัวมาก (dist <= 45)
+            if dist <= 45 or diff <= half:
                 _hit_enemy(game, enemy, dmg)
 
 
@@ -691,7 +702,7 @@ CHARACTER_SKILL_POOL: Dict[str, List[Type[BaseSkill]]] = {
 }
 
 CHAR_SPEED_CAP: Dict[str, float] = {
-    "PTae": 6.0, "Lostman": 9.0, "Monkey": 14.0,
+    "PTae": 5.0, "Lostman": 7.0, "Monkey": 9.0,
 }
 
 
@@ -741,8 +752,8 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
     if player_stats.speed < spd_cap:
         stat_choices.append({
             "type": "stat", "stat": "speed",
-            "label": "+0.5 SPD",
-            "description": f"เพิ่มความเร็ว 0.5 (cap {spd_cap})",
+            "label": "+0.25 SPD",
+            "description": f"เพิ่มความเร็ว 0.25 (cap {spd_cap})",
             "skill": None, "is_new": False,
         })
     random.shuffle(stat_choices)
@@ -768,7 +779,11 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
 #  HELPERS
 # ═══════════════════════════════════════════════════════════
 def _hit_enemy(game, enemy, dmg: float):
-    enemy.hp -= dmg
+    if hasattr(enemy, "take_damage"):
+        enemy.take_damage(dmg)
+    else:
+        enemy.hp -= dmg
+
     if enemy.hp > 0:
         return
     if enemy in game.enemies:
@@ -795,6 +810,22 @@ def _hit_enemy(game, enemy, dmg: float):
             game=game
         )
         game.world_layout.add_widget(bomb)
+
+        # 🌟 Summon Stalkers (3-6 ตัว) เมื่อบอสตาย
+        import random
+        from game.enemy_widget import EnemyWidget
+        stalker_count = random.randint(3, 6)
+        for _ in range(stalker_count):
+            # สุ่มตำแหน่งกระจายรอบๆ จุดที่บอสตายเล็กน้อย
+            sx = enemy.pos[0] + random.uniform(-60, 60)
+            sy = enemy.pos[1] + random.uniform(-60, 60)
+            st = EnemyWidget(spawn_pos=(sx, sy), enemy_type="stalker")
+            st.game = game
+            # ใส่ Wave scaling ให้ด้วยไม่งั้นเลเวลสูงๆ จะตัวบางเกินไป
+            if hasattr(game.wave_manager, "_apply_wave_scaling"):
+                game.wave_manager._apply_wave_scaling(st)
+            game.enemies.append(st)
+            game.world_layout.add_widget(st)
 
     if enemy.parent:
         game.world_layout.remove_widget(enemy)
@@ -884,12 +915,23 @@ def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.08)
 
 
-def _draw_orbit_indicators(game, positions, angle):
-    """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit"""
+def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
+    """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit และวงกลมป้องกันด้านใน"""
     ig = InstructionGroup()
+    
+    # วงกลมป้องกันชั้นใน
+    if inner_radius > 0:
+        ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
+        ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
+                       size=(inner_radius * 2, inner_radius * 2)))
+        ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
+        ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
+
+    # จุดไดโนรอบนอก
     ig.add(Color(0.3, 1.0, 0.4, 0.8))
     for (ox, oy) in positions:
         ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
+        
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)
 
