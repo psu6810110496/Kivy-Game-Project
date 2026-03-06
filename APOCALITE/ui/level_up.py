@@ -158,7 +158,7 @@ class LevelUpPopup(ModalView):
                 stats.damage += 3
             elif stat == "speed":
                 cap = CHAR_SPEED_CAP.get(stats.name, 10.0)
-                stats.speed = min(stats.speed + 0.5, cap)
+                stats.speed = min(stats.speed + 0.25, cap)
 
         gs.hud.update_ui(stats)
         gs.is_paused = False

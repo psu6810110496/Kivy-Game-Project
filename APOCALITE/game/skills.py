@@ -691,7 +691,7 @@ CHARACTER_SKILL_POOL: Dict[str, List[Type[BaseSkill]]] = {
 }
 
 CHAR_SPEED_CAP: Dict[str, float] = {
-    "PTae": 6.0, "Lostman": 9.0, "Monkey": 14.0,
+    "PTae": 5.0, "Lostman": 7.0, "Monkey": 9.0,
 }
 
 
@@ -741,8 +741,8 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
     if player_stats.speed < spd_cap:
         stat_choices.append({
             "type": "stat", "stat": "speed",
-            "label": "+0.5 SPD",
-            "description": f"เพิ่มความเร็ว 0.5 (cap {spd_cap})",
+            "label": "+0.25 SPD",
+            "description": f"เพิ่มความเร็ว 0.25 (cap {spd_cap})",
             "skill": None, "is_new": False,
         })
     random.shuffle(stat_choices)
@@ -768,7 +768,11 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
 #  HELPERS
 # ═══════════════════════════════════════════════════════════
 def _hit_enemy(game, enemy, dmg: float):
-    enemy.hp -= dmg
+    if hasattr(enemy, "take_damage"):
+        enemy.take_damage(dmg)
+    else:
+        enemy.hp -= dmg
+
     if enemy.hp > 0:
         return
     if enemy in game.enemies:
@@ -795,6 +799,22 @@ def _hit_enemy(game, enemy, dmg: float):
             game=game
         )
         game.world_layout.add_widget(bomb)
+
+        # 🌟 Summon Stalkers (3-6 ตัว) เมื่อบอสตาย
+        import random
+        from game.enemy_widget import EnemyWidget
+        stalker_count = random.randint(3, 6)
+        for _ in range(stalker_count):
+            # สุ่มตำแหน่งกระจายรอบๆ จุดที่บอสตายเล็กน้อย
+            sx = enemy.pos[0] + random.uniform(-60, 60)
+            sy = enemy.pos[1] + random.uniform(-60, 60)
+            st = EnemyWidget(spawn_pos=(sx, sy), enemy_type="stalker")
+            st.game = game
+            # ใส่ Wave scaling ให้ด้วยไม่งั้นเลเวลสูงๆ จะตัวบางเกินไป
+            if hasattr(game.wave_manager, "_apply_wave_scaling"):
+                game.wave_manager._apply_wave_scaling(st)
+            game.enemies.append(st)
+            game.world_layout.add_widget(st)
 
     if enemy.parent:
         game.world_layout.remove_widget(enemy)

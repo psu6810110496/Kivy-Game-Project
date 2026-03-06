@@ -253,6 +253,8 @@ class HUD(FloatLayout):
             ("CLEAR\nENEMY",  0.48, (0.1, 0.2, 0.3, 0.85), self._clear_enemies),
             ("NEXT\nWAVE",    0.38, (0.1, 0.3, 0.1, 0.85), self._next_wave),
             ("STOP\nWAVE",    0.28, (0.3, 0.2, 0.0, 0.85), self._toggle_stop_wave),
+            ("SUMMON\nFINAL", 0.18, (0.4, 0.0, 0.8, 0.85), self._test_summon_final),
+            ("MAX\nALL",      0.08, (1.0, 0.8, 0.0, 0.85), self._test_max_all),
         ]
         for text, top, color, callback in debug_specs:
             btn = Button(
@@ -370,6 +372,51 @@ class HUD(FloatLayout):
         gs = self.game_screen
         gs.wave_manager.is_spawning = False
         gs.wave_manager.try_start_next_wave()
+
+    def _test_summon_final(self, _inst):
+        self.game_screen.wave_manager._spawn_final_boss()
+
+    def _test_max_all(self, _inst):
+        gs = self.game_screen
+        stats = gs.player_stats
+        if not stats: return
+        
+        # Custom Max Stats based on Character
+        if stats.name == "PTae":
+            stats.hp = 1500
+            stats.damage = 200
+            stats.speed = 5.0
+        elif stats.name == "Lostman":
+            stats.hp = 1200
+            stats.damage = 180
+            stats.speed = 7.0
+        elif stats.name == "Monkey":
+            stats.hp = 1200
+            stats.damage = 160
+            stats.speed = 9.0
+        
+        stats.current_hp = stats.hp
+        stats.level = 100
+        
+        # Get all possible skills for this character and max them
+        from game.skills import get_upgrade_choices
+        # We simulate multiple selections to unlock everything
+        for _ in range(10): # Should be enough to unlock S1, S2, and S3
+            choices = [c for c in get_upgrade_choices(stats) if c['type'] == 'skill']
+            if not choices: break
+            for c in choices:
+                is_new = c.get("is_new", False)
+                is_s3 = c.get("is_s3", False)
+                skill = c['skill']
+                if is_new:
+                    if is_s3: stats.skill3 = skill
+                    else: stats.skills.append(skill)
+                # Max the level
+                skill.level = skill.MAX_LEVEL
+                if hasattr(skill, '_on_upgrade'): skill._on_upgrade()
+        
+        # Refresh UI
+        self.update_ui(stats)
 
     def _toggle_stop_wave(self, inst):
         wm = self.game_screen.wave_manager
