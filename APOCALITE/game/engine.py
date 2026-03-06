@@ -229,6 +229,8 @@ class GameScreen(Screen):
         self.keys_pressed.clear()
         self.mouse_dir = [1, 0]
         self.melee_timer = 0.0 # 🌟 รีเซ็ต Cooldown การตี
+        self.total_kills = 0
+        self.play_time = 0.0
 
         if self.attack_event:
             self.attack_event.cancel()
@@ -320,7 +322,7 @@ class GameScreen(Screen):
             self._load_lostman_effects()
 
     def _load_lostman_effects(self):
-        for path in [f"assets/effect/NPT10{i}.png" for i in range(4)]:
+        for path in [f"assets/Lostman/skill1/axe_hit{i}.png" for i in range(1, 5)]:
             try:
                 self.slash_textures.append(CoreImage(path).texture)
             except Exception:
@@ -340,6 +342,9 @@ class GameScreen(Screen):
     def update_frame(self, dt: float):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
+
+        if self.game_started:
+            self.play_time += dt
 
         # Wave check
         if self.game_started and not self.enemies and not self.wave_manager.is_spawning:
@@ -538,6 +543,7 @@ class GameScreen(Screen):
 
     def spawn_exp_orb(self, pos):
         """Drop EXP orb เมื่อศัตรูตาย — ต้องเดินเก็บ"""
+        self.total_kills += 1
         from game.projectile_widget import ExpOrb
         texture = getattr(self.player_stats, 'exp_texture', None) if self.player_stats else None
         orb = ExpOrb(pos=(pos[0] + 5, pos[1] + 5), exp_amount=10, texture_path=texture)
@@ -583,7 +589,7 @@ class GameScreen(Screen):
             self.attack_event.cancel()
             self.attack_event = None
         self._unbind_input()
-        GameOverPopup(win=win).open()
+        GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────
     def _bind_input(self):
@@ -749,10 +755,44 @@ class GameScreen(Screen):
     def _show_melee_highlight(self, cx, cy, radius, center_angle, spread_angle):
         """วาดกราฟิก Highlight แบบพัด (Cone/Arc) เพื่อให้ผู้เล่นเห็นระยะการตี"""
         from kivy.uix.widget import Widget
-        from kivy.graphics import Color, Ellipse
+        from kivy.graphics import Color, Ellipse, Rectangle, PushMatrix, PopMatrix, Rotate
         from kivy.clock import Clock
         import math
         
+        name = getattr(self.player_stats, "name", "")
+        
+        # 🌟 พิเศษสำหรับ Lostman: ใช้แอนิเมชันรูปภาพการตี (skill1) แทนแบบปกติ
+        if name == "Lostman" and hasattr(self, "slash_textures") and self.slash_textures:
+            size_w = radius * 2.5
+            size_h = radius * 2.5
+            eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(cx - size_w/2, cy - size_h/2))
+            
+            # Kivy image rotation
+            rot_deg = math.degrees(center_angle)
+            
+            with eff.canvas:
+                Color(1, 1, 1, 1) # Full color
+                PushMatrix()
+                Rotate(angle=rot_deg, origin=(cx, cy))
+                rect = Rectangle(texture=self.slash_textures[0], pos=eff.pos, size=eff.size)
+                PopMatrix()
+                
+            self.world_layout.add_widget(eff)
+            
+            state = {"frame": 0}
+            def _next_frame(dt):
+                state["frame"] += 1
+                if state["frame"] >= len(self.slash_textures):
+                    if eff.parent:
+                        self.world_layout.remove_widget(eff)
+                    return False
+                rect.texture = self.slash_textures[state["frame"]]
+                
+            # วนเฟรมภาพทั้งหมด 4 เฟรม ให้เสร็จในระยะเวลาประมาณ 0.15 วิ
+            Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
+            return
+
+        # ---------------- ปกติ (Arc) ----------------
         highlight = Widget(size_hint=(None, None), size=(radius * 2, radius * 2), pos=(cx - radius, cy - radius))
         
         # 🌟 แก้ไขมุมให้หมุนตามเมาส์ 🌟
@@ -764,12 +804,9 @@ class GameScreen(Screen):
         end_deg = kivy_center_deg + spread_deg
         
         with highlight.canvas:
-            name = getattr(self.player_stats, "name", "")
             # เปลี่ยนสี Highlight ตามตัวละคร
             if name == "PTae":
                 Color(1, 0.3, 0.3, 0.4)  # สีแดงโปร่งแสง
-            elif name == "Lostman":
-                Color(0.3, 0.8, 1, 0.4)  # สีฟ้าโปร่งแสง
             elif name == "Monkey":
                 Color(1, 0.8, 0.2, 0.4)  # สีเหลืองโปร่งแสง
             else:
@@ -778,6 +815,4 @@ class GameScreen(Screen):
             Ellipse(pos=highlight.pos, size=highlight.size, angle_start=start_deg, angle_end=end_deg)
             
         self.world_layout.add_widget(highlight)
-        
-        # ให้ Highlight หายไปอย่างรวดเร็ว (0.15 วิ) จะได้ดูเหมือนการสะบัดอาวุธ
         Clock.schedule_once(lambda dt: self.world_layout.remove_widget(highlight) if highlight.parent else None, 0.15)

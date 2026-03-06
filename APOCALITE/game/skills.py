@@ -43,6 +43,7 @@ class BaseSkill:
             self._timer = self.cooldown
 
     def activate(self, game): pass
+    def manual_activate(self, game) -> bool: return False
     def upgrade(self):
         if self.level < self.max_level:
             self.level += 1
@@ -418,17 +419,15 @@ class BombTrap(BaseSkill):
             )
 
 
-class WhirlSlash(StackSkill):
-    """Lostman Skill 3 — ฟันขวานวงใหญ่รอบตัว (manual LMB, stack)"""
+class WhirlSlash(BaseSkill):
+    """Lostman Skill 3 — ฟันขวานวงใหญ่รอบตัว (auto)"""
     name = "Whirl Slash"
-    description = "ฟันขวานวงใหญ่รอบตัว knockback แรง (Stack ×3)"
-
-    STACK_RECHARGE = 7.0
+    description = "ฟันขวานวงใหญ่รอบตัว knockback (auto)"
 
     def __init__(self):
         super().__init__()
         self.radius = 160
-        self.damage_mult = 6.0
+        self.damage_mult = 3.5
         self.knockback = 120
         self.anim_frames = [
             "assets/Lostman/skill1/axe_hit1.png",
@@ -438,12 +437,12 @@ class WhirlSlash(StackSkill):
         ]
 
     @property
-    def recharge_time(self):
-        return max(4.0, self.STACK_RECHARGE - (self.level - 1) * 0.7)
+    def cooldown(self):
+        return max(3.5, 6.0 - (self.level - 1) * 0.4)
 
     def _on_upgrade(self):
-        self.radius += 20
-        self.damage_mult += 1.0
+        self.radius += 10
+        self.damage_mult += 0.5
         self.knockback += 20
 
     def activate(self, game):
