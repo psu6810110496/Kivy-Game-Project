@@ -362,7 +362,7 @@ from kivy.graphics import Color, Rectangle, PushMatrix, PopMatrix, Translate, Ro
 
 
 class DinoBeam(Widget):
-    """PTae Skill 3 — ลำแสงสายฟ้า (PNG Sequence 12 รูป)"""
+    """PTae Skill 3 — ลำแสงสายฟ้า (Optimized ลดอาการ Lag)"""
 
     DEFAULT_WIDTH = 180
     DURATION = 0.55
@@ -384,8 +384,6 @@ class DinoBeam(Widget):
                     cls._FRAMES.append(tex)
                 except Exception as e:
                     print(f"[DinoBeam] Error loading {path}: {e}")
-            else:
-                print(f"[DinoBeam] ไม่พบไฟล์ {path}")
 
     def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
         kw.setdefault("size_hint", (None, None))
@@ -406,9 +404,18 @@ class DinoBeam(Widget):
         self._frame_index = 0
         self._anim_timer = 0.0
         self._anim_delay = 0.045
-
-        # 🌟 ตัวแปรใหม่: เก็บนับอายุของลำแสง
         self._life_timer = 0.0
+
+        # 🌟 OPTIMIZE 1: คำนวณค่าคณิตศาสตร์ล่วงหน้า 🌟
+        # จะได้ไม่ต้องไปคำนวณใหม่ 60 ครั้งต่อวินาที
+        self._sx = start_pos[0]
+        self._sy = start_pos[1]
+        self._perp_x = -direction[1]
+        self._perp_y = direction[0]
+        self._half_w = self._width / 2
+
+        # ตัวแปรจำกัดการเช็คระยะชน (Hitbox Tick)
+        self._hit_timer = 0.0
 
         angle_deg = math.degrees(math.atan2(direction[1], direction[0]))
         with self.canvas:
@@ -417,7 +424,6 @@ class DinoBeam(Widget):
             Rotate(angle=angle_deg, origin=(0, 0))
 
             Color(1, 1, 1, 1)
-
             first_tex = self._FRAMES[0] if self._FRAMES else None
             self._rect_beam = Rectangle(
                 pos=(0, -self._width // 2), size=(0, self._width), texture=first_tex
@@ -428,10 +434,7 @@ class DinoBeam(Widget):
             pos=lambda i, v: setattr(self._tr, "x", v[0])
             or setattr(self._tr, "y", v[1])
         )
-
         self._update_crop(first_tex)
-
-        # ❌ เอาคำสั่ง Clock.schedule_once(...) ออก เพื่อไปจัดการเวลาในอัปเดตแทน
 
     def _update_crop(self, texture):
         if not texture:
@@ -445,16 +448,16 @@ class DinoBeam(Widget):
         if not self._alive:
             return False
 
-        # 🌟 1. ตรวจสอบอายุขัยของลำแสง (ใช้ตัวนับนี้ชัวร์กว่า Clock)
+        # 1. นับเวลาตายของลำแสง
         self._life_timer += dt
         if self._life_timer >= self.DURATION:
             self._alive = False
-            self.canvas.clear()  # 🌟 ล้างภาพกราฟิกทั้งหมดออกจากจอทันที ป้องกันภาพค้าง
+            self.canvas.clear()
             if self.parent:
                 self.parent.remove_widget(self)
             return False
 
-        # 2. เล่น Animation สลับภาพ
+        # 2. อัปเดตภาพอนิเมชั่น
         if self._FRAMES:
             self._anim_timer += dt
             if self._anim_timer >= self._anim_delay:
@@ -464,29 +467,40 @@ class DinoBeam(Widget):
                 self._rect_beam.texture = tex
                 self._update_crop(tex)
 
-        # 3. ยิงลำแสงพุ่งออกไป
+        # 3. อัปเดตความยาวลำแสง
         step = self.SPEED * dt
         self._traveled = min(self._traveled + step, self._length)
         self._rect_beam.size = (self._traveled, self._width)
 
-        # 4. คำนวณดาเมจ
-        sx, sy = self.pos
-        perp = (-self._dir[1], self._dir[0])
-        half_w = self._width / 2
+        # 🌟 OPTIMIZE 2: เช็คการโดนดาเมจแบบประหยัดพลังงานเครื่อง 🌟
+        self._hit_timer += dt
+        # เช็คชนแค่ทุกๆ 0.05 วินาที (ลดการกินสเปคลงไปมหาศาลหากมีมอนสเตอร์เยอะๆ)
+        if self._hit_timer >= 0.05:
+            self._hit_timer -= 0.05
 
-        for enemy in list(game.enemies):
-            eid = id(enemy)
-            if eid in self._hit_enemies:
-                continue
-            ecx = enemy.pos[0] + 20
-            ecy = enemy.pos[1] + 20
-            along = (ecx - sx) * self._dir[0] + (ecy - sy) * self._dir[1]
-            perp_d = abs((ecx - sx) * perp[0] + (ecy - sy) * perp[1])
-            if 0 <= along <= self._traveled and perp_d <= half_w:
-                from game.skills import _hit_enemy
+            # ใช้ค่าที่คำนวณไว้แล้วจากด้านบน
+            sx, sy = self._sx, self._sy
+            dx_dir, dy_dir = self._dir
+            px, py = self._perp_x, self._perp_y
+            half_w = self._half_w
 
-                _hit_enemy(game, enemy, self.damage)
-                self._hit_enemies.add(eid)
+            for enemy in list(game.enemies):
+                eid = id(enemy)
+                if eid in self._hit_enemies:
+                    continue
+
+                # คำนวณระยะ (ใช้ตัวแปรตรงๆ ไม่ต้องเข้าถึงอาเรย์หลายรอบ)
+                ex = enemy.pos[0] + 20 - sx
+                ey = enemy.pos[1] + 20 - sy
+
+                along = (ex * dx_dir) + (ey * dy_dir)
+                if 0 <= along <= self._traveled:
+                    perp_d = abs((ex * px) + (ey * py))
+                    if perp_d <= half_w:
+                        from game.skills import _hit_enemy
+
+                        _hit_enemy(game, enemy, self.damage)
+                        self._hit_enemies.add(eid)
 
         return True
 
