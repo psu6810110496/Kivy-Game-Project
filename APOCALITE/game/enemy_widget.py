@@ -262,7 +262,21 @@ class EnemyWidget(Widget):
                 sep_x += (ex - ox) * 0.15
                 sep_y += (ey - oy) * 0.15
 
-        self.pos = (self.pos[0] + vx + sep_x, self.pos[1] + vy + sep_y)
+        new_x = self.pos[0] + vx + sep_x
+        new_y = self.pos[1] + vy + sep_y
+        
+        can_move_x = True
+        can_move_y = True
+        ew, eh = self.enemy_size
+        
+        # ถอยเข้าหากำแพงหรือไม่ตอนกั้นอยู่
+        if hasattr(self, "game") and getattr(self.game, "obstacles", []):
+            for obs in self.game.obstacles:
+                if obs.collides_with(new_x, self.pos[1], ew, eh): can_move_x = False
+                if obs.collides_with(self.pos[0], new_y, ew, eh): can_move_y = False
+                
+        if can_move_x: self.pos = (new_x, self.pos[1])
+        if can_move_y: self.pos = (self.pos[0], new_y)
 
     # --- Big boss attacks helpers ---
     def do_slam(self):
@@ -397,12 +411,8 @@ class EnemyWidget(Widget):
         self.parent.add_widget(proj)
 
         # ส่งเข้า list ใน GameScreen เพื่อเช็ค Collision
-        # เดินไต่ parent ขึ้นไปหาวัตถุที่มี attribute enemy_projectiles (คือ GameScreen)
-        game_screen = self.parent
-        while game_screen is not None and not hasattr(game_screen, "enemy_projectiles"):
-            game_screen = game_screen.parent
-        if game_screen is not None:
-            game_screen.enemy_projectiles.append(proj)
+        if hasattr(self, "game") and self.game is not None:
+            self.game.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0, 0)):
         """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ"""
@@ -491,8 +501,5 @@ class EnemyWidget(Widget):
             proj.speed = 450
             self.parent.add_widget(proj)
             
-            game_screen = self.parent
-            while game_screen is not None and not hasattr(game_screen, "enemy_projectiles"):
-                game_screen = game_screen.parent
-            if game_screen is not None:
-                game_screen.enemy_projectiles.append(proj)
+            if hasattr(self, "game") and self.game is not None:
+                self.game.enemy_projectiles.append(proj)

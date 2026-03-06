@@ -799,8 +799,10 @@ def _hit_enemy(game, enemy, dmg: float):
     if enemy.parent:
         game.world_layout.remove_widget(enemy)
     game.spawn_exp_orb(enemy.pos)
-    if random.random() < 0.25:
-        game.spawn_drop_item(enemy.pos)
+    
+    # ให้เมธอด spawn_drop_item เป็นคนสุ่มความน่าจะเป็นเอง ไม่ต้องสุ่มซ้ำซ้อน
+    game.spawn_drop_item(enemy.pos)
+    
     if hasattr(game, "hud") and game.hud:
         game.hud.update_enemy_count(len(game.enemies))
     if hasattr(game, "gain_exp"):

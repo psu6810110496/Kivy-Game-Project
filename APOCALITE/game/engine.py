@@ -119,6 +119,8 @@ class GameScreen(Screen):
         except Exception:
             tex = None
 
+        self.obstacles = []
+
         with self.world_layout.canvas.before:
             PushMatrix()
             self.zoom = Scale(2, 2, 2)
@@ -141,6 +143,28 @@ class GameScreen(Screen):
 
         with self.world_layout.canvas.after:
             PopMatrix()
+            
+        import random
+        from game.obstacle_widget import ObstacleWidget
+        
+        # วางรถตามขอบๆ แมพ (กันไม่ให้รกตรงกลาง)
+        # ขอบซ้ายขวา
+        for _ in range(25):
+            x = random.choice([random.randint(50, 400), random.randint(4600, 4950)])
+            y = random.randint(50, 4950)
+            w, h = random.choice([(140, 80), (80, 140)])
+            obs = ObstacleWidget(pos=(x, y), size=(w, h))
+            self.obstacles.append(obs)
+            self.world_layout.add_widget(obs)
+            
+        # ขอบบนล่าง
+        for _ in range(25):
+            x = random.randint(50, 4950)
+            y = random.choice([random.randint(50, 400), random.randint(4600, 4950)])
+            w, h = random.choice([(140, 80), (80, 140)])
+            obs = ObstacleWidget(pos=(x, y), size=(w, h))
+            self.obstacles.append(obs)
+            self.world_layout.add_widget(obs)
 
         self.root_layout.add_widget(self.world_layout)
 
@@ -369,8 +393,20 @@ class GameScreen(Screen):
             dx /= mag
             dy /= mag
 
-        self.player_pos[0] = max(20, min(self.player_pos[0] + dx * speed, 4980))
-        self.player_pos[1] = max(20, min(self.player_pos[1] + dy * speed, 4980))
+        new_x = max(20, min(self.player_pos[0] + dx * speed, 4980))
+        new_y = max(20, min(self.player_pos[1] + dy * speed, 4980))
+        
+        pw, ph = 64, 64 # player size
+
+        # เลื่อนทีละแกน กันติดกำแพง
+        can_move_x = True
+        can_move_y = True
+        for obs in getattr(self, "obstacles", []):
+            if obs.collides_with(new_x, self.player_pos[1], pw, ph): can_move_x = False
+            if obs.collides_with(self.player_pos[0], new_y, pw, ph): can_move_y = False
+
+        if can_move_x: self.player_pos[0] = new_x
+        if can_move_y: self.player_pos[1] = new_y
         self.player_widget.update_pos(self.player_pos)
 
         # Facing
@@ -379,6 +415,14 @@ class GameScreen(Screen):
 
         aim_x = self.joy_right_x if abs(self.joy_right_x) > 0.1 else self.mouse_dir[0]
         aim_y = self.joy_right_y if abs(self.joy_right_y) > 0.1 else self.mouse_dir[1]
+        
+        # อัพเดตทิศทางการเล็งให้ระบบยิงโจมตีใช้ได้
+        if abs(self.joy_right_x) > 0.1 or abs(self.joy_right_y) > 0.1:
+            mag_aim = math.hypot(aim_x, aim_y)
+            if mag_aim > 0:
+                self.mouse_dir[0] = aim_x / mag_aim
+                self.mouse_dir[1] = aim_y / mag_aim
+
         self.player_widget.update_aim(True, aim_x, aim_y)
 
     # ── Combat (Melee Logic) ───────────────────────────────
@@ -463,8 +507,9 @@ class GameScreen(Screen):
             self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
-        """Drop HealthPickup เมื่อศัตรูตาย โอกาสตก 15%"""
-        if random.random() < 0.15: # เพิ่มโอกาสสุ่มให้สมดุล
+        """Drop HealthPickup เมื่อศัตรูตาย โอกาสตก 12% (ปรับเพื่อให้ไม่บ่อยไปหรือตึงไป)"""
+        # อัตราการดรอปเลือด
+        if random.random() < 0.12:
             heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
@@ -574,15 +619,70 @@ class GameScreen(Screen):
         v = value / 32767.0
         if abs(v) < self.joy_deadzone:
             v = 0.0
-        if axisid == 0: self.joy_x = v
-        elif axisid == 1: self.joy_y = -v
-        elif axisid == 2: self.joy_right_x = v
-        elif axisid == 3: self.joy_right_y = -v
-        elif axisid == 5 and v > 0.5: self.start_dash()
-
+            
+        # Xbox Controller Mapping (Standard SDL2)
+        # 0: Left Stick X
+        # 1: Left Stick Y
+        # 2: Right Stick X
+        # 3: Right Stick Y
+        # 4: Left Trigger (LT) - Dash
+        # 5: Right Trigger (RT) - Skill 3
+        
+        if axisid == 0: 
+            self.joy_x = v
+        elif axisid == 1: 
+            self.joy_y = -v
+        elif axisid == 2: 
+            self.joy_right_x = v 
+        elif axisid == 3: 
+            self.joy_right_y = -v 
+        elif axisid == 4:
+            # LT for Dash
+            is_pressed = v > 0.5
+            lt_prev = getattr(self, '_lt_pressed', False)
+            if is_pressed and not lt_prev:
+                self.start_dash()
+            self._lt_pressed = is_pressed
+            
+        elif axisid == 5: 
+            # RT for Skill 3
+            is_pressed = v > 0.5
+            rt_prev = getattr(self, '_rt_pressed', False)
+            if is_pressed and not rt_prev:
+                if (self.game_started and not self.is_dead
+                        and hasattr(self, 'player_stats') and self.player_stats):
+                    s3 = getattr(self.player_stats, 'skill3', None)
+                    if s3:
+                        s3.manual_activate(self)
+                        if hasattr(self, 'hud') and self.hud:
+                            self.hud.update_ui(self.player_stats)
+            self._rt_pressed = is_pressed
+            
+        # Left Trigger fallback? Actually, let's use RB (Button 5) and A (Button 0) for main actions to be safe.
+        
     def _on_joy_button(self, _win, _stick, buttonid):
-        if buttonid == 7:
+        # Generic XInput:
+        # 0: A/Cross (Dash)
+        # 1: B/Circle
+        # 2: X/Square
+        # 3: Y/Triangle
+        # 4: LB
+        # 5: RB (Skill 3)
+        # 6: Back/Share
+        # 7: Start/Options
+        
+        if buttonid == 7: # Start
             self.toggle_pause()
+        elif buttonid == 0 or buttonid == 4: # A Button or LB (Left Bumper)
+            self.start_dash()
+        elif buttonid == 5 or buttonid == 4: # RB or LB
+            if (self.game_started and not self.is_dead
+                    and hasattr(self, 'player_stats') and self.player_stats):
+                s3 = getattr(self.player_stats, 'skill3', None)
+                if s3:
+                    s3.manual_activate(self)
+                    if hasattr(self, 'hud') and self.hud:
+                        self.hud.update_ui(self.player_stats)
 
     def on_touch_down(self, touch):
         if self.is_paused:

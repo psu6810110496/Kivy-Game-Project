@@ -9,8 +9,8 @@ class CombatManager:
     EXP_PICKUP_RADIUS = 55.0
     MELEE_RADIUS = 45.0
     MELEE_COOLDOWN = 0.8
+    PLAYER_HIT_RADIUS = 20.0  # ปรับให้แคบลงเพื่อให้โดนยากขึ้น (Body-only)
     PROJ_MAX_DIST = 1200.0
-    PLAYER_HIT_RADIUS = 35.0
 
     def __init__(self, game):
         self.game = game
@@ -35,6 +35,20 @@ class CombatManager:
             alive = b.update(self._dt)
             if not alive:
                 self._rm_bullet(b); continue
+                
+            # -- Check Obstacle Collision --
+            hit_obs = False
+            b_cx, b_cy = b.pos[0], b.pos[1]
+            for obs in getattr(g, "obstacles", []):
+                # DinoBeam shouldn't be blocked by cars
+                if type(b).__name__ != "DinoBeam" and obs.collides_with(b_cx - 5, b_cy - 5, 10, 10):
+                    if isinstance(b, RPGRocket):
+                        b.explode(g)
+                    self._rm_bullet(b)
+                    hit_obs = True
+                    break
+            if hit_obs: continue
+
             for enemy in list(g.enemies):
                 ec_x = enemy.pos[0] + enemy.enemy_size[0]/2
                 ec_y = enemy.pos[1] + enemy.enemy_size[1]/2
@@ -46,9 +60,9 @@ class CombatManager:
                         is_boss = (enemy is g.boss or enemy is getattr(g,'big_boss',None))
                         _hit_enemy(g, enemy, b.damage)
                         
-                        # 🌟 Lifesteal for HomingDino (PTae Skill 2)
+                        # 🌟 Lifesteal for HomingDino (PTae Skill 2) - Nerfed to 15%
                         if type(b).__name__ == "HomingDino":
-                            heal_amount = b.damage * 0.5
+                            heal_amount = b.damage * 0.15
                             g.player_stats.current_hp = min(g.player_stats.hp, g.player_stats.current_hp + heal_amount)
                             if hasattr(g, 'hud') and g.hud:
                                 g.hud.update_ui(g.player_stats)
@@ -68,6 +82,17 @@ class CombatManager:
         g = self.game
         for proj in list(g.enemy_projectiles):
             proj.update(dt)
+            
+            # Check Obstacle Collision
+            hit_obs = False
+            prj_x, prj_y = proj.pos[0], proj.pos[1]
+            for obs in getattr(g, "obstacles", []):
+                if obs.collides_with(prj_x - 5, prj_y - 5, 10, 10):
+                    self._rm_proj(proj)
+                    hit_obs = True
+                    break
+            if hit_obs: continue
+
             dist = math.hypot(proj.pos[0]-p_cx, proj.pos[1]-p_cy)
             if dist < self.PLAYER_HIT_RADIUS:
                 g.take_damage(proj.damage)
@@ -109,9 +134,16 @@ class CombatManager:
     def _enemy_melee(self, dt, p_cx, p_cy):
         g = self.game
         for enemy in list(g.enemies):
-            ec_x = enemy.pos[0] + (enemy.enemy_size[0]/2 if hasattr(enemy,'enemy_size') else 20)
-            ec_y = enemy.pos[1] + (enemy.enemy_size[1]/2 if hasattr(enemy,'enemy_size') else 20)
-            if math.hypot(ec_x-p_cx, ec_y-p_cy) < self.MELEE_RADIUS:
+            en_size_x = enemy.enemy_size[0] if hasattr(enemy, 'enemy_size') else 40
+            en_size_y = enemy.enemy_size[1] if hasattr(enemy, 'enemy_size') else 40
+            
+            ec_x = enemy.pos[0] + en_size_x / 2
+            ec_y = enemy.pos[1] + en_size_y / 2
+            
+            # Hitbox จะปรับให้พอดีตัว (รัศมีคนเล่น ~18 + รัศมีศัตรูที่ถูกคูณ 0.75 ลดขอบเขตหลอกตา)
+            hit_radius = 18 + (en_size_x / 2) * 0.75
+            
+            if math.hypot(ec_x-p_cx, ec_y-p_cy) < hit_radius:
                 if not hasattr(enemy,'_melee_cd'): enemy._melee_cd = 0.0
                 enemy._melee_cd -= dt
                 if enemy._melee_cd <= 0:
