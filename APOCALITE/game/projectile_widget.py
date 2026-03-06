@@ -151,6 +151,26 @@ class HealthPickup(Widget):
         if hasattr(self,'_lbl'): self._lbl.pos=v
 
 
+class MagnetPickup(Widget):
+    """แม่เหล็กดูด EXP เข้าหาตัว"""
+    def __init__(self, pos=(0,0), duration=8.0, texture_path=None, **kw):
+        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(28,28))
+        super().__init__(**kw)
+        self.pos=pos; self.duration=duration; self.size=(28,28)
+        with self.canvas:
+            Color(0.2, 0.4, 1.0, 1) # สีน้ำเงิน
+            self._rect=Rectangle(pos=self.pos, size=self.size)
+        self._lbl=Label(text="U",size_hint=(None,None),size=self.size,pos=self.pos,
+                        color=(1,1,1,1),bold=True,font_size=16)
+        self.add_widget(self._lbl)
+        self.bind(pos=self._sync)
+
+    def _sync(self,i,v):
+        if hasattr(self,'_rect'): self._rect.pos=v
+        if hasattr(self,'_lbl'): self._lbl.pos=v
+
+
+
 class ExpOrb(Widget):
     """EXP orb ที่ drop จากศัตรู — ต้องเดินไปเก็บ"""
     def __init__(self, pos=(0,0), exp_amount=10, texture_path=None, **kw):
