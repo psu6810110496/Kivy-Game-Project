@@ -111,6 +111,7 @@ class GameOverPopup(Popup):
             on_joy_axis=self._on_joy_axis,
             on_joy_hat=self._on_joy_hat,
             on_joy_button_down=self._on_joy_button_down,
+            on_key_down=self._on_keyboard_down,
         )
 
         # ค่าเริ่มต้นของตัวเลือก
@@ -149,7 +150,26 @@ class GameOverPopup(Popup):
             on_joy_axis=self._on_joy_axis,
             on_joy_hat=self._on_joy_hat,
             on_joy_button_down=self._on_joy_button_down,
+            on_key_down=self._on_keyboard_down,
         )
+
+    # --- [ระบบ Keyboard WASD + Space] ---
+    def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        if key == 119 or key == 97: # W or A
+            self._navigate("prev")
+            return True
+        elif key == 115 or key == 100: # S or D
+            self._navigate("next")
+            return True
+        elif key == 32 or key == 13: # Spacebar or Enter
+            self.show_highlight = True
+            self._update_highlight()
+            if self.selectable_buttons:
+                btn = self.selectable_buttons[self.selected_index]
+                if hasattr(btn, "callback") and btn.callback:
+                    btn.callback(btn)
+            return True
+        return False
 
     def _on_joy_button_down(self, window, stickid, buttonid):
         # ปุ่ม A (0) = กดปุ่มที่เลือกอยู่, ปุ่ม B (1) = Back to Menu

@@ -58,7 +58,8 @@ class LevelUpPopup(ModalView):
 
         self._update_highlight()
             
-        Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button, mouse_pos=self._on_mouse_pos)
+        Window.bind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button, 
+                    mouse_pos=self._on_mouse_pos, on_key_down=self._on_keyboard_down)
 
     def _make_card(self, choice):
         is_new = choice.get("is_new", False)
@@ -170,6 +171,22 @@ class LevelUpPopup(ModalView):
                 card._border_color.rgba = (1, 0.85, 0.2, 0.8)
             else:
                 card._border_color.rgba = (1, 1, 1, 0)
+
+    def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        if key == 119 or key == 97: # W or A
+            self.selected_idx = (self.selected_idx - 1) % len(self.cards)
+            self._update_highlight()
+            return True
+        elif key == 115 or key == 100: # S or D
+            self.selected_idx = (self.selected_idx + 1) % len(self.cards)
+            self._update_highlight()
+            return True
+        elif key == 32 or key == 13: # Spacebar or Enter
+            if 0 <= self.selected_idx < len(self.cards):
+                card, choice = self.cards[self.selected_idx]
+                self._select(choice)
+            return True
+        return False
                 
     def _on_joy_axis(self, win, stick, axisid, value):
         v = value / 32767.0
@@ -191,5 +208,6 @@ class LevelUpPopup(ModalView):
                 self._select(choice)
                 
     def dismiss(self, *args, **kwargs):
-        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button, mouse_pos=self._on_mouse_pos)
+        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_button_down=self._on_joy_button, 
+                      mouse_pos=self._on_mouse_pos, on_key_down=self._on_keyboard_down)
         super().dismiss(*args, **kwargs)

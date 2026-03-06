@@ -18,7 +18,7 @@ class PausePopup(Popup):
 
         # --- [ทำให้เป็นหน้าต่าง Overlay เต็มจอแบบเนียนๆ] ---
         self.background = ""
-        self.background_color = (0, 0, 0, 0.8) # พื้นหลังสีดำโปร่งแสง 80%
+        self.background_color = (0, 0, 0, 0.25) # พื้นหลังสีดำโปร่งแสง 80%
         self.size_hint = (1, 1) # ขยายเต็มหน้าจอ
         self.auto_dismiss = False
 
@@ -86,7 +86,8 @@ class PausePopup(Popup):
             on_joy_axis=self._on_joy_axis, 
             on_joy_hat=self._on_joy_hat, 
             on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos # <--- Bind เมาส์ตอนเปิด Popup
+            mouse_pos=self._on_mouse_pos,
+            on_key_down=self._on_keyboard_down
         )
         self.selected_index = 0
         self.show_highlight = False
@@ -97,8 +98,25 @@ class PausePopup(Popup):
             on_joy_axis=self._on_joy_axis, 
             on_joy_hat=self._on_joy_hat, 
             on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos # <--- Unbind เมาส์ตอนปิด Popup
+            mouse_pos=self._on_mouse_pos,
+            on_key_down=self._on_keyboard_down
         )
+
+    # --- [ระบบ Keyboard WASD + Space] ---
+    def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        if key == 119 or key == 97: # W or A
+            self.navigate("prev")
+            return True
+        elif key == 115 or key == 100: # S or D
+            self.navigate("next")
+            return True
+        elif key == 32 or key == 13: # Spacebar or Enter
+            self.show_highlight = True
+            self.update_highlight()
+            if self.selectable_buttons:
+                self.selectable_buttons[self.selected_index].dispatch('on_press')
+            return True
+        return False
 
     # --- [ระบบตรวจจับเมาส์ Hover] ---
     def _on_mouse_pos(self, window, pos):

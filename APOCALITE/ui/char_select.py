@@ -96,12 +96,29 @@ class CharacterSelectScreen(Screen):
 
     def on_enter(self):
         Window.bind(on_joy_axis=self._on_joy_axis, on_joy_hat=self._on_joy_hat,
-                    on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos)
+                    on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos,
+                    on_key_down=self._on_keyboard_down)
         self.selected_index = 0; self.show_highlight = False; self.update_highlight()
 
     def on_leave(self):
         Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_hat=self._on_joy_hat,
-                      on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos)
+                      on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos,
+                      on_key_down=self._on_keyboard_down)
+
+    def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        if key == 119 or key == 97: # W or A
+            self.navigate("prev")
+            return True
+        elif key == 115 or key == 100: # S or D
+            self.navigate("next")
+            return True
+        elif key == 32 or key == 13: # Spacebar or Enter
+            self.show_highlight = True
+            self.update_highlight()
+            if self.selectable_buttons:
+                self.selectable_buttons[self.selected_index].dispatch('on_press')
+            return True
+        return False
 
     def _on_mouse_pos(self, window, pos):
         for i, btn in enumerate(self.selectable_buttons):

@@ -167,7 +167,8 @@ class MainMenuScreen(Screen):
             on_joy_axis=self._on_joy_axis, 
             on_joy_hat=self._on_joy_hat, 
             on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos # <--- เพิ่ม Event จับการขยับเมาส์
+            mouse_pos=self._on_mouse_pos, # <--- เพิ่ม Event จับการขยับเมาส์
+            on_key_down=self._on_keyboard_down
         )
         self.selected_index = 0
         self.show_highlight = False  # <--- ใช้ตัวนี้คุมแสง Highlight ทั้งคู่
@@ -178,8 +179,25 @@ class MainMenuScreen(Screen):
             on_joy_axis=self._on_joy_axis, 
             on_joy_hat=self._on_joy_hat, 
             on_joy_button_down=self._on_joy_button_down,
-            mouse_pos=self._on_mouse_pos # <--- อย่าลืม unbind เมาส์ตอนออกหน้าด้วย
+            mouse_pos=self._on_mouse_pos, # <--- อย่าลืม unbind เมาส์ตอนออกหน้าด้วย
+            on_key_down=self._on_keyboard_down
         )
+
+    # --- [ระบบ Keyboard WASD + Space] ---
+    def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        if key == 119 or key == 97: # W or A
+            self.navigate("prev")
+            return True
+        elif key == 115 or key == 100: # S or D
+            self.navigate("next")
+            return True
+        elif key == 32 or key == 13: # Spacebar or Enter
+            self.show_highlight = True
+            self.update_highlight()
+            if self.selectable_buttons:
+                self.selectable_buttons[self.selected_index].dispatch('on_press')
+            return True
+        return False
 
     # --- [ระบบตรวจจับเมาส์ Hover] ---
     def _on_mouse_pos(self, window, pos):

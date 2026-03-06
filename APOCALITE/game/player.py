@@ -27,7 +27,7 @@ class PlayerStats:
         self.current_hp = self.hp
         self.level = 1
         self.exp = 0.0
-        self.max_exp = 500.0
+        self.max_exp = 300.0
 
         # ไม่มีสกิลเริ่มต้น — ได้จาก Level Up เท่านั้น
         self.skills = []    # auto skills (S1, S2)
