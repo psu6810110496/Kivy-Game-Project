@@ -555,13 +555,13 @@ class GameScreen(Screen):
             self.active_pause_popup = None
 
     # ── Game Over ─────────────────────────────────────────
-    def show_game_over(self):
+    def show_game_over(self, win=False):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
         self._unbind_input()
-        GameOverPopup().open()
+        GameOverPopup(win=win).open()
 
     # ── Input ─────────────────────────────────────────────
     def _bind_input(self):

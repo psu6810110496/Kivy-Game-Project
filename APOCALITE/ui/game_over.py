@@ -7,7 +7,7 @@ from kivy.app import App
 from kivy.animation import Animation
 
 class GameOverPopup(Popup):
-    def __init__(self, **kwargs):
+    def __init__(self, win=False, **kwargs):
         super().__init__(**kwargs)
         self.title = ""
         self.separator_height = 0
@@ -28,6 +28,7 @@ class GameOverPopup(Popup):
         self.selected_index = 0
         self.show_highlight = False
         self.joy_cooldown = False
+        self.win = win
 
         # Bind อีเวนต์ตอน Popup เปิด/ปิด
         self.bind(on_open=self._on_open, on_dismiss=self._remove_joy)
@@ -35,10 +36,13 @@ class GameOverPopup(Popup):
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         
         # ข้อความแจ้งเตือน
+        text = "VICTORY!" if win else "YOU DIED"
+        color = (0, 1, 0, 1) if win else (1, 0, 0, 1) # Green = Win, Red = Die
+
         die_label = Label(
-            text="YOU DIED",
-            font_size=50,
-            color=(1, 0, 0, 1), # สีแดง
+            text=text,
+            font_size=60 if win else 50,
+            color=color,
             bold=True
         )
         die_label.opacity = 0  # ให้ค่อย ๆ โผล่ทีหลัง
@@ -83,8 +87,11 @@ class GameOverPopup(Popup):
 
     def return_to_menu(self, instance):
         self.dismiss()
-        # เปลี่ยนหน้าไปที่ main_menu
-        App.get_running_app().root.current = "main_menu"
+        # ถ้าชนะ ให้ไปที่ credits_screen ถ้าแพ้ไป main_menu
+        if getattr(self, "win", False):
+            App.get_running_app().root.current = "credits_screen"
+        else:
+            App.get_running_app().root.current = "main_menu"
 
     def try_again(self, instance):
         """เริ่มเกมใหม่ทันทีด้วยตัวละครเดิม"""

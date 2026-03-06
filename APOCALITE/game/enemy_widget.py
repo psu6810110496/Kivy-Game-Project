@@ -108,7 +108,7 @@ class EnemyWidget(Widget):
             },
             # Boss: ศัตรูตัวใหญ่ HP เยอะ เดินช้าแต่ตีแรง
             "boss": {
-                "hp": 600,
+                "hp": 450,
                 "speed": 1.2,
                 "damage": 40,
                 "color": (0.9, 0.2, 0.2, 1),
@@ -116,7 +116,7 @@ class EnemyWidget(Widget):
             },
             # Big boss type with additional special attacks
             "big_boss": {
-                "hp": 2000,
+                "hp": 1500,
                 "speed": 1.0,
                 "damage": 55,
                 "color": (0.5, 0.1, 0.7, 1),
@@ -262,12 +262,12 @@ class EnemyWidget(Widget):
                 sep_x += (ex - ox) * 0.15
                 sep_y += (ey - oy) * 0.15
 
-        new_x = self.pos[0] + vx + sep_x
-        new_y = self.pos[1] + vy + sep_y
+        ew, eh = self.enemy_size
+        new_x = max(0, min(self.pos[0] + vx + sep_x, 5000 - ew))
+        new_y = max(0, min(self.pos[1] + vy + sep_y, 5000 - eh))
         
         can_move_x = True
         can_move_y = True
-        ew, eh = self.enemy_size
         
         # ถอยเข้าหากำแพงหรือไม่ตอนกั้นอยู่
         if hasattr(self, "game") and getattr(self.game, "obstacles", []):
