@@ -114,6 +114,8 @@ class CombatManager:
             if math.hypot(ix-p_cx, iy-p_cy) < self.PICKUP_RADIUS:
                 if type(item).__name__ == "MagnetPickup":
                     g.magnet_timer = getattr(item, 'duration', 8.0)
+                elif type(item).__name__ == "GlobalMagnetPickup":
+                    g.global_magnet_timer = getattr(item, 'duration', 8.0)
                 else:
                     heal = getattr(item,'heal_amount',25)
                     g.player_stats.current_hp = min(g.player_stats.hp,
@@ -125,10 +127,16 @@ class CombatManager:
     # ── EXP orbs ────────────────────────────────────────────
     def _exp_orbs(self, p_cx, p_cy):
         g = self.game
+        global_mag_pull = getattr(g, 'global_magnet_timer', 0.0) > 0
         mag_pull = getattr(g, 'magnet_timer', 0.0) > 0
         pull_radius = 450.0  # ระยะดูดตอนมี Magnet buff
         pull_spd = 900.0 * self._dt
         
+        if global_mag_pull:
+            mag_pull = True
+            pull_radius = 99999.0
+            pull_spd = 1600.0 * self._dt
+            
         for orb in list(g.exp_orbs):
             ox = orb.pos[0] + orb.size[0]/2
             oy = orb.pos[1] + orb.size[1]/2

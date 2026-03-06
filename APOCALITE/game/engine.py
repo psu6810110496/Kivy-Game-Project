@@ -232,6 +232,7 @@ class GameScreen(Screen):
         self.total_kills = 0
         self.play_time = 0.0
         self.magnet_timer = 0.0
+        self.global_magnet_timer = 0.0
 
         if self.attack_event:
             self.attack_event.cancel()
@@ -348,6 +349,8 @@ class GameScreen(Screen):
             self.play_time += dt
             if getattr(self, "magnet_timer", 0.0) > 0:
                 self.magnet_timer -= dt
+            if getattr(self, "global_magnet_timer", 0.0) > 0:
+                self.global_magnet_timer -= dt
 
         # Wave check
         if self.game_started and not self.enemies and not self.wave_manager.is_spawning:
@@ -537,7 +540,7 @@ class GameScreen(Screen):
             self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
-        """Drop HealthPickup หรือ MagnetPickup เมื่อศัตรูตาย"""
+        """Drop HealthPickup หรือ MagnetPickup หรือ GlobalMagnet Pickup เมื่อศัตรูตาย"""
         r = random.random()
         # อัตราการดรอปเลือดอิงตาม settings
         health_rate = getattr(settings, 'health_drop_rate', 0.12)
@@ -545,7 +548,12 @@ class GameScreen(Screen):
             heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
-        elif r < 0.15: # 3% chance for magnet
+        elif r < health_rate + 0.005:  # 0.5% chance for Global Magnet
+            from game.projectile_widget import GlobalMagnetPickup
+            magnet = GlobalMagnetPickup(pos=(pos[0], pos[1]), duration=8.0)
+            self.dropped_items.append(magnet)
+            self.world_layout.add_widget(magnet)
+        elif r < health_rate + 0.035: # 3% chance for normal magnet
             from game.projectile_widget import MagnetPickup
             magnet = MagnetPickup(pos=(pos[0], pos[1]), duration=8.0)
             self.dropped_items.append(magnet)
