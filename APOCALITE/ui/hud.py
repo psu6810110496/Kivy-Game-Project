@@ -165,6 +165,7 @@ class HUD(FloatLayout):
 
         self._build_top_left()
         self._build_wave_label()
+        self._build_time_label()
         self._build_enemy_count()
         self._build_skill_slots()
         self._build_pause_button()
@@ -231,6 +232,19 @@ class HUD(FloatLayout):
         )
         self.lbl_wave.bind(size=lambda inst, v: setattr(inst, "text_size", v))
         self.add_widget(self.lbl_wave)
+
+    def _build_time_label(self):
+        self.lbl_time = Label(
+            text="00:00",
+            size_hint=(None, None), size=(240, 30),
+            pos_hint={"center_x": 0.5, "top": 0.94},
+            font_size=22, bold=True,
+            color=(1, 1, 1, 1),
+            outline_width=2, outline_color=(0, 0, 0, 1),
+            halign="center", valign="middle",
+        )
+        self.lbl_time.bind(size=lambda inst, v: setattr(inst, "text_size", v))
+        self.add_widget(self.lbl_time)
 
     def _build_enemy_count(self):
         self.enemy_count_box = BoxLayout(
@@ -368,6 +382,11 @@ class HUD(FloatLayout):
                     self.skill_slot_box.update(skills_with_s3)
                 else:
                     self.skill_slot_box.update(skills)
+
+            # อัปเดตเวลา
+            if hasattr(gs, "play_time"):
+                mins, secs = divmod(int(gs.play_time), 60)
+                self.lbl_time.text = f"{mins:02d}:{secs:02d}"
 
     # ─── Debug callbacks ──────────────────────────────────
     def _test_level_up(self, _inst):
