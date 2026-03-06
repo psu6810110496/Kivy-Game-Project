@@ -112,20 +112,47 @@ class CombatManager:
             ix = item.pos[0] + item.size[0]/2
             iy = item.pos[1] + item.size[1]/2
             if math.hypot(ix-p_cx, iy-p_cy) < self.PICKUP_RADIUS:
-                heal = getattr(item,'heal_amount',25)
-                g.player_stats.current_hp = min(g.player_stats.hp,
-                                                 g.player_stats.current_hp + heal)
-                g.hud.update_ui(g.player_stats)
+                if type(item).__name__ == "MagnetPickup":
+                    g.magnet_timer = getattr(item, 'duration', 8.0)
+                elif type(item).__name__ == "GlobalMagnetPickup":
+                    g.global_magnet_timer = getattr(item, 'duration', 8.0)
+                else:
+                    heal = getattr(item,'heal_amount',25)
+                    g.player_stats.current_hp = min(g.player_stats.hp,
+                                                     g.player_stats.current_hp + heal)
+                    g.hud.update_ui(g.player_stats)
                 g.dropped_items.remove(item)
                 if item.parent: g.world_layout.remove_widget(item)
 
     # ── EXP orbs ────────────────────────────────────────────
     def _exp_orbs(self, p_cx, p_cy):
         g = self.game
+        global_mag_pull = getattr(g, 'global_magnet_timer', 0.0) > 0
+        mag_pull = getattr(g, 'magnet_timer', 0.0) > 0
+        pull_radius = 450.0  # ระยะดูดตอนมี Magnet buff
+        pull_spd = 900.0 * self._dt
+        
+        if global_mag_pull:
+            mag_pull = True
+            pull_radius = 99999.0
+            pull_spd = 1600.0 * self._dt
+            
         for orb in list(g.exp_orbs):
             ox = orb.pos[0] + orb.size[0]/2
             oy = orb.pos[1] + orb.size[1]/2
-            if math.hypot(ox-p_cx, oy-p_cy) < self.EXP_PICKUP_RADIUS:
+            dist = math.hypot(ox-p_cx, oy-p_cy)
+            
+            # ดูดถ้ามีบัฟ
+            if mag_pull and dist < pull_radius:
+                dx = (p_cx - ox) / max(0.1, dist)
+                dy = (p_cy - oy) / max(0.1, dist)
+                orb.pos = (orb.pos[0] + dx * pull_spd, orb.pos[1] + dy * pull_spd)
+                # รีเซ็ตตำแหน่งที่ดูดเข้ามาล่าสุดเพื่อเทียบ pickup 
+                ox = orb.pos[0] + orb.size[0]/2
+                oy = orb.pos[1] + orb.size[1]/2
+                dist = math.hypot(ox-p_cx, oy-p_cy)
+
+            if dist < self.EXP_PICKUP_RADIUS:
                 g.gain_exp(orb.exp_amount)
                 g.exp_orbs.remove(orb)
                 if orb.parent: g.world_layout.remove_widget(orb)
