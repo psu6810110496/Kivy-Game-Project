@@ -127,14 +127,27 @@ class MainMenuScreen(Screen):
             color=(0.7, 0.75, 0.8, 1),
         )
 
+        btn_settings = Button(
+            text="SETTINGS",
+            font_size=22,
+            bold=True,
+            size_hint=(None, None),
+            size=(350, 70),
+            background_normal="",
+            background_color=(0.08, 0.12, 0.18, 0.85),
+            color=(0.7, 0.85, 1, 1),
+        )
         btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
+        btn_settings.bind(on_press=lambda x: self.open_settings())
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
 
         btn_layout.add_widget(btn_start)
+        btn_layout.add_widget(btn_settings)
         btn_layout.add_widget(btn_quit)
 
         # --- [เก็บปุ่มลงใน List สำหรับจอย] ---
         self.selectable_buttons.append(btn_start)
+        self.selectable_buttons.append(btn_settings)
         self.selectable_buttons.append(btn_quit)
         # --------------------------------
 
@@ -148,6 +161,10 @@ class MainMenuScreen(Screen):
     def _update_bg(self, instance, value):
         self.bg_rect.pos = instance.pos
         self.bg_rect.size = instance.size
+
+    def open_settings(self):
+        self.manager.current = "settings_screen"
+        self.manager.get_screen("settings_screen").set_previous_screen("main_menu")
 
     def change_screen(self, screen_name):
         self.manager.current = screen_name

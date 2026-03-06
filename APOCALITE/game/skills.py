@@ -12,6 +12,7 @@ Melee auto-attack: PtaePunch / LostmanAxe / MonkeyCombo (auto-tick)
 import math
 import random
 from typing import Dict, List, Type
+from game.game_settings import settings
 
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
@@ -784,8 +785,13 @@ def _hit_enemy(game, enemy, dmg: float):
     else:
         enemy.hp -= dmg
 
+    # 🌟 แสดงตัวเลขดาเมจบนหัว
+    if settings.show_damage_numbers:
+        _show_damage_number(game, enemy.pos[0] + 15, enemy.pos[1] + 35, dmg)
+
     if enemy.hp > 0:
         return
+
     if enemy in game.enemies:
         game.enemies.remove(enemy)
         
@@ -838,6 +844,28 @@ def _hit_enemy(game, enemy, dmg: float):
         game.hud.update_enemy_count(len(game.enemies))
     if hasattr(game, "gain_exp"):
         game.gain_exp(10)
+
+
+def _show_damage_number(game, x, y, damage):
+    """สร้าง Label ดาเมจลอยขึ้นบนหัว"""
+    from kivy.uix.label import Label
+    from kivy.animation import Animation
+    
+    lbl = Label(
+        text=str(int(damage)),
+        font_size=20,
+        bold=True,
+        color=(1, 0.2, 0.2, 1),
+        pos=(x, y),
+        size_hint=(None, None),
+        size=(40, 40)
+    )
+    game.world_layout.add_widget(lbl)
+    
+    # Animation ลอยขึ้นและหายไป
+    anim = Animation(y=y + 80, opacity=0, duration=0.8, transition='out_quad')
+    anim.bind(on_complete=lambda *args: game.world_layout.remove_widget(lbl) if lbl.parent else None)
+    anim.start(lbl)
 
 
 def _explode_bomb(game, bomb):
