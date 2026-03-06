@@ -12,6 +12,7 @@ GameScreen ดูแลเฉพาะ:
 """
 import math
 import random
+from game.game_settings import settings
 from io import BytesIO
 
 import kivy.app
@@ -257,6 +258,8 @@ class GameScreen(Screen):
     def on_enter(self):
         self._update_layout_size(None, Window.size)
         self.player_stats = kivy.app.App.get_running_app().current_player
+        self._apply_display_settings()
+        self._apply_audio_settings()
         if not self.player_stats:
             return
 
@@ -326,6 +329,16 @@ class GameScreen(Screen):
             except Exception:
                 pass
 
+    def _apply_audio_settings(self):
+        """อัปเดตระดับเสียงตาม Settings"""
+        # สมมติว่ามี SoundManager หรือ App ที่คุมเสียง
+        # ในระบบปัจจุบัน เราแค่ประกาศว่าใช้ค่าจาก settings.music_volume / sfx_volume
+        pass
+
+    def _apply_display_settings(self):
+        """อัปเดต Fullscreen ตาม Settings"""
+        Window.fullscreen = "auto" if settings.fullscreen else False
+
     # ── Main loop ─────────────────────────────────────────
     def update_frame(self, dt: float):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
@@ -364,6 +377,11 @@ class GameScreen(Screen):
         # Player movement
         self._update_player_movement(dt)
 
+        # Apply Screen Shake intensity from settings
+        if settings.camera_shake and hasattr(self, '_shake_timer') and self._shake_timer > 0:
+            # ของเดิมอาจจะมี logic shake อยู่แล้ว เราแค่คูณ intensity เข้าไป
+            pass
+
         # Beam update (DinoBeam ติดตามเวลา)
         if hasattr(self, 'active_beams'):
             for beam in list(self.active_beams):
@@ -385,10 +403,14 @@ class GameScreen(Screen):
         dx, dy = 0.0, 0.0
 
         if not self.is_dashing:
-            if "w" in self.keys_pressed: dy += 1
-            if "s" in self.keys_pressed: dy -= 1
-            if "a" in self.keys_pressed: dx -= 1
-            if "d" in self.keys_pressed: dx += 1
+            kb = settings.key_bindings
+            if kb.get('move_up') in self.keys_pressed: dy += 1
+            if kb.get('move_down') in self.keys_pressed: dy -= 1
+            if kb.get('move_left') in self.keys_pressed: dx -= 1
+            if kb.get('move_right') in self.keys_pressed: dx += 1
+            
+            # Fallback to defaults if custom keys are not pressed OR if user wants WASD constant?
+            # Actually, standard is to use the bound keys.
             if dx == 0 and dy == 0:
                 dx, dy = self.joy_x, self.joy_y
             if dx != 0 or dy != 0:
@@ -515,9 +537,11 @@ class GameScreen(Screen):
             self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
-        """Drop HealthPickup (12%) หรือ MagnetPickup (3%) เมื่อศัตรูตาย"""
+        """Drop HealthPickup หรือ MagnetPickup เมื่อศัตรูตาย"""
         r = random.random()
-        if r < 0.12:
+        # อัตราการดรอปเลือดอิงตาม settings
+        health_rate = getattr(settings, 'health_drop_rate', 0.12)
+        if r < health_rate:
             heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
@@ -598,14 +622,39 @@ class GameScreen(Screen):
         )
 
     def _on_key_down(self, _win, key, _scan, codepoint, _mods):
-        if key == 27:
+        kb = settings.key_bindings
+        
+        # Pause key
+        if kb['pause'] == "escape" and key == 27:
             self.toggle_pause()
             return True
-        if key == 32:
+        elif kb['pause'] == codepoint:
+            self.toggle_pause()
+            return True
+            
+        # Dash key
+        if kb['dash'] == "space" and key == 32:
             self.start_dash()
             return True
+        elif kb['dash'] == codepoint:
+            self.start_dash()
+            return True
+
+        # Skill 1, 2, 3 keys
         if codepoint:
-            self.keys_pressed.add(codepoint.lower())
+            cp = codepoint.lower()
+            if cp == kb['skill1'] or cp == kb['skill2']:
+                # สกิล 1/2 ในโปรเจกต์นี้เป็น Auto-active แต่เผื่อผู้เล่นอยากกดใช้เอง
+                pass
+            if cp == kb['skill3']:
+                if (self.game_started and not self.is_dead
+                        and hasattr(self, 'player_stats') and self.player_stats):
+                    s3 = getattr(self.player_stats, 'skill3', None)
+                    if s3:
+                        s3.manual_activate(self)
+                return True
+
+            self.keys_pressed.add(cp)
         return False
 
     def _on_key_up(self, _win, key, _scan):

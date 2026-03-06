@@ -82,7 +82,7 @@ class MainMenuScreen(Screen):
             spacing=30,
             size_hint=(None, None),
             size=(600, 450),
-            pos_hint={"x": 0.1, "center_y": 0.5},
+            pos_hint={"x": 0.1, "center_y": 0.4},
         )
 
         # ปรับสี Title ให้เข้ากับธีมบรรยากาศฝนตก (สีฟ้าอ่อนอมเทา)
@@ -103,7 +103,7 @@ class MainMenuScreen(Screen):
 
         # 4. ปุ่มเข้ากับธีมฝน (Rain Theme: กระจกโปร่งแสงสีเข้ม)
         btn_layout = BoxLayout(
-            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 270)
+            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 340)
         )
 
         btn_start = Button(
@@ -126,6 +126,16 @@ class MainMenuScreen(Screen):
             background_color=(0.1, 0.15, 0.2, 0.85),
             color=(0.9, 0.95, 1, 1),
         )
+        btn_settings = Button(
+            text="SETTINGS",
+            font_size=22,
+            bold=True,
+            size_hint=(None, None),
+            size=(350, 70),
+            background_normal="",
+            background_color=(0.1, 0.15, 0.2, 0.85),
+            color=(0.9, 0.95, 1, 1),
+        )
         btn_quit = Button(
             text="QUIT GAME",
             font_size=22,
@@ -139,15 +149,19 @@ class MainMenuScreen(Screen):
 
         btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
         btn_leaderboard.bind(on_press=lambda x: self.change_screen("leaderboard_screen"))
+        btn_settings.bind(on_press=lambda x: self.open_settings())
         btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
 
         btn_layout.add_widget(btn_start)
         btn_layout.add_widget(btn_leaderboard)
+        btn_layout.add_widget(btn_settings)
         btn_layout.add_widget(btn_quit)
 
         # --- [เก็บปุ่มลงใน List สำหรับจอย] ---
+        self.selectable_buttons.clear()  # Ensure no duplicate pointers from multiple inits
         self.selectable_buttons.append(btn_start)
         self.selectable_buttons.append(btn_leaderboard)
+        self.selectable_buttons.append(btn_settings)
         self.selectable_buttons.append(btn_quit)
         # --------------------------------
 
@@ -161,6 +175,10 @@ class MainMenuScreen(Screen):
     def _update_bg(self, instance, value):
         self.bg_rect.pos = instance.pos
         self.bg_rect.size = instance.size
+
+    def open_settings(self):
+        self.manager.current = "settings_screen"
+        self.manager.get_screen("settings_screen").set_previous_screen("main_menu")
 
     def change_screen(self, screen_name):
         self.manager.current = screen_name

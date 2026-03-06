@@ -9,8 +9,10 @@ from game.projectile_widget import EnemyProjectile
 
 
 # --- [ Class สำหรับตัวศัตรู ] ---
+from game.game_settings import settings
+
 class EnemyWidget(Widget):
-    SHOW_DEBUG_STATS = False # Global toggle for HP/ATK display
+    SHOW_DEBUG_STATS = settings.show_enemy_hp
     # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
     # bosses may be updated by placing a file named boss.png in assets/enemy
     import os
@@ -104,7 +106,7 @@ class EnemyWidget(Widget):
             },
             "sniper": {
                 "hp": 60,
-                "speed": 0.5, # แทบไม่เดิน
+                "speed": 0.5,
                 "damage": 15,
                 "color": (0.4, 0.8, 0.9, 1), # 🩵 ฟ้าอ่อน
                 "size": (45, 45),
@@ -126,14 +128,14 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 50000, 
+                "hp": 100000, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),
                 "size": (180, 180),
             },
             "final_boss_clone": {
-                "hp": 5000,
+                "hp": 1000,
                 "speed": 0.2,
                 "damage": 30,
                 "color": (0.3, 0.1, 0.6, 0.6), # Semi-transparent

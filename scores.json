@@ -1,5 +1,13 @@
 [
     {
+        "name": "Player",
+        "score": 2281,
+        "character": "Monkey",
+        "time_survived": "03:10",
+        "level": 4,
+        "kills": 35
+    },
+    {
         "name": "player1",
         "score": 1029,
         "character": "Lostman",

@@ -44,7 +44,7 @@ class PausePopup(Popup):
         layout.add_widget(lbl_pause)
 
         # กล่องสำหรับปุ่ม
-        btn_layout = BoxLayout(orientation="vertical", spacing=15, size_hint=(1, 0.5))
+        btn_layout = BoxLayout(orientation="vertical", spacing=15, size_hint=(1, 0.6))
 
         # --- [สร้างปุ่มแบบโปร่งใส (Floating Buttons)] ---
         btn_resume = Button(
@@ -54,6 +54,14 @@ class PausePopup(Popup):
             background_normal="",
             background_color=(0, 0, 0, 0), # พื้นหลังโปร่งใส 100%
             color=(0.5, 0.5, 0.5, 1),      # สีตัวอักษรปกติ (สีเทา)
+        )
+        btn_settings = Button(
+            text="SETTINGS",
+            font_size=30,
+            bold=True,
+            background_normal="",
+            background_color=(0, 0, 0, 0),
+            color=(0.5, 0.75, 1, 1),
         )
         btn_menu = Button(
             text="RETURN TO MENU",
@@ -65,15 +73,18 @@ class PausePopup(Popup):
         )
 
         btn_resume.bind(on_press=lambda x: self.resume())
+        btn_settings.bind(on_press=lambda x: self.open_settings())
         btn_menu.bind(on_press=lambda x: self.go_to_menu())
 
         btn_layout.add_widget(btn_resume)
+        btn_layout.add_widget(btn_settings)
         btn_layout.add_widget(btn_menu)
         
         layout.add_widget(btn_layout)
         
         # เก็บปุ่มลง List
         self.selectable_buttons.append(btn_resume)
+        self.selectable_buttons.append(btn_settings)
         self.selectable_buttons.append(btn_menu)
 
         self.content = layout
@@ -133,20 +144,22 @@ class PausePopup(Popup):
 
     def update_highlight(self):
         for i, btn in enumerate(self.selectable_buttons):
-            # เช็คว่าเลือกปุ่มนี้อยู่ และกำลังโชว์ Highlight (เมาส์ชี้/ใช้จอย)
             if i == self.selected_index and self.show_highlight:
-                btn.font_size = 36 # ขยายฟอนต์
+                btn.font_size = 36
                 if btn.text == "RETURN TO MENU":
-                    btn.color = (1, 0.2, 0.2, 1) # แดงสว่างจ้า
+                    btn.color = (1, 0.2, 0.2, 1)
+                elif btn.text == "SETTINGS":
+                    btn.color = (0.5, 0.9, 1, 1)
                 else:
-                    btn.color = (1, 1, 1, 1) # ขาวสว่าง (Resume)
+                    btn.color = (1, 1, 1, 1)
             else:
-                # ตอนไม่ได้เลือก
-                btn.font_size = 30 # ฟอนต์ขนาดปกติ
+                btn.font_size = 30
                 if btn.text == "RETURN TO MENU":
-                    btn.color = (0.7, 0.2, 0.2, 1) # แดงเข้มปกติ
+                    btn.color = (0.7, 0.2, 0.2, 1)
+                elif btn.text == "SETTINGS":
+                    btn.color = (0.5, 0.75, 1, 1)
                 else:
-                    btn.color = (0.5, 0.5, 0.5, 1) # เทามืด (Resume)
+                    btn.color = (0.5, 0.5, 0.5, 1)
 
     def _reset_cooldown(self, dt):
         self.joy_cooldown = False
@@ -182,6 +195,12 @@ class PausePopup(Popup):
         elif buttonid == 1: # ปุ่ม B กดเพื่อ Resume เกมต่อ
             self.resume()
     # ==========================================
+
+    def open_settings(self):
+        # เข้าหน้า settings แล้วจำว่าจะต้องกลับมาที่ game_screen
+        self.game_screen.manager.current = "settings_screen"
+        self.game_screen.manager.get_screen("settings_screen").set_previous_screen("game_screen")
+        self.dismiss() # ปิด popup pause ทิ้งไปก่อน
 
     def resume(self):
         self.game_screen.resume_game()
