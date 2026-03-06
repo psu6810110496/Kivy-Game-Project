@@ -153,7 +153,7 @@ class WaveManager:
             self.is_spawning = False
             Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=False), 0.1)
         else:
-            for _ in range(5 + w * 2):
+            for _ in range(5 + w):
                 self._spawn_single()
             self.is_spawning = False
 

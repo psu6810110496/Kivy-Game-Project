@@ -110,7 +110,7 @@ class DinoCircle(BaseSkill):
 
     def __init__(self):
         super().__init__()
-        self.orbit_radius = 130
+        self.orbit_radius = 100
         self.dino_count = 1
         self.damage_mult = 1.5
         self.orbit_speed = 3.0       # rad/s
@@ -123,10 +123,10 @@ class DinoCircle(BaseSkill):
         return 0.016  # ~60fps
 
     def _on_upgrade(self):
-        if self.level % 2 == 0:
-            self.dino_count += 1
+        # เพิ่มจำนวนไดโนให้ตันที่ 15 ตัวที่เลเวล 25
+        self.dino_count = 1 + (self.level // 2) + (self.level // 12)
         self.damage_mult += 0.3
-        self.orbit_radius += 10
+        self.orbit_radius += 7
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
@@ -157,16 +157,25 @@ class DinoCircle(BaseSkill):
             eid = id(enemy)
             if eid in self._hit_cooldowns:
                 continue
+
             ec_x = enemy.pos[0] + 20
             ec_y = enemy.pos[1] + 20
+
+            # 🛡️ Proximity Protection: ตีมอนที่อยู่ชิดตัวผู้เล่นมากเกินไป (ระยะประชิด 60px)
+            dist_to_player = math.hypot(ec_x - px, ec_y - py)
+            if dist_to_player < 60:
+                _hit_enemy(game, enemy, dmg)
+                self._hit_cooldowns[eid] = 0.5
+                continue
+
             for (ox, oy) in positions:
                 if math.hypot(ox - ec_x, oy - ec_y) < 45:
                     _hit_enemy(game, enemy, dmg)
                     self._hit_cooldowns[eid] = 0.5  # hit cooldown 0.5s per enemy
                     break
 
-        # วาด dino indicators (วงกลมเล็ก)
-        _draw_orbit_indicators(game, positions, self._orbit_angle)
+        # วาด dino indicators และวงกลมป้องกันชั้นใน
+        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60)
 
     def activate(self, game):
         pass  # ใช้ tick แทน
@@ -199,7 +208,7 @@ class DinoSummon(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
-        count = self.level  # จำนวนไดโน = level
+        count = min(15, self.level)  # สูงสุด 15 ตัว
         # แต่ละตัวเลือก enemy สุ่ม (อาจซ้ำถ้า enemy น้อย)
         targets = random.choices(game.enemies, k=min(count, len(game.enemies)))
         for target in targets:
@@ -303,7 +312,8 @@ class PtaePunch(BaseSkill):
                 continue
             ang = math.atan2(ey - py, ex - px)
             diff = abs((ang - aim + math.pi) % (2 * math.pi) - math.pi)
-            if diff <= half:
+            # ตีได้ถ้าอยู่ในกรวย หรือถ้าอยู่ชิดตัวมาก (dist <= 45)
+            if dist <= 45 or diff <= half:
                 _hit_enemy(game, enemy, dmg)
 
 
@@ -372,7 +382,7 @@ class BombTrap(BaseSkill):
 
     @property
     def cooldown(self):
-        return max(3.0, 6.0 - (self.level - 1) * 0.6)
+        return max(0.8, 6.0 - (self.level - 1) * 0.6)
 
     def _on_upgrade(self):
         self.splash_damage_mult += 1.0
@@ -494,7 +504,8 @@ class LostmanAxe(BaseSkill):
                 continue
             ang = math.atan2(ey - py, ex - px)
             diff = abs((ang - aim + math.pi) % (2 * math.pi) - math.pi)
-            if diff <= half:
+            # ตีได้ถ้าอยู่ในขอบเขต หรือถ้าอยู่ชิดตัวมาก (dist <= 45)
+            if dist <= 45 or diff <= half:
                 _hit_enemy(game, enemy, dmg)
 
 
@@ -904,12 +915,23 @@ def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.08)
 
 
-def _draw_orbit_indicators(game, positions, angle):
-    """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit"""
+def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
+    """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit และวงกลมป้องกันด้านใน"""
     ig = InstructionGroup()
+    
+    # วงกลมป้องกันชั้นใน
+    if inner_radius > 0:
+        ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
+        ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
+                       size=(inner_radius * 2, inner_radius * 2)))
+        ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
+        ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
+
+    # จุดไดโนรอบนอก
     ig.add(Color(0.3, 1.0, 0.4, 0.8))
     for (ox, oy) in positions:
         ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
+        
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)
 

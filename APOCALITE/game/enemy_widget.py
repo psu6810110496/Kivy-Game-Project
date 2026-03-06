@@ -1,4 +1,5 @@
 from kivy.uix.widget import Widget
+from kivy.uix.label import Label
 from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
@@ -9,6 +10,7 @@ from game.projectile_widget import EnemyProjectile
 
 # --- [ Class สำหรับตัวศัตรู ] ---
 class EnemyWidget(Widget):
+    SHOW_DEBUG_STATS = False # Global toggle for HP/ATK display
     # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
     # bosses may be updated by placing a file named boss.png in assets/enemy
     import os
@@ -96,7 +98,7 @@ class EnemyWidget(Widget):
             "bomber": {
                 "hp": 80,
                 "speed": 2.5,
-                "damage": 60, # ระเบิดแรง
+                "damage": 20, # ระเบิดแรง
                 "color": (1.0, 1.0, 0.2, 1), # 🟡 เหลือง
                 "size": (50, 50),
             },
@@ -166,11 +168,30 @@ class EnemyWidget(Widget):
             self.rect = Rectangle(
                 pos=self.pos, size=self.enemy_size, texture=self.texture
             )
-
+        self.shake_offset = [0, 0]
+        
+        # Debug Label
+        self._debug_label = Label(
+            text="", font_size=12, bold=True,
+            color=(1, 0.2, 0.2, 1), outline_width=1, outline_color=(0,0,0,1),
+            size_hint=(None, None), size=(100, 20),
+            opacity=1 if self.SHOW_DEBUG_STATS else 0
+        )
+        self.add_widget(self._debug_label)
+        
         self.bind(pos=self._update_rect)
 
     def _update_rect(self, instance, value):
-        self.rect.pos = value
+        new_pos = (value[0] + self.shake_offset[0], value[1] + self.shake_offset[1])
+        self.rect.pos = new_pos
+        # Sync debug label
+        if self._debug_label:
+            self._debug_label.pos = (new_pos[0] + self.enemy_size[0]/2 - 50, new_pos[1] + self.enemy_size[1] + 5)
+            if self.SHOW_DEBUG_STATS:
+                self._debug_label.text = f"HP:{int(self.hp)}  ATK:{int(self.damage)}"
+                self._debug_label.opacity = 1
+            else:
+                self._debug_label.opacity = 0
 
     def update_movement(self, player_pos, all_enemies, dt: float = 1/60.0):
         """ระบบ AI: แยกตามประเภทศัตรู"""
@@ -389,7 +410,7 @@ class EnemyWidget(Widget):
 
     def _show_slam_warning(self, cx, cy, radius):
         """Show yellow/orange warning circle before slam hits"""
-        if not hasattr(self, "game") or not self.parent:
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
@@ -399,12 +420,12 @@ class EnemyWidget(Widget):
             Color(1, 1, 0, 0.5)  # Yellow warning with transparency
             Ellipse(pos=effect_widget.pos, size=effect_widget.size)
         
-        self.parent.add_widget(effect_widget)
+        self.game.world_layout.add_widget(effect_widget)
         Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.4)
 
     def _execute_slam_damage(self, cx, cy, slam_radius):
         """Actually deal damage and show red impact circle"""
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         # Direct melee damage to player if they're in slam radius
@@ -426,16 +447,12 @@ class EnemyWidget(Widget):
             ty = cy + math.sin(angle) * 500
             proj = EnemyProjectile(start_pos=(cx, cy), target_pos=(tx, ty), damage=self.damage)
             proj.speed = 250
-            self.parent.add_widget(proj)
-            game_screen = self.parent
-            while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-                game_screen = game_screen.parent
-            if game_screen:
-                game_screen.enemy_projectiles.append(proj)
+            self.game.world_layout.add_widget(proj)
+            self.game.enemy_projectiles.append(proj)
 
     def _show_slam_impact(self, cx, cy, radius):
         """Show red impact circle after damage is dealt"""
-        if not hasattr(self, "game") or not self.parent:
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         
         effect_widget = Widget(size_hint=(None, None), size=(radius * 2, radius * 2))
@@ -445,36 +462,28 @@ class EnemyWidget(Widget):
             Color(1, 0, 0, 0.6)  # Red impact with transparency
             Ellipse(pos=effect_widget.pos, size=effect_widget.size)
         
-        self.parent.add_widget(effect_widget)
+        self.game.world_layout.add_widget(effect_widget)
         Clock.schedule_once(lambda dt: self._remove_effect_widget(effect_widget), 0.25)
 
     def do_swipe(self, player_pos):
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
         proj.speed = 700
-        self.parent.add_widget(proj)
-        game_screen = self.parent
-        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-            game_screen = game_screen.parent
-        if game_screen:
-            game_screen.enemy_projectiles.append(proj)
+        self.game.world_layout.add_widget(proj)
+        self.game.enemy_projectiles.append(proj)
 
     def do_missile(self, player_pos):
-        if not hasattr(self, "game"):
+        if not hasattr(self, "game") or not self.game or not self.parent:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 0.8)
         proj.speed = 300
-        self.parent.add_widget(proj)
-        game_screen = self.parent
-        while game_screen and not hasattr(game_screen, "enemy_projectiles"):
-            game_screen = game_screen.parent
-        if game_screen:
-            game_screen.enemy_projectiles.append(proj)
+        self.game.world_layout.add_widget(proj)
+        self.game.enemy_projectiles.append(proj)
 
     def _remove_effect_widget(self, widget):
         """Remove effect widget from parent"""
@@ -498,15 +507,13 @@ class EnemyWidget(Widget):
             start_pos=(ex, ey), target_pos=(target_x, target_y), damage=self.damage
         )
 
-        # เพิ่มกระสุนเข้า world_layout (parent ของศัตรู)
-        self.parent.add_widget(proj)
-
-        # ส่งเข้า list ใน GameScreen เพื่อเช็ค Collision
         if hasattr(self, "game") and self.game is not None:
+            self.game.world_layout.add_widget(proj)
             self.game.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0, 0)):
-        """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ"""
+        """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ พร้อมเขย่าตัว"""
+        self._apply_hit_shake()
         
         # 🔵 Shielder damage reduction
         if getattr(self, "enemy_type", "") == "shielder" and getattr(self, "has_shield", False):
@@ -543,6 +550,20 @@ class EnemyWidget(Widget):
                 self.pos[0] + knockback_dir[0] * kb,
                 self.pos[1] + knockback_dir[1] * kb,
             )
+
+    def _apply_hit_shake(self, count=0):
+        """เขย่าตัวศัตรูเมื่อโดนดาเมจ"""
+        if count >= 4 or self.hp <= 0:
+            self.shake_offset = [0, 0]
+            self.rect.pos = self.pos
+            return
+
+        # สุ่ม offset ตามขนาดตัว (ประมาณ 12%)
+        mag = self.enemy_size[0] * 0.12
+        self.shake_offset = [random.uniform(-mag, mag), random.uniform(-mag, mag)]
+        self.rect.pos = (self.pos[0] + self.shake_offset[0], self.pos[1] + self.shake_offset[1])
+
+        Clock.schedule_once(lambda dt: self._apply_hit_shake(count + 1), 0.04)
 
     # --- Mini boss abilities helpers ---
     def _start_charge_dash(self):
@@ -595,9 +616,8 @@ class EnemyWidget(Widget):
                 start_pos=(ex, ey), target_pos=(tx, ty), damage=self.damage
             )
             proj.speed = 550
-            self.parent.add_widget(proj)
-            
             if hasattr(self, "game") and self.game is not None:
+                self.game.world_layout.add_widget(proj)
                 self.game.enemy_projectiles.append(proj)
 
     # --- Final Boss Specials Implementation ---
