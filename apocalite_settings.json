@@ -4,7 +4,7 @@
   "fullscreen": false,
   "camera_shake": true,
   "show_damage_numbers": true,
-  "show_enemy_hp": true,
+  "show_enemy_hp": false,
   "health_drop_rate": 0.45,
   "screen_shake_intensity": 1.0,
   "key_bindings": {
