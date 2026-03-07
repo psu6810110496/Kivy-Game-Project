@@ -572,7 +572,10 @@ class SettingsScreen(Screen):
             self.handle_action("alt_press")
 
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 119 or key == 273: # W or Up
+        if key == 27: # ESC
+            self._close()
+            return True
+        elif key == 119 or key == 273: # W or Up
             self.navigate("prev")
             return True
         elif key == 115 or key == 274: # S or Down
@@ -672,6 +675,16 @@ class SettingsScreen(Screen):
 
     def _close(self):
         settings.save()
-        if self.manager:
-            self.manager.current = self._previous_screen
+        if not self.manager:
+            return
+
+        target = self._previous_screen
+        self.manager.current = target
+        
+        # ถ้ามาจากหน้าเกม ให้กลับไปเปิด Pause Popup ให้ด้วย
+        if target == "game_screen":
+            from ui.pause import PausePopup
+            game_screen = self.manager.get_screen("game_screen")
+            # เปิด Popup อีกครั้งเพื่อให้เกมยังคงสถานะ Pause อยู่
+            Clock.schedule_once(lambda dt: PausePopup(game_screen).open(), 0.1)
 

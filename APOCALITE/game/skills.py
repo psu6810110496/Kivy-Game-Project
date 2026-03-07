@@ -112,7 +112,7 @@ class DinoCircle(BaseSkill):
 
     def __init__(self):
         super().__init__()
-        self.orbit_radius = 100
+        self.orbit_radius = 40
         self.dino_count = 1
         self.damage_mult = 1.5
         self.orbit_speed = 3.0       # rad/s
@@ -128,7 +128,7 @@ class DinoCircle(BaseSkill):
         # เพิ่มจำนวนไดโนให้ตันที่ 15 ตัวที่เลเวล 25
         self.dino_count = 1 + (self.level // 2) + (self.level // 12)
         self.damage_mult += 0.3
-        self.orbit_radius += 7
+        self.orbit_radius += 2.8
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
@@ -210,7 +210,7 @@ class DinoSummon(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
-        count = min(15, self.level)  # สูงสุด 15 ตัว
+        count = min(7, self.level)  # ลดจำนวนสูงสุดลงครึ่งหนึ่ง (เดิม 15)
         # แต่ละตัวเลือก enemy สุ่ม (อาจซ้ำถ้า enemy น้อย)
         targets = random.choices(game.enemies, k=min(count, len(game.enemies)))
         for target in targets:
@@ -370,25 +370,25 @@ class AxeThrow(BaseSkill):
                           self.anim_frames)
 
 
-class BombTrap(BaseSkill):
-    """Lostman Skill 2 — วางระเบิด countdown 3-2-1 ระเบิด (auto)"""
+class BombTrap(StackSkill):
+    """Lostman Skill 3 — วางระเบิด manual LMB, stack×3"""
     name = "Bomb Trap"
-    description = "วางระเบิดนับถอยหลัง 3-2-1 แล้วระเบิด AoE"
+    description = "วางระเบิด AoE พลังทำลายสูง (manual LMB)"
 
     def __init__(self):
         super().__init__()
         self.splash_damage_mult = 6.0
-        self.splash_radius = 160
-        self.fuse_time = 3.0
+        self.splash_radius = 180
+        self.fuse_time = 2.0
         self.bomb_count = 1
 
     @property
-    def cooldown(self):
-        return max(0.8, 6.0 - (self.level - 1) * 0.6)
+    def recharge_time(self):
+        return max(3.0, 7.0 - (self.level - 1) * 0.5)
 
     def _on_upgrade(self):
-        self.splash_damage_mult += 1.0
-        self.splash_radius += 15
+        self.splash_damage_mult += 1.5
+        self.splash_radius += 20
         if self.level >= 3:
             self.bomb_count = 2
         if self.level >= 5:
@@ -401,10 +401,12 @@ class BombTrap(BaseSkill):
         dmg = game.player_stats.damage * self.splash_damage_mult
 
         for i in range(self.bomb_count):
-            # กระจายถ้าหลายลูก
-            offset_x = (i - self.bomb_count // 2) * 60
-            bx = px + offset_x
-            by = py - 20
+            # วางกระจายรอบตัว
+            angle = (i * 2 * math.pi / max(1, self.bomb_count))
+            offset_dist = 40 if self.bomb_count > 1 else 0
+            bx = px + math.cos(angle) * offset_dist
+            by = py + math.sin(angle) * offset_dist
+            
             bomb = BombWidget(
                 pos=(bx - 16, by - 16),
                 fuse=self.fuse_time,
@@ -420,7 +422,7 @@ class BombTrap(BaseSkill):
 
 
 class WhirlSlash(BaseSkill):
-    """Lostman Skill 3 — ฟันขวานวงใหญ่รอบตัว (auto)"""
+    """Lostman Skill 2 — ฟันขวานวงใหญ่รอบตัว (auto)"""
     name = "Whirl Slash"
     description = "ฟันขวานวงใหญ่รอบตัว knockback (auto)"
 
@@ -438,7 +440,7 @@ class WhirlSlash(BaseSkill):
 
     @property
     def cooldown(self):
-        return max(3.5, 6.0 - (self.level - 1) * 0.4)
+        return max(2.5, 5.0 - (self.level - 1) * 0.4)
 
     def _on_upgrade(self):
         self.radius += 10
@@ -450,7 +452,7 @@ class WhirlSlash(BaseSkill):
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
 
-        _show_slash_vfx(game, px, py, self.radius, 0, 180, self.anim_frames)
+        _show_slash_vfx(game, px, py, self.radius, 0, 360, self.anim_frames)
 
         for enemy in list(game.enemies):
             ex = enemy.pos[0] + 20
@@ -524,6 +526,10 @@ class PistolSkill(BaseSkill):
         self.bullet_count = 1
         self.bullet_speed = 520
         self.bullet_range = 720
+        self.anim_frames = [
+            "assets/Monkey/shoot/bullets1.png",
+            "assets/Monkey/shoot/bullets2.png",
+        ]
 
     @property
     def cooldown(self):
@@ -549,7 +555,7 @@ class PistolSkill(BaseSkill):
         for enemy in sorted_e[:self.bullet_count]:
             _spawn_bullet(game, px, py,
                           enemy.pos[0] + 20, enemy.pos[1] + 20,
-                          self.bullet_speed, self.bullet_range, dmg, [])
+                          self.bullet_speed, self.bullet_range, dmg, self.anim_frames)
 
 
 class ShotgunSkill(BaseSkill):
@@ -564,6 +570,10 @@ class ShotgunSkill(BaseSkill):
         self.spread_deg = 22
         self.bullet_speed = 460
         self.bullet_range = 420
+        self.anim_frames = [
+            "assets/Monkey/shoot/bullets1.png",
+            "assets/Monkey/shoot/bullets2.png",
+        ]
 
     @property
     def cooldown(self):
@@ -587,7 +597,7 @@ class ShotgunSkill(BaseSkill):
             tx = px + math.cos(ang) * 600
             ty = py + math.sin(ang) * 600
             _spawn_bullet(game, px, py, tx, ty,
-                          self.bullet_speed, self.bullet_range, dmg, [])
+                          self.bullet_speed, self.bullet_range, dmg, self.anim_frames)
 
 
 class RPGSkill(StackSkill):
@@ -684,20 +694,20 @@ CHAR_MELEE: Dict[str, Type[BaseSkill]] = {
 
 CHAR_DEFAULT_SKILLS: Dict[str, List[Type[BaseSkill]]] = {
     "PTae":    [DinoCircle, DinoSummon],
-    "Lostman": [AxeThrow, BombTrap],
+    "Lostman": [AxeThrow, WhirlSlash],
     "Monkey":  [PistolSkill, ShotgunSkill],
 }
 
 # Skill 3 per character (manual/stack)
 CHAR_SKILL3: Dict[str, Type[StackSkill]] = {
     "PTae":    DinoPunch,
-    "Lostman": WhirlSlash,
+    "Lostman": BombTrap,
     "Monkey":  RPGSkill,
 }
 
 CHARACTER_SKILL_POOL: Dict[str, List[Type[BaseSkill]]] = {
     "PTae":    [DinoCircle, DinoSummon],
-    "Lostman": [AxeThrow, BombTrap],
+    "Lostman": [AxeThrow, WhirlSlash],
     "Monkey":  [PistolSkill, ShotgunSkill],
 }
 

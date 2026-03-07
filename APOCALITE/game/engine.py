@@ -300,6 +300,7 @@ class GameScreen(Screen):
         Clock.unschedule(self.update_frame)
         Clock.schedule_interval(self.update_frame, 1.0 / 60.0)
 
+
     def on_leave(self):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
@@ -340,11 +341,13 @@ class GameScreen(Screen):
             if not self.slash_textures:
                 self.slash_textures = try_load_set([f"assets/Monkey/m/m{i}.png" for i in range(1, 6)])
 
-        # ถ้ายังไม่มี (หรือเป็น Lostman) ให้ใช้ของ Lostman เป็นตัวหลัก/ตัวสำรอง
         if name == "Lostman" or not self.slash_textures:
             paths = [f"assets/Lostman/skill1/axe_hit{i}.png" for i in range(1, 5)]
             res = try_load_set(paths)
             if res: self.slash_textures = res
+
+        # 🌟 โหลด Dash VFX
+        self.dash_textures = try_load_set([f"assets/effect/dash/dash{i}.png" for i in range(1, 5)])
 
     def _apply_audio_settings(self):
         """อัปเดตระดับเสียงตาม Settings"""
@@ -573,11 +576,11 @@ class GameScreen(Screen):
 
             # 🌟 สุ่มว่าจะดรอปเลือด เล็ก หรือ ใหญ่ (80% เล็ก, 20% ใหญ่)
             if random.random() < 0.2:
-                # แบบใหญ่ (Heal 30)
-                heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=30, size=(28, 28), texture_path=l_tex)
+                # แบบใหญ่ (Heal 30% of Max HP)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.30, size=(28, 28), texture_path=l_tex)
             else:
-                # แบบเล็ก (Heal 15)
-                heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=15, size=(28, 28), texture_path=s_tex)
+                # แบบเล็ก (Heal 15% of Max HP)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.15, size=(28, 28), texture_path=s_tex)
             
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
@@ -605,6 +608,14 @@ class GameScreen(Screen):
     def start_dash(self):
         if self.dash_cooldown or self.is_dashing or not (self.last_dir_x or self.last_dir_y):
             return
+        
+        # 🌟 โชว์ Dash VFX ด้านหลัง
+        px = self.player_pos[0] + 32
+        py = self.player_pos[1] + 32
+        import math
+        angle_deg = math.degrees(math.atan2(self.last_dir_y, self.last_dir_x))
+        self._show_dash_vfx(px, py, angle_deg)
+
         self.is_dashing = True
         self.dash_cooldown = True
         self.player_widget.color_inst.rgba = (1, 1, 0, 1)
@@ -615,6 +626,43 @@ class GameScreen(Screen):
 
         Clock.schedule_once(_end, self.dash_duration)
         Clock.schedule_once(lambda _dt: setattr(self, "dash_cooldown", False), self.dash_cooldown_time)
+
+    def _show_dash_vfx(self, cx, cy, angle_deg):
+        """แสดงเอฟเฟกต์ Dash ด้านหลังตัวละคร"""
+        if not hasattr(self, "dash_textures") or not self.dash_textures:
+            return
+            
+        from kivy.uix.widget import Widget
+        from kivy.graphics import Color, Rectangle, PushMatrix, PopMatrix, Rotate, Scale
+        from kivy.clock import Clock
+        import math
+        
+        size = 120
+        eff = Widget(size_hint=(None, None), size=(size, size), pos=(cx - size/2, cy - size/2))
+        
+        with eff.canvas:
+            Color(1, 1, 1, 0.7)
+            PushMatrix()
+            # 🌟 ถ้าแดชไปทางซ้าย ให้กลับด้าน Texture เพื่อความสวยงาม
+            if math.cos(math.radians(angle_deg)) < 0:
+                Scale(y=-1, origin=(cx, cy))
+                
+            Rotate(angle=angle_deg, origin=(cx, cy))
+            rect = Rectangle(texture=self.dash_textures[0], pos=eff.pos, size=eff.size)
+            PopMatrix()
+            
+        self.world_layout.add_widget(eff)
+        
+        state = {"frame": 0}
+        def _next_frame(dt):
+            state["frame"] += 1
+            if state["frame"] >= len(self.dash_textures):
+                if eff.parent:
+                    self.world_layout.remove_widget(eff)
+                return False
+            rect.texture = self.dash_textures[state["frame"]]
+            
+        Clock.schedule_interval(_next_frame, 0.04) # เร็วหน่อย 0.04 วิ/เฟรม
 
     # ── Pause ─────────────────────────────────────────────
     def toggle_pause(self):
@@ -640,7 +688,12 @@ class GameScreen(Screen):
             self.attack_event.cancel()
             self.attack_event = None
         self._unbind_input()
-        GameOverPopup(win=win, game_screen=self).open()
+        
+        if win:
+            # ถ้าชนะ ให้ไปหน้า End Credits ทันที
+            self.manager.current = "credits_screen"
+        else:
+            GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────
     def _bind_input(self):
@@ -785,6 +838,12 @@ class GameScreen(Screen):
     def on_touch_down(self, touch):
         if self.is_paused:
             return super().on_touch_down(touch)
+
+        # 🌟 ไม่ยิง Skill 3 ถ้ามี Popup/ModalView กำลังเปิดอยู่ (เช่น Level Up)
+        from kivy.uix.modalview import ModalView
+        for child in self.children:
+            if isinstance(child, ModalView) and child.opacity > 0:
+                return super().on_touch_down(touch)
 
         if touch.button == 'left':
             if (self.game_started and not self.is_dead

@@ -1,5 +1,13 @@
 [
     {
+        "name": "RedP",
+        "score": 5060,
+        "character": "Monkey",
+        "time_survived": "00:01",
+        "level": 1,
+        "kills": 0
+    },
+    {
         "name": "Player",
         "score": 2281,
         "character": "Monkey",
@@ -32,11 +40,27 @@
         "kills": 6
     },
     {
+        "name": "Player (1)",
+        "score": 333,
+        "character": "PTae",
+        "time_survived": "00:26",
+        "level": 1,
+        "kills": 4
+    },
+    {
         "name": ":P",
         "score": 187,
         "character": "Monkey",
         "time_survived": "00:12",
         "level": 1,
         "kills": 2
+    },
+    {
+        "name": "Player",
+        "score": 130,
+        "character": "Monkey",
+        "time_survived": "00:08",
+        "level": 1,
+        "kills": 0
     }
 ]

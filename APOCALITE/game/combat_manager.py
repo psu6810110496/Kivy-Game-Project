@@ -9,8 +9,9 @@ class CombatManager:
     EXP_PICKUP_RADIUS = 55.0
     MELEE_RADIUS = 45.0
     MELEE_COOLDOWN = 0.8
-    PLAYER_HIT_RADIUS = 20.0  # ปรับให้แคบลงเพื่อให้โดนยากขึ้น (Body-only)
-    PROJ_MAX_DIST = 1200.0
+    PLAYER_HIT_RADIUS = 20.0
+    PROJ_MAX_DIST = 900.0   # ลดระยะ cleanup กระสุนที่หลงไปไกล
+    EXP_ORB_MAX = 150       # จำนวน EXP orb สูงสุด เพื่อป้องกันเกมกระตุก
 
     def __init__(self, game):
         self.game = game
@@ -81,7 +82,10 @@ class CombatManager:
     def _enemy_projectiles(self, dt, p_cx, p_cy):
         g = self.game
         for proj in list(g.enemy_projectiles):
-            proj.update(dt)
+            alive = proj.update(dt)
+            if alive is False:
+                self._rm_proj(proj)
+                continue
             
             # Check Obstacle Collision
             hit_obs = False
@@ -117,7 +121,11 @@ class CombatManager:
                 elif type(item).__name__ == "GlobalMagnetPickup":
                     g.global_magnet_timer = getattr(item, 'duration', 8.0)
                 else:
-                    heal = getattr(item,'heal_amount',25)
+                    h_pct = getattr(item, 'heal_percent', 0)
+                    if h_pct > 0:
+                        heal = g.player_stats.hp * h_pct
+                    else:
+                        heal = getattr(item, 'heal_amount', 25)
                     g.player_stats.current_hp = min(g.player_stats.hp,
                                                      g.player_stats.current_hp + heal)
                     g.hud.update_ui(g.player_stats)
@@ -127,6 +135,14 @@ class CombatManager:
     # ── EXP orbs ────────────────────────────────────────────
     def _exp_orbs(self, p_cx, p_cy):
         g = self.game
+        
+        # 🌟 Cap EXP orbs: ถ้าเกิน limit ให้ลบ orb เก่าสุดที่ตั้งไว้นาน
+        if len(g.exp_orbs) > self.EXP_ORB_MAX:
+            overflow = len(g.exp_orbs) - self.EXP_ORB_MAX
+            for orb in g.exp_orbs[:overflow]:
+                if orb.parent: g.world_layout.remove_widget(orb)
+            g.exp_orbs = g.exp_orbs[overflow:]
+        
         global_mag_pull = getattr(g, 'global_magnet_timer', 0.0) > 0
         mag_pull = getattr(g, 'magnet_timer', 0.0) > 0
         pull_radius = 450.0  # ระยะดูดตอนมี Magnet buff

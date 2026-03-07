@@ -12,6 +12,8 @@ class _Linear(Widget):
     def __init__(self, start_pos, target_pos, speed, damage, **kw):
         super().__init__(**kw)
         self.pos = start_pos; self.speed = speed; self.damage = damage
+        self._lived = 0.0
+        self._lifetime = 30.0
         dx = target_pos[0]-start_pos[0]; dy = target_pos[1]-start_pos[1]
         mag = math.hypot(dx, dy)
         self.direction = (dx/mag, dy/mag) if mag > 0 else (1, 0)
@@ -52,6 +54,8 @@ class EnemyProjectile(_Linear):
                 if self._frame < len(self._TEXTURES)-1:
                     self._frame += 1; self.br.texture = self._TEXTURES[self._frame]
         self._move(dt)
+        self._lived += dt
+        return self._lived < self._lifetime
 
 
 class PlayerBullet(_Linear):
@@ -59,31 +63,51 @@ class PlayerBullet(_Linear):
         super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
         self._range=proj_range; self._traveled=0.0
         self._anim=anim_frames or []; self._ai=0; self._at=0.0; self._fd=0.06
+        self._textures = []
+        
+        # คำนวณมุมตามทิศทาง (ใช้ Rotate ในทิศที่ยิง)
+        self.angle = math.degrees(math.atan2(self.direction[1], self.direction[0]))
+        
         if self._anim:
-            self._sprite = Image(source=self._anim[0], size=(48,48),
-                                  pos=(start_pos[0]-24,start_pos[1]-24),
-                                  allow_stretch=True, keep_ratio=False)
-            self.add_widget(self._sprite)
+            for path in self._anim:
+                try:
+                    self._textures.append(CoreImage(path).texture)
+                except: pass
+        
+        if self._textures:
+            with self.canvas:
+                PushMatrix()
+                self.tr = Translate(self.pos[0], self.pos[1])
+                self.ro = Rotate(angle=self.angle, origin=(0, 0))
+                Color(1,1,1,1)
+                self.rect = Rectangle(pos=(-20,-20), size=(40,40), texture=self._textures[0])
+                PopMatrix()
         else:
             with self.canvas:
                 Color(0.3,1,1,1)
                 self._ell = Ellipse(pos=(start_pos[0]-6,start_pos[1]-6), size=(12,12))
+        
         self.bind(pos=self._sync)
 
     def _sync(self, *_):
-        if hasattr(self,'_sprite'):
-            self._sprite.pos = (self.pos[0]-self._sprite.width/2, self.pos[1]-self._sprite.height/2)
+        if hasattr(self, 'tr'):
+            self.tr.x = self.pos[0]
+            self.tr.y = self.pos[1]
         elif hasattr(self,'_ell'):
             self._ell.pos = (self.pos[0]-6, self.pos[1]-6)
 
     def update(self, dt) -> bool:
-        if self._anim and len(self._anim)>1:
+        if self._textures and len(self._textures) > 1:
             self._at += dt
             if self._at >= self._fd:
-                self._at=0.0; self._ai=(self._ai+1)%len(self._anim)
-                if hasattr(self,'_sprite'): self._sprite.source=self._anim[self._ai]
-        mx=self.direction[0]*self.speed*dt; my=self.direction[1]*self.speed*dt
-        self.pos=(self.pos[0]+mx,self.pos[1]+my); self._traveled+=math.hypot(mx,my)
+                self._at = 0.0
+                self._ai = (self._ai + 1) % len(self._textures)
+                self.rect.texture = self._textures[self._ai]
+                
+        mx = self.direction[0] * self.speed * dt
+        my = self.direction[1] * self.speed * dt
+        self.pos = (self.pos[0] + mx, self.pos[1] + my)
+        self._traveled += math.hypot(mx, my)
         return self._traveled < self._range
 
 
@@ -134,10 +158,10 @@ class RPGRocket(_Linear):
 
 
 class HealthPickup(Widget):
-    def __init__(self, pos=(0,0), heal_amount=25, size=(28,28), texture_path=None, **kw):
+    def __init__(self, pos=(0,0), heal_amount=25, size=(28,28), texture_path=None, heal_percent=0, **kw):
         kw.setdefault('size_hint',(None,None)); kw.setdefault('size', size)
         super().__init__(**kw)
-        self.pos=pos; self.heal_amount=heal_amount; self.size=size
+        self.pos=pos; self.heal_amount=heal_amount; self.size=size; self.heal_percent=heal_percent
         
         # ปรับขนาดตัวหนังสือตามขนาดกล่อง
         f_size = 10 if size[0] <= 16 else 16
@@ -343,6 +367,10 @@ class LethalHomingMissile(_Linear):
         if not self.game or self.game.is_dead:
             return False
             
+        self._lived += dt
+        if self._lived >= self._lifetime:
+            return False
+
         # Homm towards player
         tx, ty = self.game.player_pos[0]+32, self.game.player_pos[1]+32
         dx, dy = tx - self.pos[0], ty - self.pos[1]
@@ -465,6 +493,8 @@ class BossSpiralMissile(_Linear):
     def update(self, dt):
         # Move straight in the initial direction to form an outward spiral pattern
         self._move(dt)
+        self._lived += dt
+        return self._lived < self._lifetime
 
 class BossBeamHighlight(Widget):
     """Visual warning for 8-way beam"""

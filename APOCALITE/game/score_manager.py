@@ -20,8 +20,21 @@ class ScoreManager:
     def save_score(name, score, character, time_survived, level, kills):
         scores = ScoreManager.load_scores()
         
+        # Check for duplicate names and add suffix (1), (2), ...
+        base_name = name if name else "UNKNOWN"
+        final_name = base_name
+        
+        # Get all existing names
+        existing_names = [entry.get("name", "") for entry in scores]
+        
+        if final_name in existing_names:
+            counter = 1
+            while f"{base_name} ({counter})" in existing_names:
+                counter += 1
+            final_name = f"{base_name} ({counter})"
+
         new_entry = {
-            "name": name if name else "UNKNOWN",
+            "name": final_name,
             "score": int(score),
             "character": character,
             "time_survived": time_survived,

@@ -1,5 +1,5 @@
 from kivy.uix.widget import Widget
-from kivy.graphics import Rectangle, Color, Line  # นำเข้า Line แทน Triangle
+from kivy.graphics import Rectangle, Color, Line, Triangle, PushMatrix, PopMatrix, Translate, Rotate, Scale
 from kivy.clock import Clock
 import math
 
@@ -7,7 +7,7 @@ class PlayerWidget(Widget):
     def __init__(self, idle_frames, walk_frames, start_pos=(2500, 2500), **kwargs):
         super().__init__(**kwargs)
         
-        # Animation Setup (เหมือนเดิม)
+        # Animation Setup
         self.anim_idle = idle_frames
         self.anim_walk = walk_frames
         self.idle_speed = 0.5 
@@ -23,7 +23,6 @@ class PlayerWidget(Widget):
             self.rect = Rectangle(source=self.current_anim[0], pos=start_pos, size=(64, 64))
             
         with self.canvas.after:
-            from kivy.graphics import PushMatrix, PopMatrix, Translate, Rotate, Scale, Ellipse
             self.weapon_group = []
             
             PushMatrix()
@@ -31,20 +30,34 @@ class PlayerWidget(Widget):
             self.weapon_rot = Rotate(angle=0, origin=(0, 0))
             self.weapon_scale = Scale(1, 1, 1, origin=(0, 0))
             
+            # --- 🌟 Aiming Arrow (ลูกศรเล็งแบบ >) ---
+            self.c_aim = Color(1, 1, 1, 0) # สีขาว, ซ่อนไว้ก่อน
+            # วาดรูปเชฟรอน (>) ที่อยู่ใกล้ตัวผู้เล่นมากขึ้น
+            self.line_aim = Line(points=[45, -12, 60, 0, 45, 12], width=2.5)
+
+            # --- RPG Tube (เฉพาะ Monkey) ---
             self.c_tube = Color(1, 1, 1, 0) # Alpha toggled by update_aim
-            # Adjusting pos: X decreased to bring closer to player, Y decreased (more negative) to move down
             self.r_tube = Rectangle(source="assets/Monkey/Weapon/RPG.png", pos=(0, -45), size=(96, 96))
 
-            self.weapon_group = [self.c_tube]
+            # เก็บ Color instrucs เพื่อคุมการซ่อน/แสดง
+            self.weapon_group = [self.c_tube, self.c_aim]
             PopMatrix()
 
         Clock.schedule_interval(self.animate, 1.0/60.0)
 
     def update_aim(self, is_aiming, aim_x, aim_y, has_rpg=False):
-        """ อัปเดตตำแหน่งและให้ตัวละครดึง RPG ออกมาถือเล็ง (เฉพาะ Monkey ที่มีสกิลแล้ว) """
-        if is_aiming and has_rpg and (aim_x != 0 or aim_y != 0):
-            for c in self.weapon_group: c.a = 1.0  # Show RPG
-            
+        """ อัปเดตตำแหน่งและให้ตัวละครดึง RPG ออกมาถือเล็ง (เฉพาะ Monkey ที่มีสกิลแล้ว) 
+            ส่วนตัวละครอื่นจะขึ้นลูกศรสีเหลืองบอกทิศทาง
+        """
+        if is_aiming and (aim_x != 0 or aim_y != 0):
+            # ตรวจสอบการแสดงผล
+            if has_rpg:
+                self.c_tube.a = 1.0  # Show RPG
+                self.c_aim.a = 0.0   # Hide Arrow
+            else:
+                self.c_tube.a = 0.0  # Hide RPG
+                self.c_aim.a = 0.8   # Show Arrow (ลูกศรเล็ง)
+
             cx = self.rect.pos[0] + (self.rect.size[0] / 2)
             cy = self.rect.pos[1] + (self.rect.size[1] / 2)
             
@@ -62,7 +75,8 @@ class PlayerWidget(Widget):
             else:
                 self.weapon_scale.y = 1
         else:
-            for c in self.weapon_group: c.a = 0.0 # Hide RPG
+            self.c_tube.a = 0.0
+            self.c_aim.a = 0.0
 
 
     # --- ฟังก์ชันอื่นๆ (set_state, animate, update_pos) คงเดิมเหมือนโค้ดก่อนหน้า ---

@@ -68,17 +68,49 @@ class PausePopup(Popup):
             font_size=30,
             bold=True,
             background_normal="",
-            background_color=(0, 0, 0, 0), # พื้นหลังโปร่งใส 100%
-            color=(0.7, 0.2, 0.2, 1),      # สีตัวอักษรปกติ (แดงเข้ม)
+            background_color=(0, 0, 0, 0),
+            color=(0.7, 0.2, 0.2, 1),
+        )
+
+        # --- [DEBUG BUTTONS] ---
+        btn_debug_wave = Button(
+            text="DEBUG: WAVE 45",
+            font_size=20,
+            bold=True,
+            background_normal="",
+            background_color=(0, 0, 0, 0),
+            color=(1, 1, 0, 0.8),
+        )
+        btn_debug_end = Button(
+            text="DEBUG: TEST END",
+            font_size=20,
+            bold=True,
+            background_normal="",
+            background_color=(0, 0, 0, 0),
+            color=(0, 1, 1, 0.8),
+        )
+        btn_debug_max = Button(
+            text="DEBUG: MAX LVL",
+            font_size=20,
+            bold=True,
+            background_normal="",
+            background_color=(0, 0, 0, 0),
+            color=(1, 0.5, 0, 0.8),
         )
 
         btn_resume.bind(on_press=lambda x: self.resume())
         btn_settings.bind(on_press=lambda x: self.open_settings())
         btn_menu.bind(on_press=lambda x: self.go_to_menu())
+        btn_debug_wave.bind(on_press=lambda x: self.debug_wave_45())
+        btn_debug_end.bind(on_press=lambda x: self.debug_test_end())
+        btn_debug_max.bind(on_press=lambda x: self.debug_max_lvl())
 
         btn_layout.add_widget(btn_resume)
         btn_layout.add_widget(btn_settings)
         btn_layout.add_widget(btn_menu)
+        btn_layout.add_widget(btn_debug_wave)
+        btn_layout.add_widget(btn_debug_end)
+        btn_layout.add_widget(btn_debug_max)
         
         layout.add_widget(btn_layout)
         
@@ -86,6 +118,9 @@ class PausePopup(Popup):
         self.selectable_buttons.append(btn_resume)
         self.selectable_buttons.append(btn_settings)
         self.selectable_buttons.append(btn_menu)
+        self.selectable_buttons.append(btn_debug_wave)
+        self.selectable_buttons.append(btn_debug_end)
+        self.selectable_buttons.append(btn_debug_max)
 
         self.content = layout
 
@@ -202,6 +237,9 @@ class PausePopup(Popup):
         self.game_screen.manager.get_screen("settings_screen").set_previous_screen("game_screen")
         self.dismiss() # ปิด popup pause ทิ้งไปก่อน
 
+    def on_leave(self):
+        self.dismiss()
+
     def resume(self):
         self.game_screen.resume_game()
         self.dismiss()
@@ -211,3 +249,70 @@ class PausePopup(Popup):
         self.dismiss()
         self.game_screen.resume_game() # ตรวจสอบให้แน่ใจว่า resume เกมก่อนย้ายหน้า
         self.game_screen.manager.current = 'main_menu'
+
+    def debug_wave_45(self):
+        gs = self.game_screen
+        # ล้างศัตรูทั้งหมด
+        for enemy in list(gs.enemies):
+            gs.world_layout.remove_widget(enemy)
+        gs.enemies.clear()
+        
+        # ตั้ง wave เป็น 44 เพื่อให้ wave ต่อไปคือ 45
+        gs.wave_manager.current_wave = 44
+        gs.wave_manager.is_spawning = False
+        
+        # อัปเดต UI และเริ่ม wave ทันที
+        if gs.hud:
+            gs.hud.update_wave(44)
+        gs.wave_manager.try_start_next_wave()
+        self.resume()
+
+    def debug_test_end(self):
+        # จบเกมแบบชนะทันทีเพื่อดู End Credit
+        self.resume()
+        Clock.schedule_once(lambda dt: self.game_screen.show_game_over(win=True), 0.5)
+
+    def debug_max_lvl(self):
+        gs = self.game_screen
+        ps = gs.player_stats
+        if not ps: return
+        
+        ps.level = 100
+        
+        from game.skills import CHARACTER_SKILL_POOL, CHAR_SKILL3
+        
+        # 1. ถ้ายังไม่มี Skill 3 ให้เสกมาเลย
+        s3_cls = CHAR_SKILL3.get(ps.name)
+        if s3_cls and ps.skill3 is None:
+            ps.skill3 = s3_cls()
+            
+        # 2. อัปเกรด Skill 3 ให้ถึง Level 24
+        if ps.skill3:
+            while ps.skill3.level < 24:
+                ps.skill3.upgrade()
+        
+        # 3. อัปเกรดสกิลที่ผู้เล่นมีอยู่ (Auto skills) ให้เกือบเต็ม
+        for s in ps.skills:
+            while s.level < 24:
+                s.upgrade()
+                    
+        # 4. ใส่สกิลประจำตัวที่เหลือ (Auto skills) ให้ครบและอัปเป็น Level 24
+        pool = CHARACTER_SKILL_POOL.get(ps.name, [])
+        for skill_cls in pool:
+            has_it = any(isinstance(sk, skill_cls) for sk in ps.skills)
+            if not has_it:
+                # ถ้ายังมีพื้นที่สกิล Auto (ปกติมี 2 ช่อง)
+                if len(ps.skills) < 2:
+                    new_s = skill_cls()
+                    while new_s.level < 24:
+                        new_s.upgrade()
+                    ps.skills.append(new_s)
+                
+        # 5. เพิ่ม Max HP และเติมเลือดให้เต็ม
+        ps.hp = 999
+        ps.current_hp = 999
+        
+        # อัปเดต UI
+        if gs.hud:
+            gs.hud.update_ui(ps)
+        self.resume()

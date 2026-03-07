@@ -62,7 +62,19 @@ class CreditsScreen(Screen):
         Window.unbind(on_key_down=self._on_key_down)
         # ล้างอนิเมชันถ้ามี
         Animation.stop_all(self.credits_label)
-        App.get_running_app().root.current = "main_menu"
+        
+        # เมื่อจบ Credit ให้ขึ้นหน้า Score เหมือน Game Over
+        from ui.game_over import GameOverPopup
+        from kivy.clock import Clock
+        
+        if self.manager:
+            game_screen = self.manager.get_screen("game_screen")
+            # ถ้าเป็นเคส Win (ฉากจบ) ให้เปิด GameOverPopup แบบ Win
+            # และใช้ข้อมูลจาก game_screen เพื่อแสดงคะแนน
+            popup = GameOverPopup(win=True, game_screen=game_screen)
+            # เราต้องการให้ Popup แสดงผลทับหน้า Credit ไปเลย หรือจะเปลี่ยน Screen ก่อนก็ได้
+            # แต่ในที่นี้เปิดเลยจะสื่อความหมายว่าจบจากการดู Credit
+            Clock.schedule_once(lambda dt: popup.open(), 0.1)
 
     def on_leave(self):
         Window.unbind(on_key_down=self._on_key_down)

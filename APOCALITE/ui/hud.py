@@ -11,7 +11,7 @@ import os
 
 import kivy.app
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, RoundedRectangle
 from kivy.properties import NumericProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
@@ -52,7 +52,7 @@ class HealthBar(Widget):
 #  SkillSlotBox — 3 skill slots แสดง cooldown
 # ═══════════════════════════════════════════════════════════
 class SkillSlotBox(BoxLayout):
-    """3 ปุ่มสกิลมุมซ้ายล่าง แสดง name + cooldown หรือ Stack (เรียงตำแหน่ง S3, S1, S2)"""
+    """3 ปุ่มสกิลมุมซ้ายล่าง แสดง name + cooldown overlay หรือ Stack (เรียงตำแหน่ง S3, S1, S2)"""
 
     SLOT_COUNT = 3
     SLOT_SIZE = 128
@@ -70,17 +70,17 @@ class SkillSlotBox(BoxLayout):
             spacing=10,
             **kwargs,
         )
-        self.slots: list[tuple[Button, Label]] = []
+        # เก็บ tuple: (btn, lvl_lbl, overlay_widget, cd_rect, cd_color)
+        self.slots: list = []
         
-        # 🌟 กำหนดลำดับ Index ของสกิลที่จะให้แสดงผล (2 = S3, 0 = S1, 1 = S2)
+        # ลำดับ Index: (2 = S3, 0 = S1, 1 = S2)
         self.skill_indices = [2, 0, 1]
         
         for skill_idx in self.skill_indices:
-            # ถ้าเป็น S3 (index 2) ให้ใช้ตัวคูณ 1.25
             multiplier = 1.25 if skill_idx == 2 else 1.0
             current_size = self.SLOT_SIZE * multiplier
 
-            # Container เพื่อให้วาง Label ทับ Button ได้ (ใช้ FloatLayout)
+            # Container
             slot_container = FloatLayout(size_hint=(None, None), size=(current_size, current_size))
             
             btn = Button(
@@ -96,8 +96,8 @@ class SkillSlotBox(BoxLayout):
                 halign="center",
                 valign="middle"
             )
-            
-            # Label แสดงเลเวล (มุมขวาบน)
+
+            # Level Label (มุมขวาบน)
             lvl_lbl = Label(
                 text="",
                 font_size=14 * (1.1 if skill_idx == 2 else 1.0),
@@ -105,43 +105,89 @@ class SkillSlotBox(BoxLayout):
                 size_hint=(None, None),
                 size=(50, 25),
                 pos_hint={"right": 1, "top": 1},
-                color=(1, 1, 0, 1), # สีเหลืองสดใส
+                color=(1, 1, 0, 1),
                 outline_width=2,
                 outline_color=(0, 0, 0, 1)
             )
+
+            # 🌟 Cooldown Overlay Widget (วาดทับปุ่มตามสัดส่วน CD ที่เหลือ)
+            overlay = Widget(
+                size_hint=(1, 1),
+                pos_hint={"x": 0, "y": 0},
+            )
+            # เราจะ draw ผ่าน canvas ของ overlay โดยตรงใน update()
+            overlay.canvas.clear()
             
             slot_container.add_widget(btn)
-            slot_container.add_widget(lvl_lbl)
+            slot_container.add_widget(overlay)  # ทับบน btn
+            slot_container.add_widget(lvl_lbl)  # ทับสุด (ให้ลอยอยู่บนสุด)
             self.add_widget(slot_container)
             
-            self.slots.append((btn, lvl_lbl))
+            self.slots.append((btn, lvl_lbl, overlay, current_size))
 
     def update(self, skills: list):
-        """รีเฟรชข้อความ / สี / เลเวล ทุก frame โดยดึงข้อมูลตามลำดับที่จัดไว้"""
-        for (btn, lvl_lbl), skill_idx in zip(self.slots, self.skill_indices):
+        """รีเฟรชข้อความ / สี / CD overlay ทุก frame"""
+        for (btn, lvl_lbl, overlay, slot_sz), skill_idx in zip(self.slots, self.skill_indices):
             skill = skills[skill_idx] if skill_idx < len(skills) else None
 
             if skill is None:
                 btn.text = f"S{skill_idx + 1}\n[empty]"
                 btn.background_color = (0.15, 0.15, 0.15, 0.5)
-                lvl_lbl.text = "" # ซ่อนเวลถ้าไม่มีสกิล
+                lvl_lbl.text = ""
+                overlay.canvas.clear()
                 continue
 
             # อัปเดตเลเวล
             lvl_lbl.text = f"LV.{skill.level}"
 
-            # อัปเดตข้อมูลการใช้งาน (CD / Stacks)
-            stacks_val = getattr(skill, 'stacks', getattr(skill, 'current_stacks', None))
-            max_stacks_val = getattr(skill, 'MAX_STACKS', getattr(skill, 'max_stacks', None))
+            # --- Stack Skill (S3) ---
+            stacks_val = getattr(skill, 'stacks', None)
+            max_stacks_val = getattr(skill, 'MAX_STACKS', 3)
+
             if stacks_val is not None:
                 full = "●" * stacks_val
-                empty = "○" * max(0, (max_stacks_val or 3) - stacks_val)
-                btn.text = f"{skill.name}\n[LMB] {full}{empty}"
+                empty = "○" * max(0, max_stacks_val - stacks_val)
+                btn.text = f"{skill.name}\n{full}{empty}"
                 btn.background_color = (0.4, 0.1, 0.7, 1) if stacks_val > 0 else (0.2, 0.2, 0.2, 0.6)
+
+                # 🌟 Stack CD overlay: ถ้า stack ไม่เต็มให้แสดง recharge progress
+                overlay.canvas.clear()
+                if stacks_val < max_stacks_val:
+                    recharge_time = getattr(skill, 'recharge_time', 8.0)
+                    recharge_timer = getattr(skill, '_recharge_timer', 0.0)
+                    frac = max(0.0, min(1.0, recharge_timer / max(0.01, recharge_time)))
+                    # วาด overlay สีม่วงทึบส่วน top ตามสัดส่วน fraction ที่เหลือ
+                    cover_h = slot_sz * frac
+                    if cover_h > 0:
+                        with overlay.canvas:
+                            Color(0, 0, 0, 0.65)
+                            Rectangle(
+                                pos=(overlay.x, overlay.y + slot_sz - cover_h),
+                                size=(slot_sz, cover_h)
+                            )
             else:
-                cd = max(0.0, getattr(skill, '_timer', 0.0))
-                btn.text = f"{skill.name}\nCD: {cd:.1f}s"
-                btn.background_color = (0.2, 0.6, 0.2, 1) if cd <= 0 else (0.2, 0.2, 0.2, 0.6)
+                # --- Auto Skill (S1/S2): CD timer ---
+                cd_remaining = max(0.0, getattr(skill, '_timer', 0.0))
+                cd_total = skill.cooldown
+                frac = max(0.0, min(1.0, cd_remaining / max(0.01, cd_total)))
+
+                if cd_remaining <= 0:
+                    btn.text = f"{skill.name}\n✔"
+                    btn.background_color = (0.15, 0.5, 0.15, 1)  # สีเขียวพร้อมใช้
+                else:
+                    btn.text = f"{skill.name}\n{cd_remaining:.1f}s"
+                    btn.background_color = (0.2, 0.2, 0.2, 0.6)
+
+                # 🌟 วาด CD Overlay: overlay ทึบส่วน top ลดลงเรื่อยๆ
+                overlay.canvas.clear()
+                if frac > 0:
+                    cover_h = slot_sz * frac
+                    with overlay.canvas:
+                        Color(0, 0, 0, 0.70)  # สีดำกึ่งทึบ
+                        Rectangle(
+                            pos=(overlay.x, overlay.y + slot_sz - cover_h),
+                            size=(slot_sz, cover_h)
+                        )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -155,8 +201,13 @@ class Minimap(Widget):
         self.size_hint = (None, None)
         self.size = (180, 180)
         self.pos_hint = {"right": 0.98, "top": 0.90}
+        self._frame_skip = 0  # 🌟 นับ frame เพื่อ skip
         
     def update(self, dt):
+        # 🌟 วาดใหม่แค่ทุก 4 frame (ลด GPU load ~75%)
+        self._frame_skip = (self._frame_skip + 1) % 4
+        if self._frame_skip != 0:
+            return
         self.canvas.clear()
         if not self.game: return
         
@@ -389,6 +440,10 @@ class HUD(FloatLayout):
         self.lbl_wave.text = f"WAVE {wave_num}"
 
     def update_enemy_count(self, count: int):
+        # 🌟 อัปเดตเฉพาะเมื่อตัวเลขเปลี่ยน (ไม่สร้าง Widget ใหม่ทุกครั้ง)
+        if getattr(self, '_last_enemy_count', -1) == count:
+            return
+        self._last_enemy_count = count
         self.enemy_count_box.clear_widgets()
         try:
             from kivy.uix.image import Image as KivyImage
@@ -414,32 +469,28 @@ class HUD(FloatLayout):
         if hasattr(gs, "player_stats") and gs.player_stats:
             s = gs.player_stats
 
-            # อัปเดตเลือด
+            # อัปเดตเลือด (ทุก frame — สำคัญ)
             self.health_bar.max_hp = s.hp
             self.health_bar.current_hp = s.current_hp
             self.hp_label.text = f"{int(s.current_hp)} / {int(s.hp)}"
 
-            # อัปเดตสกิล — รวม skill3 เข้าไปด้วย
-            if hasattr(s, "skills"):
-                skills = list(s.skills)
+            # อัปเดตสกิล overlay (ทุก 2 frame — ลด canvas.clear() call)
+            if not hasattr(self, '_skill_frame_tick'):
+                self._skill_frame_tick = 0
+            self._skill_frame_tick += 1
+            if self._skill_frame_tick % 2 == 0 and hasattr(s, "skills"):
+                auto_skills = list(s.skills)
+                while len(auto_skills) < 2:
+                    auto_skills.append(None)
                 s3 = getattr(s, 'skill3', None)
-                if s3 is not None:
-                    # ยัด skill3 เข้า index 2 ของ list เพื่อให้ SkillSlotBox แสดงถูกช่อง
-                    while len(skills) < 2:
-                        skills.append(None)
-                    skills_with_s3 = [skills[0] if len(skills) > 0 else None,
-                                      skills[1] if len(skills) > 1 else None,
-                                      s3]
-                    self.skill_slot_box.update(skills_with_s3)
-                else:
-                    self.skill_slot_box.update(skills)
+                self.skill_slot_box.update([auto_skills[0], auto_skills[1], s3])
 
-            # อัปเดตเวลา
-            if hasattr(gs, "play_time"):
+            # อัปเดตเวลา (ทุก 30 frame = ~0.5s)
+            if self._skill_frame_tick % 30 == 0 and hasattr(gs, "play_time"):
                 mins, secs = divmod(int(gs.play_time), 60)
                 self.lbl_time.text = f"{mins:02d}:{secs:02d}"
 
-            # อัปเดต Minimap
+            # อัปเดต Minimap (มี frame skip อยู่ข้างในแล้ว)
             if hasattr(self, "minimap"):
                 self.minimap.update(_dt)
 
