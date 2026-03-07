@@ -1,27 +1,19 @@
 [
     {
-        "name": "RedP",
-        "score": 5060,
-        "character": "Monkey",
-        "time_survived": "00:01",
-        "level": 1,
-        "kills": 0
-    },
-    {
         "name": "Player",
-        "score": 2281,
-        "character": "Monkey",
-        "time_survived": "03:10",
-        "level": 4,
-        "kills": 35
-    },
-    {
-        "name": ":P",
-        "score": 2062,
+        "score": 805,
         "character": "Lostman",
         "time_survived": "02:57",
         "level": 3,
         "kills": 28
+    },
+    {
+        "name": "nigg",
+        "score": 1340,
+        "character": "PTae",
+        "time_survived": "01:44",
+        "level": 3,
+        "kills": 30
     },
     {
         "name": "player1",
@@ -62,5 +54,8 @@
         "time_survived": "00:08",
         "level": 1,
         "kills": 0
+        "time_survived": "01:04",
+        "level": 2,
+        "kills": 13
     }
 ]

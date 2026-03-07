@@ -13,6 +13,7 @@ import math
 import random
 from typing import Dict, List, Type
 from game.game_settings import settings
+from game.utils import resolve_path, get_frames
 
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
@@ -110,6 +111,34 @@ class DinoCircle(BaseSkill):
     name = "Dino Circle"
     description = "ไดโนเสาร์วิ่งวนรอบตัว ทำดาเมจทุกศัตรูที่โดน"
 
+    _TEXTURES = None
+    _ORBIT_TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            import os
+            cls._TEXTURES = []
+            cls._ORBIT_TEXTURES = []
+            # base: c:\Users\Nicky\Kivy-Game-Project
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            # Load Dinosaurs (Skill 1)
+            for i in range(1, 5):
+                path = resolve_path(f"assets/PTae/skill1/aoeptae{i:02d}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            
+            # Load Orbit Aura (lo)
+            # frame_00_delay-0.02s.png ถึง frame_13_delay-0.02s.png
+            for i in range(14):
+                path = resolve_path(f"assets/PTae/lo/frame_{i:02d}_delay-0.02s.png")
+                if path:
+                    try: cls._ORBIT_TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            print(f"[DinoCircle] Loaded {len(cls._TEXTURES)} dinos and {len(cls._ORBIT_TEXTURES)} orbit aura frames")
+
     def __init__(self):
         super().__init__()
         self.orbit_radius = 40
@@ -118,6 +147,10 @@ class DinoCircle(BaseSkill):
         self.orbit_speed = 3.0       # rad/s
         self._orbit_angle = 0.0
         self._hit_cooldowns: dict = {}  # enemy_id → cooldown
+        self._frame = 0
+        self._at = 0.0
+        self._orbit_frame = 0
+        self._orbit_at = 0.0
 
     @property
     def cooldown(self):
@@ -132,9 +165,24 @@ class DinoCircle(BaseSkill):
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
+        self._load()
         self._orbit_angle += self.orbit_speed * dt
         if self._orbit_angle > 2 * math.pi:
             self._orbit_angle -= 2 * math.pi
+            
+        # [Animation] อัปเดตเฟรมไดโน
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= 0.08:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                
+        # [Animation] อัปเดตเฟรม Orbit Aura
+        if self._ORBIT_TEXTURES:
+            self._orbit_at += dt
+            if self._orbit_at >= 0.05:
+                self._orbit_at = 0.0
+                self._orbit_frame = (self._orbit_frame + 1) % len(self._ORBIT_TEXTURES)
 
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -177,7 +225,10 @@ class DinoCircle(BaseSkill):
                     break
 
         # วาด dino indicators และวงกลมป้องกันชั้นใน
-        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60)
+        # วาด dino indicators และวงกลมป้องกันชั้นใน
+        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60, 
+                               textures=self._TEXTURES, frame=self._frame,
+                               orbit_textures=self._ORBIT_TEXTURES, orbit_frame=self._orbit_frame)
 
     def activate(self, game):
         pass  # ใช้ tick แทน
@@ -952,22 +1003,40 @@ def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.08)
 
 
-def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
+def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None, frame=0, 
+                           orbit_textures=None, orbit_frame=0):
     """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit และวงกลมป้องกันด้านใน"""
     ig = InstructionGroup()
     
-    # วงกลมป้องกันชั้นใน
+    # วงกลมป้องกันชั้นใน (Orbit Aura)
     if inner_radius > 0:
-        ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
-        ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
-                       size=(inner_radius * 2, inner_radius * 2)))
-        ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
-        ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
+        if orbit_textures:
+            # ใช้สีขาวเข้มขึ้นตาม texture (ปรับ alpha ให้เห็นชัด)
+            ig.add(Color(1, 1, 1, 0.9)) 
+            tex = orbit_textures[orbit_frame % len(orbit_textures)]
+            # ขยายขนาด Aura จาก 2.8 เป็น 3.2 เท่าของ radius ให้ดูใหญ่ขึ้น
+            aura_size = inner_radius * 3.5
+            ig.add(Rectangle(texture=tex, 
+                             pos=(game.player_pos[0]+32 - aura_size/2, game.player_pos[1]+32 - aura_size/2), 
+                             size=(aura_size, aura_size)))
+        else:
+            ig.add(Color(0.2, 0.9, 0.3, 0.4))
+            ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
+                           size=(inner_radius * 2, inner_radius * 2)))
 
     # จุดไดโนรอบนอก
-    ig.add(Color(0.3, 1.0, 0.4, 0.8))
-    for (ox, oy) in positions:
-        ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
+    if textures:
+        # สีเข้มขรึมขึ้นตามเควส (Darken: 0.85 -> 0.4)
+        ig.add(Color(0.4, 0.4, 0.4, 1))
+        tex = textures[frame % len(textures)]
+        for (ox, oy) in positions:
+            # ขนาดใหญ่ขึ้นจาก 65 เป็น 110 (ตัวใหญ่ขึ้นตามคำขอ)
+            sz = 110
+            ig.add(Rectangle(texture=tex, pos=(ox - sz/2, oy - sz/2), size=(sz, sz)))
+    else:
+        ig.add(Color(0.2, 0.6, 0.2, 0.9))
+        for (ox, oy) in positions:
+            ig.add(Ellipse(pos=(ox - 20, oy - 20), size=(40, 40)))
         
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)

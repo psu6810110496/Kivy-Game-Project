@@ -13,6 +13,7 @@ GameScreen ดูแลเฉพาะ:
 import math
 import random
 from game.game_settings import settings
+from game.sound_manager import sound_manager
 from io import BytesIO
 
 import kivy.app
@@ -317,6 +318,7 @@ class GameScreen(Screen):
         self.is_paused = True
         self.countdown = CountdownOverlay(callback=self._start_game)
         self.root_layout.add_widget(self.countdown)
+        sound_manager.play_bgm("ingame")
 
         self._bind_input()
         Clock.unschedule(self.update_frame)
@@ -355,7 +357,7 @@ class GameScreen(Screen):
             return []
 
         if name == "PTae":
-            paths = [f"assets/PTae/skill1/aoeptae0{i}.png" for i in range(1, 5)]
+            paths = [f"assets/PTae/M/NPT{i}.png" for i in range(100, 104)]
             self.slash_textures = try_load_set(paths)
         elif name.lower() == "monkey":
             # ลองหาใน M (ตัวใหญ่) ก่อน แล้วลอง m (ตัวเล็ก)
@@ -532,6 +534,7 @@ class GameScreen(Screen):
             angle_spread = math.radians(60)   # Default
 
         # 🌟 เรียกฟังก์ชันแสดง Highlight วงสวิงการโจมตี ตรงนี้เลย!
+        sound_manager.play_sfx("attack")
         self._show_melee_highlight(p_x, p_y, attack_radius, mouse_angle, angle_spread)
 
         for enemy in list(self.enemies):
@@ -678,11 +681,12 @@ class GameScreen(Screen):
         state = {"frame": 0}
         def _next_frame(dt):
             state["frame"] += 1
-            if state["frame"] >= len(self.dash_textures):
+            if not self.world_layout or state["frame"] >= len(self.dash_textures):
                 if eff.parent:
-                    self.world_layout.remove_widget(eff)
+                    eff.parent.remove_widget(eff)
                 return False
             rect.texture = self.dash_textures[state["frame"]]
+            return True
             
         Clock.schedule_interval(_next_frame, 0.04) # เร็วหน่อย 0.04 วิ/เฟรม
 
@@ -889,32 +893,51 @@ class GameScreen(Screen):
         
         # 🌟 ใช้แอนิเมชันรูปภาพการตี ถ้ามี slash_textures (สำหรับ Lostman, Monkey และคนอื่นๆ)
         if (name == "Lostman" or name == "Monkey" or name == "PTae") and hasattr(self, "slash_textures") and self.slash_textures:
+            # Default settings
             size_w = radius * 2.5
             size_h = radius * 2.5
-            eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(cx - size_w/2, cy - size_h/2))
+            render_cx, render_cy = cx, cy
+            draw_color = (1, 1, 1, 1)
+            
+            # --- 🌟 ปรับแต่งเฉพาะ PTae (ให้เล็กลง, มี Offset ไปข้างหน้า, และเปลี่ยนสีเท่ๆ) 🌟 ---
+            if name == "PTae":
+                size_w = radius * 1.8  # ปรับขนาดให้พอมองเห็นชัดเจนขึ้น
+                size_h = radius * 1.8
+                offset_dist = radius * 0.7 # ขยับไปข้างหน้า 70% ของระยะตี
+                render_cx = cx + math.cos(center_angle) * offset_dist
+                render_cy = cy + math.sin(center_angle) * offset_dist
+                draw_color = (1, 0.2, 0.2, 1) # สีแดง (Slash Red) 🌟
+                
+            sound_manager.play_sfx("attack")
+            eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(render_cx - size_w/2, render_cy - size_h/2))
             
             # Kivy image rotation
             rot_deg = math.degrees(center_angle)
             
             with eff.canvas:
-                Color(1, 1, 1, 1) # Full color
+                Color(*draw_color)
                 PushMatrix()
-                Rotate(angle=rot_deg, origin=(cx, cy))
+                Rotate(angle=rot_deg, origin=(render_cx, render_cy))
                 rect = Rectangle(texture=self.slash_textures[0], pos=eff.pos, size=eff.size)
                 PopMatrix()
                 
+            # 🌟 [Optimization] ใช้ add_widget(..., canvas='after') หรือวิธีที่เบาทุกสุด
             self.world_layout.add_widget(eff)
             
             state = {"frame": 0}
             def _next_frame(dt):
                 state["frame"] += 1
-                if state["frame"] >= len(self.slash_textures):
+                if not self.world_layout or state["frame"] >= len(self.slash_textures):
                     if eff.parent:
-                        self.world_layout.remove_widget(eff)
+                        eff.parent.remove_widget(eff)
                     return False
                 rect.texture = self.slash_textures[state["frame"]]
+                return True
+            
+            # 🌟 [Optimization] ใช้ความเร็วคงที่ ไม่สร้างภาระ Clock มากเกินไป
+            Clock.schedule_interval(_next_frame, 0.05)
                 
-            # วนเฟรมภาพทั้งหมด 4 เฟรม ให้เสร็จในระยะเวลาประมาณ 0.15 วิ
+            # วนเฟรมภาพทั้งหมดให้เสร็จในระยะเวลาประมาณ 0.15 วิ
             Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
             return
 
@@ -932,7 +955,7 @@ class GameScreen(Screen):
         with highlight.canvas:
             # เปลี่ยนสี Highlight ตามตัวละคร
             if name == "PTae":
-                Color(1, 0.3, 0.3, 0.4)  # สีแดงโปร่งแสง
+                Color(1, 0.1, 0.1, 0.5)  # สีแดงโปร่งแสง (เข้มขึ้นเล็กน้อย)
             elif name == "Monkey":
                 Color(1, 0.8, 0.2, 0.4)  # สีเหลืองโปร่งแสง
             else:

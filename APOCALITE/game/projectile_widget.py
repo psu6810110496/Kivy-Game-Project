@@ -7,6 +7,7 @@ from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
+from game.utils import resolve_path, get_frames
 
 class _Linear(Widget):
     def __init__(self, start_pos, target_pos, speed, damage, **kw):
@@ -29,8 +30,12 @@ class EnemyProjectile(_Linear):
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
-            try: cls._TEXTURES = [CoreImage(f"assets/effect/rangershoot/1_{i}.png").texture for i in range(30)]
-            except: cls._TEXTURES = []
+            cls._TEXTURES = []
+            for i in range(30):
+                path = resolve_path(f"assets/effect/rangershoot/1_{i}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
 
     def __init__(self, start_pos, target_pos, damage=10, **kw):
         super().__init__(start_pos, target_pos, speed=400.0, damage=damage, **kw)
@@ -69,10 +74,11 @@ class PlayerBullet(_Linear):
         self.angle = math.degrees(math.atan2(self.direction[1], self.direction[0]))
         
         if self._anim:
-            for path in self._anim:
-                try:
-                    self._textures.append(CoreImage(path).texture)
-                except: pass
+            for p in self._anim:
+                path = resolve_path(p)
+                if path:
+                    try: self._textures.append(CoreImage(path).texture)
+                    except: pass
         
         if self._textures:
             with self.canvas:
@@ -168,15 +174,11 @@ class HealthPickup(Widget):
         
         self.tex = None
         if texture_path:
-            import os
-            # ลองหาในหลายๆ path root
-            for root_pre in ["", "APOCALITE/", "../", "../../"]:
-                full_path = os.path.join(root_pre, texture_path).replace('\\', '/')
-                if os.path.exists(full_path):
-                    try:
-                        self.tex = CoreImage(full_path).texture
-                        break
-                    except: pass
+            full_path = resolve_path(texture_path)
+            if full_path:
+                try:
+                    self.tex = CoreImage(full_path).texture
+                except: pass
 
         with self.canvas:
             if self.tex:
@@ -258,23 +260,18 @@ class ExpOrb(Widget):
             self._shape = Rectangle(pos=self.pos, size=self.size)
             
         self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
-        # สเกจูลให้เปลี่ยนสีทุกเฟรม
-        Clock.schedule_interval(self._update_rainbow, 1/30.0)
+        # 🌟 [Optimization] เลิกใช้ Clock แยกรายก้อน (หมื่นก้อนหมื่น Clock)
+        # จะใช้วิธีอัปเดตสีจากส่วนกลาง หรือใช้การผูกกับเวลาส่วนกลาง
 
-    def _update_rainbow(self, dt):
-        # ขยับค่า Hue วนระหว่าง 0.15 (เหลือง) ถึง 0.40 (เขียว)
-        self._hue += 0.3 * dt
-        if self._hue > 0.40:
-            self._hue = 0.15
-            
-        # แปลง HSV เป็น RGB (ใช้ colorsys หรือ manual)
-        # เพื่อความง่ายและประสิทธิภาพ ใช้สูตรเปลี่ยนสีในย่าน เหลือง (1,1,0) -> เขียว (0,1,0)
+    def update_visual(self, global_time):
+        # 🌟 [Optimization] คำนวณสีจากเวลาส่วนกลางที่ส่งมา
         # ช่วง hue 0.15 -> 0.40: R จะค่อยๆ ลดลงจาก 1 -> 0
-        r = max(0, min(1, 1.0 - (self._hue - 0.15) * 4.0)) 
-        self.color_inst.rgb = (r, 1.0, 0.1) # G=1, B=0.1 คงที่เพื่อให้ได้โทน เหลือง-เขียว
+        hue = 0.15 + (global_time * 0.5) % 0.25
+        r = max(0, min(1, 1.0 - (hue - 0.15) * 4.0)) 
+        self.color_inst.rgb = (r, 1.0, 0.1)
 
     def on_expire(self):
-        Clock.unschedule(self._update_rainbow)
+        pass
 
 
 class DinoProjectile(_Linear):
@@ -295,22 +292,43 @@ class DinoProjectile(_Linear):
 class HomingDino(_Linear):
     """PTae Skill 2 — ไดโนเสาร์ติดตามศัตรู (homing)"""
     TURN_SPEED = 4.0   # rad/s
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            for i in range(18):
+                path = resolve_path(f"assets/PTae/skill2/frame_{i:02d}_delay-0.05s.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except Exception as e: print(f"[HomingDino] Error load {i}: {e}")
+            print(f"[HomingDino] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, game=None, **kw):
         # target_ref = enemy widget (ติดตาม live pos)
         tx = target_ref.pos[0] + 20
         ty = target_ref.pos[1] + 20
         super().__init__(start_pos, (tx, ty), speed=speed, damage=damage, **kw)
+        self._load()
+        self._frame = 0
+        self._at = 0.0
+        self._fd = 0.05
+
         self._target = target_ref
         self._game = game  # 🌟 เก็บ reference ของเกมเพื่อหาเป้าหมายใหม่
         self._range = proj_range
         self._traveled = 0.0
-        self.size = (28, 28)
+        sz = 100 # ใหญ่ขึ้นชัดเจนตามคำขอ
+        self.size = (sz, sz)
+        offset = sz / 2
         with self.canvas:
-            Color(0.3, 1.0, 0.4, 1)
-            self.rect = Rectangle(
-                pos=(start_pos[0]-14, start_pos[1]-14), size=(28,28))
-        self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-14, v[1]-14)))
+            Color(0.85, 0.85, 0.85, 1) # สีเข้มขึ้น
+            self.dino_rect = Rectangle(
+                pos=(start_pos[0]-offset, start_pos[1]-offset), 
+                size=(sz, sz),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
+        self.bind(pos=lambda i, v: setattr(self.dino_rect, 'pos', (v[0]-offset, v[1]-offset)))
 
     def update(self, dt) -> bool:
         # ถ้า target เดิมตาย ลองหาตัวใหม่
@@ -337,6 +355,15 @@ class HomingDino(_Linear):
         my = self.direction[1]*self.speed*dt
         self.pos = (self.pos[0]+mx, self.pos[1]+my)
         self._traveled += math.hypot(mx, my)
+
+        # [Animation] อัปเดตเฟรม
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                self.dino_rect.texture = self._TEXTURES[self._frame]
+
         return self._traveled < self._range
 
 
@@ -400,9 +427,25 @@ class LethalHomingMissile(_Linear):
         return self._traveled < self._range
 class DinoBeam(Widget):
     """PTae Skill 3 — ลำแสงตรงไปตามทิศเมาส์ ทำดาเมจทุก enemy ที่ผ่าน"""
-    DEFAULT_WIDTH = 160  # ความกว้างเริ่มต้น (กว้างขึ้นเยอะ)
-    DURATION = 0.55      # วินาทีที่แสดง (อยู่นานขึ้น)
-    SPEED = 900          # px/s (ความเร็วหัว beam)
+    DEFAULT_WIDTH = 160
+    DURATION = 0.55
+    SPEED = 900
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            for i in range(11):
+                path = resolve_path(f"assets/PTae/skill3/frame_{i:02d}_delay-0.05s.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            path11 = resolve_path("assets/PTae/skill3/frame_11_delay-0.02s.png")
+            if path11:
+                try: cls._TEXTURES.append(CoreImage(path11).texture)
+                except: pass
+            print(f"[DinoBeam] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
         kw.setdefault('size_hint', (None, None))
@@ -417,22 +460,21 @@ class DinoBeam(Widget):
         self._hit_enemies: set = set()
         self._alive = True
 
+        self._load()
+        self._frame = 0
+        self._at = 0.0
+        self._fd = 0.05
+
         angle_deg = math.degrees(math.atan2(direction[1], direction[0]))
         with self.canvas:
             PushMatrix()
             self._tr = Translate(start_pos[0], start_pos[1])
             Rotate(angle=angle_deg, origin=(0, 0))
-            # เงากว้างด้านนอก (สีอ่อน โปร่งแสง)
-            Color(0.4, 1.0, 0.5, 0.30)
-            self._rect_outer = Rectangle(
+            Color(1, 1, 1, 1)
+            self._rect = Rectangle(
                 pos=(0, -self._width // 2),
-                size=(0, self._width))
-            # แกนกลาง (สีสว่าง)
-            inner_w = max(20, self._width // 4)
-            Color(0.7, 1.0, 0.6, 0.95)
-            self._rect_inner = Rectangle(
-                pos=(0, -inner_w // 2),
-                size=(0, inner_w))
+                size=(0, self._width),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
             PopMatrix()
         self.bind(pos=lambda i, v: setattr(self._tr, 'x', v[0]) or
                                     setattr(self._tr, 'y', v[1]))
@@ -445,9 +487,15 @@ class DinoBeam(Widget):
         self._traveled = min(self._traveled + step, self._length)
 
         # ขยาย beam ตาม traveled
-        self._rect_outer.size = (self._traveled, self._width)
-        inner_w = max(20, self._width // 4)
-        self._rect_inner.size = (self._traveled, inner_w)
+        self._rect.size = (self._traveled, self._width)
+        
+        # [Animation] เปลี่ยนเฟรมตามเวลา
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                self._rect.texture = self._TEXTURES[self._frame]
 
         # เช็ค hit ทุก enemy ในแนว beam
         sx, sy = self.pos
@@ -606,10 +654,10 @@ class BombWidget(Widget):
         if cls._TEXTURES is None:
             cls._TEXTURES = []
             for i in range(1, 5):
-                try:
-                    cls._TEXTURES.append(CoreImage(f"assets/Lostman/skill3/c4_trap{i}.png").texture)
-                except Exception:
-                    pass
+                path = resolve_path(f"assets/Lostman/skill3/c4_trap{i}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
 
     def __init__(self, pos=(0,0), fuse=3.0, damage=100, radius=160, **kw):
         kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (48, 48))

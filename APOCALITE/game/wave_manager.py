@@ -1,6 +1,7 @@
 """game/wave_manager.py — Wave/Boss spawning + progression scaling"""
 import math
 import random
+from game.sound_manager import sound_manager
 
 from kivy.clock import Clock
 from kivy.uix.label import Label
@@ -143,6 +144,7 @@ class WaveManager:
             for _ in range(8):
                 self._spawn_single()
             self.is_spawning = False
+            sound_manager.play_bgm("bossfight")
             Clock.schedule_once(lambda _: self.start_boss_intro(bb_count, is_big=True), 0.1)
         elif is_boss:
             count = self._boss_count(w)
@@ -151,10 +153,14 @@ class WaveManager:
             for _ in range(5):
                 self._spawn_single()
             self.is_spawning = False
+            sound_manager.play_bgm("bossfight")
             Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=False), 0.1)
         else:
-            for _ in range(5 + w):
-                self._spawn_single()
+            # 🌟 [Optimization] Cap total enemies at 100 to prevent extreme lag
+            if len(game.enemies) < 100: 
+                for _ in range(5 + w):
+                    self._spawn_single()
+                    if len(game.enemies) >= 100: break
             self.is_spawning = False
 
     def _boss_count(self, wave: int) -> int:
@@ -294,6 +300,9 @@ class WaveManager:
             # มหาบอส: เลือดเพิ่มขึ้นทีละ +400 ทุก 10 wave
             mult10 = w // 10
             enemy.hp += mult10 * 400
+            # Play in-game music when big boss is deconstructed/defeated logic usually happens in skills or enemy_widget, 
+            # but we can hook it here if this is where the death cleanup is triggered or similar.
+            # Actually, let's keep it simple for now as requested.
         elif enemy.enemy_type == "final_boss" or enemy.enemy_type == "final_boss_clone":
             # Final Boss มีค่าคงที่แล้ว ไม่ต้องบวกเพิ่ม
             pass
