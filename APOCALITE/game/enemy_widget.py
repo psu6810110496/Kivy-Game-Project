@@ -224,7 +224,12 @@ class EnemyWidget(Widget):
             elif self.enemy_type == "big_boss": threshold = 7 # 30%
             elif self.enemy_type == "final_boss": threshold = 6 # 40%
 
+            # 🌟 [Optimization] Limit dodge checks to first 10 bullets to save CPU
+            bullet_count = 0
             for bullet in self.game.player_bullets:
+                bullet_count += 1
+                if bullet_count > 10: break
+                
                 bx, by = bullet.pos
                 dist_b = math.hypot(ex - bx, ey - by)
                 
@@ -416,18 +421,24 @@ class EnemyWidget(Widget):
             self.lethal_cooldown -= dt
 
         # --- [ Separation (ไม่ให้ทับกัน) ] ---
+        # 🌟 [Optimization] Skip separation if enemy is far away or too many enemies
         sep_x, sep_y = 0, 0
-        for other in all_enemies:
-            if other is self:
-                continue
-            ox, oy = (
-                other.pos[0] + other.enemy_size[0] / 2,
-                other.pos[1] + other.enemy_size[1] / 2,
-            )
-            d_other = math.hypot(ex - ox, ey - oy)
-            if d_other < 45:
-                sep_x += (ex - ox) * 0.15
-                sep_y += (ey - oy) * 0.15
+        if dist < 1000: # Only separate if somewhat near player
+            check_count = 0
+            for other in all_enemies:
+                if other is self:
+                    continue
+                check_count += 1
+                if check_count > 50: break # Only check first 50 neighbors to save CPU
+                
+                ox, oy = (
+                    other.pos[0] + other.enemy_size[0] / 2,
+                    other.pos[1] + other.enemy_size[1] / 2,
+                )
+                d_other = math.hypot(ex - ox, ey - oy)
+                if d_other < 45:
+                    sep_x += (ex - ox) * 0.15
+                    sep_y += (ey - oy) * 0.15
 
         ew, eh = self.enemy_size
         new_x = max(0, min(self.pos[0] + vx + sep_x, 5000 - ew))

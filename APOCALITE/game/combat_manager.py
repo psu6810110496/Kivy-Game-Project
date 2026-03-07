@@ -40,14 +40,19 @@ class CombatManager:
             # -- Check Obstacle Collision --
             hit_obs = False
             b_cx, b_cy = b.pos[0], b.pos[1]
+            
+            # 🌟 [Optimization] Only check obstacles if bullet is within general range
             for obs in getattr(g, "obstacles", []):
-                # DinoBeam shouldn't be blocked by cars
-                if type(b).__name__ != "DinoBeam" and obs.collides_with(b_cx - 5, b_cy - 5, 10, 10):
-                    if isinstance(b, RPGRocket):
-                        b.explode(g)
-                    self._rm_bullet(b)
-                    hit_obs = True
-                    break
+                # Simple distance check before full collision
+                if type(b).__name__ != "DinoBeam":
+                    ox, oy = obs.pos[0] + 48, obs.pos[1] + 24
+                    if abs(b_cx - ox) < 100 and abs(b_cy - oy) < 100:
+                        if obs.collides_with(b_cx - 5, b_cy - 5, 10, 10):
+                            if isinstance(b, RPGRocket):
+                                b.explode(g)
+                            self._rm_bullet(b)
+                            hit_obs = True
+                            break
             if hit_obs: continue
 
             for enemy in list(g.enemies):
@@ -135,6 +140,13 @@ class CombatManager:
     # ── EXP orbs ────────────────────────────────────────────
     def _exp_orbs(self, p_cx, p_cy):
         g = self.game
+        from kivy.clock import Clock
+        t = Clock.get_time()
+        
+        # 🌟 [Optimization] อัปเดตสีรุ้งจากศูนย์กลาง (ทำทีเดียวให้ทุกลูก)
+        for orb in g.exp_orbs:
+            if hasattr(orb, 'update_visual'):
+                orb.update_visual(t)
         
         # 🌟 Cap EXP orbs: ถ้าเกิน limit ให้ลบ orb เก่าสุดที่ตั้งไว้นาน
         if len(g.exp_orbs) > self.EXP_ORB_MAX:

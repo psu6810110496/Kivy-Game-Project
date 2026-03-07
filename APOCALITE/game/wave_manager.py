@@ -153,8 +153,11 @@ class WaveManager:
             self.is_spawning = False
             Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=False), 0.1)
         else:
-            for _ in range(5 + w):
-                self._spawn_single()
+            # 🌟 [Optimization] Cap total enemies at 100 to prevent extreme lag
+            if len(game.enemies) < 100: 
+                for _ in range(5 + w):
+                    self._spawn_single()
+                    if len(game.enemies) >= 100: break
             self.is_spawning = False
 
     def _boss_count(self, wave: int) -> int:

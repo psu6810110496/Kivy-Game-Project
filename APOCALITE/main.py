@@ -11,9 +11,11 @@ from kivy.config import Config
 
 # ตั้งค่าการปรับขนาดหน้าจอ
 Config.set("graphics", "resizable", "1")
-Config.set("graphics", "multisamples", "1")
+Config.set("graphics", "multisamples", "0") # ลดภาระ GPU
 Config.set("graphics", "width", "1280")
 Config.set("graphics", "height", "720")
+Config.set("graphics", "maxfps", "60") # ล็อก FPS เพื่อความนิ่ง
+Config.set("graphics", "vsync", "1")   # เปิด VSync ลดการฉีกขาดของภาพ
 Config.set("input", "mouse", "mouse,disable_multitouch")
 
 class Apocalite(App):

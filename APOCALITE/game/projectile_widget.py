@@ -258,23 +258,18 @@ class ExpOrb(Widget):
             self._shape = Rectangle(pos=self.pos, size=self.size)
             
         self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
-        # สเกจูลให้เปลี่ยนสีทุกเฟรม
-        Clock.schedule_interval(self._update_rainbow, 1/30.0)
+        # 🌟 [Optimization] เลิกใช้ Clock แยกรายก้อน (หมื่นก้อนหมื่น Clock)
+        # จะใช้วิธีอัปเดตสีจากส่วนกลาง หรือใช้การผูกกับเวลาส่วนกลาง
 
-    def _update_rainbow(self, dt):
-        # ขยับค่า Hue วนระหว่าง 0.15 (เหลือง) ถึง 0.40 (เขียว)
-        self._hue += 0.3 * dt
-        if self._hue > 0.40:
-            self._hue = 0.15
-            
-        # แปลง HSV เป็น RGB (ใช้ colorsys หรือ manual)
-        # เพื่อความง่ายและประสิทธิภาพ ใช้สูตรเปลี่ยนสีในย่าน เหลือง (1,1,0) -> เขียว (0,1,0)
+    def update_visual(self, global_time):
+        # 🌟 [Optimization] คำนวณสีจากเวลาส่วนกลางที่ส่งมา
         # ช่วง hue 0.15 -> 0.40: R จะค่อยๆ ลดลงจาก 1 -> 0
-        r = max(0, min(1, 1.0 - (self._hue - 0.15) * 4.0)) 
-        self.color_inst.rgb = (r, 1.0, 0.1) # G=1, B=0.1 คงที่เพื่อให้ได้โทน เหลือง-เขียว
+        hue = 0.15 + (global_time * 0.5) % 0.25
+        r = max(0, min(1, 1.0 - (hue - 0.15) * 4.0)) 
+        self.color_inst.rgb = (r, 1.0, 0.1)
 
     def on_expire(self):
-        Clock.unschedule(self._update_rainbow)
+        pass
 
 
 class DinoProjectile(_Linear):
