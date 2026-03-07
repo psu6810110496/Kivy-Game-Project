@@ -110,6 +110,18 @@ class DinoCircle(BaseSkill):
     name = "Dino Circle"
     description = "ไดโนเสาร์วิ่งวนรอบตัว ทำดาเมจทุกศัตรูที่โดน"
 
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            for i in range(1, 5):
+                try:
+                    path = f"assets/PTae/skill1/aoeptae{i:02d}.png"
+                    cls._TEXTURES.append(CoreImage(path).texture)
+                except: pass
+
     def __init__(self):
         super().__init__()
         self.orbit_radius = 40
@@ -118,6 +130,8 @@ class DinoCircle(BaseSkill):
         self.orbit_speed = 3.0       # rad/s
         self._orbit_angle = 0.0
         self._hit_cooldowns: dict = {}  # enemy_id → cooldown
+        self._frame = 0
+        self._at = 0.0
 
     @property
     def cooldown(self):
@@ -132,9 +146,17 @@ class DinoCircle(BaseSkill):
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
+        self._load()
         self._orbit_angle += self.orbit_speed * dt
         if self._orbit_angle > 2 * math.pi:
             self._orbit_angle -= 2 * math.pi
+            
+        # [Animation] อัปเดตเฟรมไดโน
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= 0.08:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
 
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -177,7 +199,8 @@ class DinoCircle(BaseSkill):
                     break
 
         # วาด dino indicators และวงกลมป้องกันชั้นใน
-        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60)
+        _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60, 
+                               textures=self._TEXTURES, frame=self._frame)
 
     def activate(self, game):
         pass  # ใช้ tick แทน
@@ -952,7 +975,7 @@ def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.08)
 
 
-def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
+def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None, frame=0):
     """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit และวงกลมป้องกันด้านใน"""
     ig = InstructionGroup()
     
@@ -965,9 +988,16 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
         ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
 
     # จุดไดโนรอบนอก
-    ig.add(Color(0.3, 1.0, 0.4, 0.8))
-    for (ox, oy) in positions:
-        ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
+    if textures:
+        ig.add(Color(1, 1, 1, 1))
+        tex = textures[frame % len(textures)]
+        for (ox, oy) in positions:
+            # ขนาดไดโน 40x40 (ใหญ่กว่าเดิมที่เป็นจุด 20x20)
+            ig.add(Rectangle(texture=tex, pos=(ox - 20, oy - 20), size=(40, 40)))
+    else:
+        ig.add(Color(0.3, 1.0, 0.4, 0.8))
+        for (ox, oy) in positions:
+            ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
         
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)
