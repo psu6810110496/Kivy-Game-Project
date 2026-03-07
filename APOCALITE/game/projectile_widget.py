@@ -7,6 +7,7 @@ from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
+from game.utils import resolve_path, get_frames
 
 class _Linear(Widget):
     def __init__(self, start_pos, target_pos, speed, damage, **kw):
@@ -29,8 +30,12 @@ class EnemyProjectile(_Linear):
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
-            try: cls._TEXTURES = [CoreImage(f"assets/effect/rangershoot/1_{i}.png").texture for i in range(30)]
-            except: cls._TEXTURES = []
+            cls._TEXTURES = []
+            for i in range(30):
+                path = resolve_path(f"assets/effect/rangershoot/1_{i}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
 
     def __init__(self, start_pos, target_pos, damage=10, **kw):
         super().__init__(start_pos, target_pos, speed=400.0, damage=damage, **kw)
@@ -69,10 +74,11 @@ class PlayerBullet(_Linear):
         self.angle = math.degrees(math.atan2(self.direction[1], self.direction[0]))
         
         if self._anim:
-            for path in self._anim:
-                try:
-                    self._textures.append(CoreImage(path).texture)
-                except: pass
+            for p in self._anim:
+                path = resolve_path(p)
+                if path:
+                    try: self._textures.append(CoreImage(path).texture)
+                    except: pass
         
         if self._textures:
             with self.canvas:
@@ -168,15 +174,11 @@ class HealthPickup(Widget):
         
         self.tex = None
         if texture_path:
-            import os
-            # ลองหาในหลายๆ path root
-            for root_pre in ["", "APOCALITE/", "../", "../../"]:
-                full_path = os.path.join(root_pre, texture_path).replace('\\', '/')
-                if os.path.exists(full_path):
-                    try:
-                        self.tex = CoreImage(full_path).texture
-                        break
-                    except: pass
+            full_path = resolve_path(texture_path)
+            if full_path:
+                try:
+                    self.tex = CoreImage(full_path).texture
+                except: pass
 
         with self.canvas:
             if self.tex:
@@ -295,17 +297,12 @@ class HomingDino(_Linear):
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
-            import os
             cls._TEXTURES = []
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            # frame_00_delay-0.05s.png ถึง frame_17_delay-0.05s.png
             for i in range(18):
-                try:
-                    path = os.path.join(base, "assets", "PTae", "skill2", f"frame_{i:02d}_delay-0.05s.png")
-                    if os.path.exists(path):
-                        cls._TEXTURES.append(CoreImage(path).texture)
-                except Exception as e:
-                    print(f"[HomingDino] Error loading {i}: {e}")
+                path = resolve_path(f"assets/PTae/skill2/frame_{i:02d}_delay-0.05s.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except Exception as e: print(f"[HomingDino] Error load {i}: {e}")
             print(f"[HomingDino] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, game=None, **kw):
@@ -438,22 +435,16 @@ class DinoBeam(Widget):
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
-            import os
             cls._TEXTURES = []
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            # frame_00_delay-0.05s.png ถึง frame_10_delay-0.05s.png
             for i in range(11):
-                try:
-                    path = os.path.join(base, "assets", "PTae", "skill3", f"frame_{i:02d}_delay-0.05s.png")
-                    if os.path.exists(path):
-                        cls._TEXTURES.append(CoreImage(path).texture)
+                path = resolve_path(f"assets/PTae/skill3/frame_{i:02d}_delay-0.05s.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            path11 = resolve_path("assets/PTae/skill3/frame_11_delay-0.02s.png")
+            if path11:
+                try: cls._TEXTURES.append(CoreImage(path11).texture)
                 except: pass
-            # frame_11_delay-0.02s.png
-            try:
-                path11 = os.path.join(base, "assets", "PTae", "skill3", "frame_11_delay-0.02s.png")
-                if os.path.exists(path11):
-                    cls._TEXTURES.append(CoreImage(path11).texture)
-            except: pass
             print(f"[DinoBeam] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
@@ -663,10 +654,10 @@ class BombWidget(Widget):
         if cls._TEXTURES is None:
             cls._TEXTURES = []
             for i in range(1, 5):
-                try:
-                    cls._TEXTURES.append(CoreImage(f"assets/Lostman/skill3/c4_trap{i}.png").texture)
-                except Exception:
-                    pass
+                path = resolve_path(f"assets/Lostman/skill3/c4_trap{i}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
 
     def __init__(self, pos=(0,0), fuse=3.0, damage=100, radius=160, **kw):
         kw.setdefault('size_hint', (None, None)); kw.setdefault('size', (48, 48))

@@ -3,35 +3,18 @@ from kivy.uix.label import Label
 from kivy.graphics import Color, Rectangle, Ellipse
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
+import os
 import math
 import random
 from game.projectile_widget import EnemyProjectile
-
+from game.utils import resolve_path, get_frames
 
 # --- [ Class สำหรับตัวศัตรู ] ---
 from game.game_settings import settings
 
 class EnemyWidget(Widget):
     SHOW_DEBUG_STATS = settings.show_enemy_hp
-    # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
-    # bosses may be updated by placing a file named boss.png in assets/enemy
-    import os
-
-    boss_path = "assets/enemy/boss.png"
-    if not os.path.exists(boss_path):
-        boss_path = "assets/enemy/enemy4.png"
-
-    ENEMY_TEXTURES = {
-        "normal": CoreImage("assets/enemy/enemy1.png").texture,
-        "stalker": CoreImage("assets/enemy/enemy2.png").texture,
-        "ranger": CoreImage("assets/enemy/enemy3.png").texture,
-        "boss": CoreImage(boss_path).texture,
-        "big_boss": CoreImage(boss_path).texture,
-        "charger": CoreImage("assets/enemy/enemy2.png").texture,  # Fallback texture
-        "shielder": CoreImage("assets/enemy/enemy1.png").texture,
-        "bomber": CoreImage("assets/enemy/enemy2.png").texture,
-        "sniper": CoreImage("assets/enemy/enemy3.png").texture,
-    }
+    ENEMY_TEXTURES = {} # จะโหลดแบบ Dynamic ใน __init__ เพื่อรองรับ Spritesheet
 
     def __init__(self, spawn_pos=(0, 0), enemy_type="normal", **kwargs):
         super().__init__(**kwargs)
@@ -67,49 +50,49 @@ class EnemyWidget(Widget):
                 "speed": 2.2,
                 "damage": 8,
                 "color": (1, 1, 1, 1),
-                "size": (40, 40),
+                "size": (64, 64),
             },
             "stalker": {
                 "hp": 40,
                 "speed": 3.8,
                 "damage": 5,
-                "color": (0.8, 0.2, 1, 1),
-                "size": (30, 30),
+                "color": (1, 1, 1, 1),
+                "size": (80, 80), # Increase from 64
             },
             "ranger": {
                 "hp": 40,
                 "speed": 1.8,
                 "damage": 12,
-                "color": (0.2, 0.9, 0.3, 1),
-                "size": (45, 45),
+                "color": (1, 1, 1, 1),
+                "size": (200, 150), # Increased again as requested
             },
             "charger": {
                 "hp": 120,
                 "speed": 1.5,
                 "damage": 25,
                 "color": (1.0, 0.5, 0.0, 1), # 🟠 ส้ม
-                "size": (55, 55),
+                "size": (80, 80),
             },
             "shielder": {
                 "hp": 300,
                 "speed": 1.0,
                 "damage": 15,
                 "color": (0.2, 0.5, 1.0, 1), # 🔵 ฟ้า
-                "size": (65, 65),
+                "size": (90, 90),
             },
             "bomber": {
                 "hp": 80,
                 "speed": 2.5,
                 "damage": 20, # ระเบิดแรง
-                "color": (1.0, 1.0, 0.2, 1), # 🟡 เหลือง
-                "size": (50, 50),
+                "color": (1, 1, 1, 1), # 🟡 เหลือง
+                "size": (64, 64),
             },
             "sniper": {
                 "hp": 60,
                 "speed": 0.5,
                 "damage": 15,
-                "color": (0.4, 0.8, 0.9, 1), # 🩵 ฟ้าอ่อน
-                "size": (45, 45),
+                "color": (1, 1, 1, 1), # 🩵 ฟ้าอ่อน
+                "size": (64, 64),
             },
             "boss": {
                 "hp": 450,
@@ -158,18 +141,29 @@ class EnemyWidget(Widget):
         self.speed = current_stats["speed"]
         self.damage = current_stats["damage"]
         self.enemy_size = current_stats["size"]
+        
+        # [Fix] Sniper size should also be increased to match Ranger if they use same base
+        if enemy_type == "sniper":
+            self.enemy_size = (120, 120)
 
-        # เลือก texture ตามประเภทศัตรู (ถ้าไม่เจอใช้ normal แทน)
-        self.texture = self.ENEMY_TEXTURES.get(
-            enemy_type, self.ENEMY_TEXTURES["boss"] if enemy_type == "final_boss" else self.ENEMY_TEXTURES["normal"]
-        )
+        # Animation Setup
+        self.frame_index = 0
+        self.anim_timer = 0
+        self.anim_speed = 0.15 # Default
+        self.anim_frames = []
+        self.is_facing_right = True
+
+        self._init_enemy_visuals(enemy_type)
 
         with self.canvas:
-            # ใช้สีขาวเพื่อไม่ให้กลบสีจาก texture และเอาไว้เปลี่ยนสีตอนโดนตี
             self.color_inst = Color(*current_stats["color"])
             self.rect = Rectangle(
                 pos=self.pos, size=self.enemy_size, texture=self.texture
             )
+            if self.texture:
+                self.rect.tex_coords = self.texture.tex_coords
+        
+        Clock.schedule_interval(self.animate, 1.0/60.0)
         self.shake_offset = [0, 0]
         
         # Debug Label
@@ -182,6 +176,107 @@ class EnemyWidget(Widget):
         self.add_widget(self._debug_label)
         
         self.bind(pos=self._update_rect)
+
+    def _init_enemy_visuals(self, etype):
+        """โหลด Texture และเตรียม Animation ตามประเภท"""
+
+        if etype == "ranger" or etype == "sniper":
+            # [Fix] Ranger row ใน enemy3.png ถ้า 0 อยู่บนสุด
+            # ลอง Row 1 หรือ 2 เผื่อเป็นท่าเดินที่ชัดเจนกว่า
+            self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 16, row=1)
+            if not self.anim_frames: self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 16, row=0)
+            self.anim_speed = 0.08 # Faster animation for smoother look
+        elif etype == "bomber":
+            self.anim_frames = get_frames("assets/enemy/Bomb_Walk.png", 40, 40, 8)
+            self.anim_speed = 0.12
+        elif etype == "stalker":
+            colors = ["Black", "Brown", "Gray", "White"]
+            chosen = random.choice(colors)
+            # [Fix] 192/24 = 8 frames. Previous 48px/4 frames showed 2 dogs.
+            # So 24px should show 1 dog correctly.
+            self.anim_frames = get_frames(f"assets/enemy/Canine_{chosen}_Run.png", 24, 64, 8)
+            self.anim_speed = 0.08
+        elif etype == "boss" or etype == "big_boss":
+            # Minotaur sheet: row 0=attack, row 1=walk, row 2=idle (ตามเดิมที่เดาไว้)
+            # แต่ถ้าเป็น top-down indexing: row 0 คือบนสุด
+            row_attack = 0
+            row_walk = 1
+            row_idle = 2
+            sheet_path = "assets/enemy/boss/minotaur_288x160_SpriteSheet.png"
+            self.boss_idle = get_frames(sheet_path, 288, 160, 16, row=row_idle)
+            self.boss_walk = get_frames(sheet_path, 288, 160, 16, row=row_walk)
+            self.boss_attack = get_frames(sheet_path, 288, 160, 16, row=row_attack)
+            
+            def set_boss_anim(state, loop=True):
+                if state == "idle": frames = self.boss_idle
+                elif state == "walk": frames = self.boss_walk
+                elif state == "attack": frames = self.boss_attack
+                else: return
+                if self.anim_frames != frames:
+                    self.anim_frames = frames
+                    self.frame_index = 0
+            
+            self.set_boss_anim = set_boss_anim
+            self.anim_frames = self.boss_walk
+            self.anim_speed = 0.08
+        elif etype == "final_boss" or etype == "final_boss_clone":
+            self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 16, row=1)
+            self.anim_speed = 0.06
+        else:
+            # Normal / Default (enemy1.png) - STATIC TEXTURE (NOT SPRITESHEET)
+            path = resolve_path("assets/enemy/enemy1.png")
+            if path:
+                try:
+                    self.texture = CoreImage(path).texture
+                    self.anim_frames = [self.texture]
+                except:
+                    self.anim_frames = []
+            else:
+                self.anim_frames = []
+            self.anim_speed = 999.0 # Don't update
+
+        if self.anim_frames:
+            self.texture = self.anim_frames[0]
+        else:
+            # Fallback
+            self.texture = None
+
+    def animate(self, dt):
+        """จัดการ Animation และ Flip ทิศทาง (optimized เพื่อกันบัคกะพริบ)"""
+        if not self.anim_frames: return
+        
+        # 1. จัดการ Flip ทิศทาง
+        flipped = False
+        if hasattr(self, "game") and self.game and self.game.player_pos:
+            px = self.game.player_pos[0] + 32
+            ex = self.pos[0] + self.enemy_size[0]/2
+            old_facing = self.is_facing_right
+            self.is_facing_right = (px > ex)
+            if old_facing != self.is_facing_right:
+                flipped = True
+
+        # 2. จัดการเปลี่ยนเฟรม Animation
+        frame_changed = False
+        if len(self.anim_frames) > 1:
+            self.anim_timer += dt
+            if self.anim_timer >= self.anim_speed:
+                # กันกรณี dt กระโดดสูงๆ
+                self.anim_timer = 0
+                self.frame_index = (self.frame_index + 1) % len(self.anim_frames)
+                self.texture = self.anim_frames[self.frame_index]
+                self.rect.texture = self.texture
+                frame_changed = True
+
+        # 3. อัปเดตพิกัด UV (tex_coords) เฉพาะตอนมีการเปลี่ยนแปลง
+        # (ครั้งแรกที่สร้าง, ตอนเปลี่ยนเฟรม, หรือตอนกลับด้าน)
+        if (frame_changed or flipped or not hasattr(self, "_initialized_uv")) and self.texture:
+            tc = self.texture.tex_coords
+            if self.is_facing_right:
+                self.rect.tex_coords = tc
+            else:
+                # Flip Horizontal
+                self.rect.tex_coords = (tc[2], tc[3], tc[0], tc[1], tc[6], tc[7], tc[4], tc[5])
+            self._initialized_uv = True
 
     def _update_rect(self, instance, value):
         new_pos = (value[0] + self.shake_offset[0], value[1] + self.shake_offset[1])
@@ -347,6 +442,13 @@ class EnemyWidget(Widget):
         # รวมแรงหลบกระสุนเข้าไปด้วย (Priority สูง)
         vx += dodge_vx
         vy += dodge_vy
+        
+        # --- [ Boss Animation State ] ---
+        if self.enemy_type in ["boss", "big_boss"] and not getattr(self, "is_boss_attacking", False):
+            if abs(vx) > 0.1 or abs(vy) > 0.1:
+                self.set_boss_anim("walk")
+            else:
+                self.set_boss_anim("idle")
 
         # --- [ Big boss special behavior ] ---
         if self.enemy_type == "big_boss":
@@ -468,6 +570,12 @@ class EnemyWidget(Widget):
         # Show warning highlight first (yellow/orange)
         self._show_slam_warning(ex, ey, slam_radius)
         
+        # Animation
+        if hasattr(self, "set_boss_anim"):
+            self.is_boss_attacking = True
+            self.set_boss_anim("attack")
+            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 1.0)
+
         # Delay the actual damage and projectiles by 0.4 seconds
         Clock.schedule_once(
             lambda dt: self._execute_slam_damage(ex, ey, slam_radius),
@@ -536,10 +644,14 @@ class EnemyWidget(Widget):
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
-        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
         proj.speed = 700
         self.game.world_layout.add_widget(proj)
         self.game.enemy_projectiles.append(proj)
+        
+        if hasattr(self, "set_boss_anim"):
+            self.is_boss_attacking = True
+            self.set_boss_anim("attack")
+            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.6)
 
     def do_missile(self, player_pos):
         if not hasattr(self, "game") or not self.game or not self.parent:
@@ -550,6 +662,11 @@ class EnemyWidget(Widget):
         proj.speed = 300
         self.game.world_layout.add_widget(proj)
         self.game.enemy_projectiles.append(proj)
+        
+        if hasattr(self, "set_boss_anim"):
+            self.is_boss_attacking = True
+            self.set_boss_anim("attack")
+            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.6)
 
     def _remove_effect_widget(self, widget):
         """Remove effect widget from parent"""

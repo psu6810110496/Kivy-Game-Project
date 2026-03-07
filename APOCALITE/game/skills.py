@@ -13,6 +13,7 @@ import math
 import random
 from typing import Dict, List, Type
 from game.game_settings import settings
+from game.utils import resolve_path, get_frames
 
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
@@ -124,23 +125,19 @@ class DinoCircle(BaseSkill):
             
             # Load Dinosaurs (Skill 1)
             for i in range(1, 5):
-                try:
-                    path = os.path.join(base, "assets", "PTae", "skill1", f"aoeptae{i:02d}.png")
-                    if os.path.exists(path):
-                        cls._TEXTURES.append(CoreImage(path).texture)
-                except Exception as e:
-                    print(f"[DinoCircle] Error loading {i}: {e}")
+                path = resolve_path(f"assets/PTae/skill1/aoeptae{i:02d}.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
             
             # Load Orbit Aura (lo)
             # frame_00_delay-0.02s.png ถึง frame_13_delay-0.02s.png
             for i in range(14):
-                try:
-                    path = os.path.join(base, "assets", "PTae", "lo", f"frame_{i:02d}_delay-0.02s.png")
-                    if os.path.exists(path):
-                        cls._ORBIT_TEXTURES.append(CoreImage(path).texture)
-                except:
-                    pass
-            print(f"[DinoCircle] Loaded {len(cls._TEXTURES)} dinos and {len(cls._ORBIT_TEXTURES)} orbit frames")
+                path = resolve_path(f"assets/PTae/lo/frame_{i:02d}_delay-0.02s.png")
+                if path:
+                    try: cls._ORBIT_TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            print(f"[DinoCircle] Loaded {len(cls._TEXTURES)} dinos and {len(cls._ORBIT_TEXTURES)} orbit aura frames")
 
     def __init__(self):
         super().__init__()
@@ -1014,32 +1011,32 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
     # วงกลมป้องกันชั้นใน (Orbit Aura)
     if inner_radius > 0:
         if orbit_textures:
-            ig.add(Color(1, 1, 1, 0.8)) # ใช้สีขาวตาม texture (ปรับ alpha เล็กน้อย)
+            # ใช้สีขาวเข้มขึ้นตาม texture (ปรับ alpha ให้เห็นชัด)
+            ig.add(Color(1, 1, 1, 0.9)) 
             tex = orbit_textures[orbit_frame % len(orbit_textures)]
-            # วาดสีกว้างกว่า radius เล็กน้อยให้ดูเป็น aura
-            aura_size = inner_radius * 2.8
+            # ขยายขนาด Aura จาก 2.8 เป็น 3.2 เท่าของ radius ให้ดูใหญ่ขึ้น
+            aura_size = inner_radius * 3.5
             ig.add(Rectangle(texture=tex, 
                              pos=(game.player_pos[0]+32 - aura_size/2, game.player_pos[1]+32 - aura_size/2), 
                              size=(aura_size, aura_size)))
         else:
-            ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
+            ig.add(Color(0.2, 0.9, 0.3, 0.4))
             ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
                            size=(inner_radius * 2, inner_radius * 2)))
-            ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
-            ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
 
     # จุดไดโนรอบนอก
     if textures:
-        ig.add(Color(0.85, 0.85, 0.85, 1)) # สีเข้มขึ้น
+        # สีเข้มขรึมขึ้นตามเควส (Darken: 0.85 -> 0.4)
+        ig.add(Color(0.4, 0.4, 0.4, 1))
         tex = textures[frame % len(textures)]
         for (ox, oy) in positions:
-            # 🌟 [Fix] ใช้ Rectangle พร้อม Texture แทนการวาด Ellipse สีเขียวเฉยๆ
-            # ขนาดใหญ่ขึ้นจาก 40 เป็น 65
-            ig.add(Rectangle(texture=tex, pos=(ox-32.5, oy-32.5), size=(65, 65)))
+            # ขนาดใหญ่ขึ้นจาก 65 เป็น 110 (ตัวใหญ่ขึ้นตามคำขอ)
+            sz = 110
+            ig.add(Rectangle(texture=tex, pos=(ox - sz/2, oy - sz/2), size=(sz, sz)))
     else:
-        ig.add(Color(0.3, 1.0, 0.4, 0.8))
+        ig.add(Color(0.2, 0.6, 0.2, 0.9))
         for (ox, oy) in positions:
-            ig.add(Ellipse(pos=(ox - 10, oy - 10), size=(20, 20)))
+            ig.add(Ellipse(pos=(ox - 20, oy - 20), size=(40, 40)))
         
     game.world_layout.canvas.add(ig)
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)
