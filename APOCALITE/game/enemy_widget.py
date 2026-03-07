@@ -128,7 +128,7 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 10000, 
+                "hp": 50000, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),

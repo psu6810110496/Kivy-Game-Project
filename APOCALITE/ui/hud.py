@@ -20,6 +20,7 @@ from kivy.uix.label import Label
 from kivy.uix.progressbar import ProgressBar
 from kivy.uix.widget import Widget
 from kivy.uix.modalview import ModalView
+from kivy.uix.image import Image as KivyImage
 
 from ui.level_up import LevelUpPopup
 
@@ -83,6 +84,15 @@ class SkillSlotBox(BoxLayout):
             # Container
             slot_container = FloatLayout(size_hint=(None, None), size=(current_size, current_size))
             
+            # 🌟 Icon Image Widget (สำหรับภาพ Pixel Art ให้คมชัด)
+            icon_img = KivyImage(
+                size_hint=(0.9, 0.9),
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+                allow_stretch=True,
+                keep_ratio=True,
+                opacity=0 # ซ่อนไว้ก่อน
+            )
+
             btn = Button(
                 text=f"S{skill_idx + 1}",
                 font_size=16 * (1.2 if skill_idx == 2 else 1.0),
@@ -119,23 +129,47 @@ class SkillSlotBox(BoxLayout):
             overlay.canvas.clear()
             
             slot_container.add_widget(btn)
-            slot_container.add_widget(overlay)  # ทับบน btn
-            slot_container.add_widget(lvl_lbl)  # ทับสุด (ให้ลอยอยู่บนสุด)
+            slot_container.add_widget(icon_img) # วางไอคอนทับปุ่ม แต่ใต้ overlay
+            slot_container.add_widget(overlay)
+            slot_container.add_widget(lvl_lbl)
             self.add_widget(slot_container)
             
-            self.slots.append((btn, lvl_lbl, overlay, current_size))
+            self.slots.append((btn, lvl_lbl, overlay, icon_img, current_size))
 
-    def update(self, skills: list):
+    def update(self, skills: list, char_name: str = ""):
         """รีเฟรชข้อความ / สี / CD overlay ทุก frame"""
-        for (btn, lvl_lbl, overlay, slot_sz), skill_idx in zip(self.slots, self.skill_indices):
+        char_name_lower = char_name.lower()
+        for (btn, lvl_lbl, overlay, icon_img, slot_sz), skill_idx in zip(self.slots, self.skill_indices):
             skill = skills[skill_idx] if skill_idx < len(skills) else None
 
             if skill is None:
                 btn.text = f"S{skill_idx + 1}\n[empty]"
                 btn.background_color = (0.15, 0.15, 0.15, 0.5)
+                icon_img.opacity = 0
                 lvl_lbl.text = ""
                 overlay.canvas.clear()
                 continue
+
+            # --- จัดการ Icon สำหรับ Monkey ---
+            if char_name_lower == "monkey":
+                icon_path = f"assets/Monkey/slotM/Sm{skill_idx + 1}.png"
+                if os.path.exists(icon_path):
+                    if icon_img.source != icon_path:
+                        icon_img.source = icon_path
+                        # ทำให้ภาพคมชัด (Pixel Art)
+                        icon_img.texture.mag_filter = 'nearest'
+                    
+                    icon_img.opacity = 1
+                    btn.background_color = (0, 0, 0, 0) # ปิดพื้นหลังปุ่มเพื่อให้เห็นรูปชัดๆ
+                    display_name = "" 
+                else:
+                    icon_img.opacity = 0
+                    btn.background_color = (0.2, 0.2, 0.2, 0.6)
+                    display_name = skill.name
+            else:
+                icon_img.opacity = 0
+                btn.background_color = (0.2, 0.2, 0.2, 0.6)
+                display_name = skill.name
 
             # อัปเดตเลเวล
             lvl_lbl.text = f"LV.{skill.level}"
@@ -147,8 +181,9 @@ class SkillSlotBox(BoxLayout):
             if stacks_val is not None:
                 full = "●" * stacks_val
                 empty = "○" * max(0, max_stacks_val - stacks_val)
-                btn.text = f"{skill.name}\n{full}{empty}"
-                btn.background_color = (0.4, 0.1, 0.7, 1) if stacks_val > 0 else (0.2, 0.2, 0.2, 0.6)
+                btn.text = f"{display_name}\n{full}{empty}"
+                if char_name_lower != "monkey":
+                    btn.background_color = (0.4, 0.1, 0.7, 1) if stacks_val > 0 else (0.2, 0.2, 0.2, 0.6)
 
                 # 🌟 Stack CD overlay: ถ้า stack ไม่เต็มให้แสดง recharge progress
                 overlay.canvas.clear()
@@ -172,11 +207,13 @@ class SkillSlotBox(BoxLayout):
                 frac = max(0.0, min(1.0, cd_remaining / max(0.01, cd_total)))
 
                 if cd_remaining <= 0:
-                    btn.text = f"{skill.name}\n✔"
-                    btn.background_color = (0.15, 0.5, 0.15, 1)  # สีเขียวพร้อมใช้
+                    btn.text = f"{display_name}\n✔"
+                    if char_name_lower != "monkey":
+                        btn.background_color = (0.15, 0.5, 0.15, 1)  # สีเขียวพร้อมใช้
                 else:
-                    btn.text = f"{skill.name}\n{cd_remaining:.1f}s"
-                    btn.background_color = (0.2, 0.2, 0.2, 0.6)
+                    btn.text = f"{display_name}\n{cd_remaining:.1f}s"
+                    if char_name_lower != "monkey":
+                        btn.background_color = (0.2, 0.2, 0.2, 0.6)
 
                 # 🌟 วาด CD Overlay: overlay ทึบส่วน top ลดลงเรื่อยๆ
                 overlay.canvas.clear()
@@ -432,9 +469,9 @@ class HUD(FloatLayout):
                 skills_with_s3 = [skills[0] if len(skills) > 0 else None,
                                    skills[1] if len(skills) > 1 else None,
                                    s3]
-                self.skill_slot_box.update(skills_with_s3)
+                self.skill_slot_box.update(skills_with_s3, stats.name)
             else:
-                self.skill_slot_box.update(skills)
+                self.skill_slot_box.update(skills, stats.name)
 
     def update_wave(self, wave_num: int):
         self.lbl_wave.text = f"WAVE {wave_num}"
@@ -483,7 +520,7 @@ class HUD(FloatLayout):
                 while len(auto_skills) < 2:
                     auto_skills.append(None)
                 s3 = getattr(s, 'skill3', None)
-                self.skill_slot_box.update([auto_skills[0], auto_skills[1], s3])
+                self.skill_slot_box.update([auto_skills[0], auto_skills[1], s3], s.name)
 
             # อัปเดตเวลา (ทุก 30 frame = ~0.5s)
             if self._skill_frame_tick % 30 == 0 and hasattr(gs, "play_time"):

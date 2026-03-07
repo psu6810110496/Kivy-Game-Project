@@ -10,6 +10,7 @@ from kivy.uix.image import Image
 from kivy.uix.behaviors import ButtonBehavior
 from game.player import PlayerStats
 from kivy.app import App
+from kivy.animation import Animation
 
 
 class CharCard(ButtonBehavior, BoxLayout):
@@ -32,7 +33,8 @@ class CharCard(ButtonBehavior, BoxLayout):
             source=stats.idle_frames[0],
             allow_stretch=True,
             keep_ratio=True,
-            size_hint=(1, 1),
+            size_hint=(0.8, 0.8),
+            pos_hint={'center_x': 0.5, 'center_y': 0.5},
             color=(0.5, 0.5, 0.5, 0.8) # เริ่มต้นแบบซีดๆ
         )
         anim_container.add_widget(self.anim_img)
@@ -75,21 +77,26 @@ class CharCard(ButtonBehavior, BoxLayout):
 
     def set_highlight(self, active):
         if active:
-            self._color.rgba = (0.3, 0.5, 0.8, 1) # พื้นหลังสว่างขึ้น
-            self.stats_lbl.color = (1, 1, 1, 1)      # ตัวอักษรสว่างขึ้น
-            self.anim_img.color = (1, 1, 1, 1)       # รูปตัวละครสว่างเป็นปกติ
-            # Start animation loop when selected/hovered
-            Clock.unschedule(self._animate)
-            Clock.schedule_interval(self._animate, 0.25)
+            # เปลี่ยนสีพื้นหลังและการ์ดทันที (No smooth animation)
+            self._color.rgba = (0.3, 0.5, 0.8, 1)
+            self.stats_lbl.color = (1, 1, 1, 1)
+            
+            # ขยายตัวละครทันที (Instant Scale)
+            self.anim_img.size_hint = (1.1, 1.1)
+            self.anim_img.color = (1, 1, 1, 1)
         else:
-            self._color.rgba = self.bg_color # พื้นหลังกลับไปมืด
-            self.stats_lbl.color = (0.5, 0.55, 0.6, 0.7) # ตัวอักษรกลับไปซีด
-            self.anim_img.color = (0.5, 0.5, 0.5, 0.6)   # รูปตัวละครกลับไปซีด
-            # Stop animation and reset to first frame when not selected
-            Clock.unschedule(self._animate)
-            if self.frames:
-                self.anim_img.source = self.frames[0]
-                self.frame_idx = 0
+            self._color.rgba = self.bg_color
+            self.stats_lbl.color = (0.5, 0.55, 0.6, 0.7)
+            
+            # กลับสู่ขนาดปกติทันที
+            self.anim_img.size_hint = (0.8, 0.8)
+            self.anim_img.color = (0.5, 0.5, 0.5, 0.6)
+        
+        # ปิด Sprite Animation (เปลี่ยนเป็นภาพนิ่งเฟรมแรกเสมอ)
+        Clock.unschedule(self._animate)
+        if self.frames:
+            self.anim_img.source = self.frames[0]
+            self.frame_idx = 0
 
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
