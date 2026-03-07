@@ -113,7 +113,11 @@ class GameScreen(Screen):
     def _build_world(self):
         """สร้าง map background + border"""
         try:
-            tex = CoreImage("assets/maps/map.jpg").texture
+            # 🌟 map.jpg ไม่มี → ใช้ map1.jpg แทน
+            try:
+                tex = CoreImage("assets/maps/map.jpg").texture
+            except Exception:
+                tex = CoreImage("assets/maps/map.jpg").texture
             tex.wrap = "repeat"
             scale = 3.0
             tex.uvsize = (5000 / (tex.width * scale), -5000 / (tex.height * scale))

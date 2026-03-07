@@ -11,6 +11,13 @@ class PausePopup(Popup):
     def __init__(self, game_screen, **kwargs):
         super().__init__(**kwargs)
         self.game_screen = game_screen
+
+        # 🌟 Pixel Font
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
+        except Exception:
+            pass
         
         # --- [ซ่อนหัว Popup เดิมทิ้ง] ---
         self.title = ""
@@ -37,9 +44,9 @@ class PausePopup(Popup):
         lbl_pause = Label(
             text="PAUSED",
             font_size=70,
-            bold=True,
-            color=(1, 0.9, 0.2, 1), # สีเหลือง
-            size_hint=(1, 0.5), # กินพื้นที่ครึ่งบน
+            font_name="PixelFont",
+            color=(1, 0.9, 0.2, 1),
+            size_hint=(1, 0.5),
         )
         layout.add_widget(lbl_pause)
 
@@ -49,26 +56,20 @@ class PausePopup(Popup):
         # --- [สร้างปุ่มแบบโปร่งใส (Floating Buttons)] ---
         btn_resume = Button(
             text="RESUME",
-            font_size=30,
-            bold=True,
-            background_normal="",
-            background_color=(0, 0, 0, 0), # พื้นหลังโปร่งใส 100%
-            color=(0.5, 0.5, 0.5, 1),      # สีตัวอักษรปกติ (สีเทา)
+            font_size=30, font_name="PixelFont",
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=(0.5, 0.5, 0.5, 1),
         )
         btn_settings = Button(
             text="SETTINGS",
-            font_size=30,
-            bold=True,
-            background_normal="",
-            background_color=(0, 0, 0, 0),
+            font_size=30, font_name="PixelFont",
+            background_normal="", background_color=(0, 0, 0, 0),
             color=(0.5, 0.75, 1, 1),
         )
         btn_menu = Button(
             text="RETURN TO MENU",
-            font_size=30,
-            bold=True,
-            background_normal="",
-            background_color=(0, 0, 0, 0),
+            font_size=30, font_name="PixelFont",
+            background_normal="", background_color=(0, 0, 0, 0),
             color=(0.7, 0.2, 0.2, 1),
         )
 

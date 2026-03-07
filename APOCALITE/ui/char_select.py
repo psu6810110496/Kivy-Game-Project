@@ -6,9 +6,90 @@ from kivy.uix.label import Label
 from kivy.graphics import Rectangle, Color
 from kivy.core.window import Window
 from kivy.clock import Clock
+from kivy.uix.image import Image
+from kivy.uix.behaviors import ButtonBehavior
 from game.player import PlayerStats
 from kivy.app import App
 
+
+class CharCard(ButtonBehavior, BoxLayout):
+    def __init__(self, name, stats, role_text, on_select, **kwargs):
+        super().__init__(orientation="vertical", spacing=10, padding=[10, 15], **kwargs)
+        self.name = name
+        self.stats = stats
+        self._on_select = on_select
+
+        # Background styling
+        self.bg_color = (0.1, 0.15, 0.25, 0.85)
+        with self.canvas.before:
+            self._color = Color(*self.bg_color)
+            self._rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._update_rect, size=self._update_rect)
+
+        # 1. Idle Animation Container
+        anim_container = BoxLayout(size_hint_y=0.45, padding=[0, 30, 0, 5])
+        self.anim_img = Image(
+            source=stats.idle_frames[0],
+            allow_stretch=True,
+            keep_ratio=True,
+            size_hint=(1, 1),
+            color=(0.5, 0.5, 0.5, 0.8) # เริ่มต้นแบบซีดๆ
+        )
+        anim_container.add_widget(self.anim_img)
+        self.add_widget(anim_container)
+
+        # Animation state
+        self.frame_idx = 0
+        self.frames = stats.idle_frames
+        # No initial animation start - only play when highlighted
+
+        # 2. Character Name & Stats Label
+        self.stats_lbl = Label(
+            text=(f"[size=44][b]{name}[/b][/size]\n\n"
+                  f"HP: {stats.hp}  "
+                  f"ATK: {stats.damage}\n"
+                  f"SPD: {stats.speed}\n\n"
+                  f"{role_text}"),
+            markup=True,
+            font_size=24,
+            font_name="PixelFont",
+            halign="center",
+            valign="middle",
+            size_hint_y=0.55,
+            color=(0.5, 0.55, 0.6, 0.7) # ตัวอักษรเริ่มต้นแบบซีดๆ
+        )
+        self.stats_lbl.bind(size=self.stats_lbl.setter("text_size"))
+        self.add_widget(self.stats_lbl)
+
+    def _animate(self, dt):
+        if not self.frames: return
+        self.frame_idx = (self.frame_idx + 1) % len(self.frames)
+        self.anim_img.source = self.frames[self.frame_idx]
+
+    def _update_rect(self, inst, val):
+        self._rect.pos = inst.pos
+        self._rect.size = inst.size
+
+    def on_press(self):
+        self._on_select(self.stats)
+
+    def set_highlight(self, active):
+        if active:
+            self._color.rgba = (0.3, 0.5, 0.8, 1) # พื้นหลังสว่างขึ้น
+            self.stats_lbl.color = (1, 1, 1, 1)      # ตัวอักษรสว่างขึ้น
+            self.anim_img.color = (1, 1, 1, 1)       # รูปตัวละครสว่างเป็นปกติ
+            # Start animation loop when selected/hovered
+            Clock.unschedule(self._animate)
+            Clock.schedule_interval(self._animate, 0.25)
+        else:
+            self._color.rgba = self.bg_color # พื้นหลังกลับไปมืด
+            self.stats_lbl.color = (0.5, 0.55, 0.6, 0.7) # ตัวอักษรกลับไปซีด
+            self.anim_img.color = (0.5, 0.5, 0.5, 0.6)   # รูปตัวละครกลับไปซีด
+            # Stop animation and reset to first frame when not selected
+            Clock.unschedule(self._animate)
+            if self.frames:
+                self.anim_img.source = self.frames[0]
+                self.frame_idx = 0
 
 class CharacterSelectScreen(Screen):
     def __init__(self, **kwargs):
@@ -17,6 +98,13 @@ class CharacterSelectScreen(Screen):
         self.selected_index = 0
         self.show_highlight = False
         self.joy_cooldown = False
+
+        # 🌟 Pixel Font
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
+        except Exception:
+            pass
 
         from game.skills import CHAR_SPEED_CAP
         self.char_data = {
@@ -46,50 +134,82 @@ class CharacterSelectScreen(Screen):
             ),
         }
 
+        from kivy.uix.floatlayout import FloatLayout
+        from ui.main_menu import RainEffect
+        from kivy.uix.widget import Widget
+        from kivy.graphics import RoundedRectangle
+
+        # Background Image (อิงตาม MenuTest.png)
         with self.canvas.before:
-            Color(0.05, 0.08, 0.1, 1)
-            self.bg = Rectangle(pos=self.pos, size=Window.size)
+            Color(1, 1, 1, 1)
+            self.bg = Rectangle(source="assets/Menu/MenuTest.png", pos=self.pos, size=Window.size)
         self.bind(pos=self._update_bg, size=self._update_bg)
 
-        layout = BoxLayout(orientation="vertical", padding=50, spacing=30)
+        root_layout = FloatLayout()
+        
+        # Rain Effect
+        self.rain = RainEffect()
+        root_layout.add_widget(self.rain)
+
+        # Semi-transparent background panel
+        panel = Widget()
+        with panel.canvas:
+            Color(0.03, 0.05, 0.1, 0.82)
+            self._panel_rect = RoundedRectangle(radius=[16])
+            Color(0.3, 0.5, 0.7, 0.45)
+            self._panel_border = RoundedRectangle(radius=[16])
+        root_layout.add_widget(panel)
+
+        # Main Layout inside the panel
+        layout = BoxLayout(
+            orientation="vertical", padding=[40, 40], spacing=20,
+            size_hint=(0.85, 0.85), pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+
+        def _upd_panel(inst, val):
+            pad = 20
+            self._panel_rect.pos = (inst.x - pad, inst.y - pad)
+            self._panel_rect.size = (inst.width + pad * 2, inst.height + pad * 2)
+            self._panel_border.pos = (inst.x - pad - 1, inst.y - pad - 1)
+            self._panel_border.size = (inst.width + pad * 2 + 2, inst.height + pad * 2 + 2)
+        layout.bind(pos=_upd_panel, size=_upd_panel)
+
         layout.add_widget(Label(
-            text="SELECT CHARACTER", font_size=40, bold=True,
-            color=(0.9, 0.95, 1, 1), outline_width=2, outline_color=(0, 0, 0, 1),
+            text="SELECT CHARACTER", font_size=60, font_name="PixelFont",
+            color=(1, 0.85, 0.2, 1),
             size_hint=(1, 0.2),
         ))
 
         role_desc = {
-            "PTae":    "TANK / AOE\n[AoE Burst]\n[Rockets]",
-            "Lostman": "BALANCED / MELEE\n[Axe Torrent]\n[]",
-            "Monkey":  "SPEED / GUNNER\n[Pistol + Shotgun]\n[RPG]",
+            "PTae":    "TANK / AOE",
+            "Lostman": "BALANCED / MELEE",
+            "Monkey":  "SPEED / GUNNER",
         }
 
-        chars = BoxLayout(spacing=20, size_hint=(1, 0.7))
+        chars = BoxLayout(spacing=25, size_hint=(1, 0.7))
         for name, stats in self.char_data.items():
-            cap = CHAR_SPEED_CAP.get(name, 10.0)
-            btn = Button(
-                text=(f"[b]{name}[/b]\n\n"
-                      f"HP: {stats.hp}\nATK: {stats.damage}\n"
-                      f"SPD: {stats.speed} (cap {cap})\n\n"
-                      f"{role_desc.get(name,'')}"),
-                markup=True, font_size=17, halign="center",
-                background_normal="", background_color=(0.1, 0.15, 0.2, 0.85),
-                color=(0.85, 0.92, 1, 1),
+            card = CharCard(
+                name=name,
+                stats=stats,
+                role_text=role_desc.get(name, ""),
+                on_select=self.select_character,
+                size_hint_x=1
             )
-            btn.bind(on_press=lambda inst, s=stats: self.select_character(s))
-            chars.add_widget(btn)
-            self.selectable_buttons.append(btn)
+            chars.add_widget(card)
+            self.selectable_buttons.append(card)
         layout.add_widget(chars)
 
         back_btn = Button(
-            text="BACK TO MENU", size_hint=(1, 0.15), font_size=20, bold=True,
+            text="< BACK TO MENU", size_hint=(1, 0.12), font_size=28, bold=True, font_name="PixelFont",
             background_normal="", background_color=(0.4, 0.1, 0.1, 0.85),
             color=(1, 0.8, 0.8, 1),
         )
         back_btn.bind(on_press=lambda _: self.go_back(None))
         layout.add_widget(back_btn)
         self.selectable_buttons.append(back_btn)
-        self.add_widget(layout)
+        
+        root_layout.add_widget(layout)
+        self.add_widget(root_layout)
 
     def _update_bg(self, i, v): self.bg.pos = i.pos; self.bg.size = i.size
 
@@ -136,10 +256,17 @@ class CharacterSelectScreen(Screen):
     def update_highlight(self):
         for i, btn in enumerate(self.selectable_buttons):
             is_back = (i == len(self.selectable_buttons) - 1)
-            if i == self.selected_index and self.show_highlight:
-                btn.background_color = (0.9, 0.2, 0.2, 1) if is_back else (0.3, 0.5, 0.7, 1)
+            active = (i == self.selected_index and self.show_highlight)
+            
+            if isinstance(btn, CharCard):
+                btn.set_highlight(active)
             else:
-                btn.background_color = (0.4, 0.1, 0.1, 0.85) if is_back else (0.1, 0.15, 0.2, 0.85)
+                if active:
+                    btn.background_color = (0.9, 0.2, 0.2, 1)
+                    btn.color = (1, 1, 1, 1)
+                else:
+                    btn.background_color = (0.4, 0.1, 0.1, 0.85)
+                    btn.color = (0.8, 0.8, 0.8, 1)
 
     def navigate(self, direction):
         if self.joy_cooldown: return

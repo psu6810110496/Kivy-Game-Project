@@ -9,20 +9,27 @@ from game.score_manager import ScoreManager
 class LeaderboardScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        
+
+        # 🌟 Pixel Font
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
+        except Exception:
+            pass
+
         main_layout = BoxLayout(orientation="vertical", padding=40, spacing=20)
-        
-        title = Label(text="LEADERBOARD", font_size=50, bold=True, color=(1, 0.8, 0.2, 1), size_hint_y=None, height=80)
+
+        title = Label(text="LEADERBOARD", font_size=70, font_name="PixelFont", color=(1, 0.8, 0.2, 1), size_hint_y=None, height=100)
         main_layout.add_widget(title)
         
         # Header
-        header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=40)
-        header_layout.add_widget(Label(text="Rank", bold=True, size_hint_x=0.1))
-        header_layout.add_widget(Label(text="Name", bold=True, size_hint_x=0.25))
-        header_layout.add_widget(Label(text="Char", bold=True, size_hint_x=0.15))
-        header_layout.add_widget(Label(text="Time", bold=True, size_hint_x=0.15))
-        header_layout.add_widget(Label(text="Lv / Kills", bold=True, size_hint_x=0.15))
-        header_layout.add_widget(Label(text="Score", bold=True, size_hint_x=0.2))
+        header_layout = BoxLayout(orientation="horizontal", size_hint_y=None, height=60)
+        header_layout.add_widget(Label(text="Rank", font_size=32, font_name="PixelFont", size_hint_x=0.1))
+        header_layout.add_widget(Label(text="Name", font_size=32, font_name="PixelFont", size_hint_x=0.25))
+        header_layout.add_widget(Label(text="Char", font_size=32, font_name="PixelFont", size_hint_x=0.15))
+        header_layout.add_widget(Label(text="Time", font_size=32, font_name="PixelFont", size_hint_x=0.15))
+        header_layout.add_widget(Label(text="Lv / Kills", font_size=32, font_name="PixelFont", size_hint_x=0.15))
+        header_layout.add_widget(Label(text="Score", font_size=32, font_name="PixelFont", size_hint_x=0.2))
         main_layout.add_widget(header_layout)
         
         # Scrollable list
@@ -34,7 +41,9 @@ class LeaderboardScreen(Screen):
         main_layout.add_widget(self.scroll_view)
         
         # Back Button
-        back_btn = Button(text="BACK TO MENU", font_size=30, size_hint=(None, None), size=(300, 60), pos_hint={'center_x': 0.5})
+        back_btn = Button(text="BACK TO MENU", font_size=26, font_name="PixelFont",
+                          size_hint=(None, None), size=(320, 60), pos_hint={'center_x': 0.5},
+                          background_normal="", background_color=(0.15, 0.15, 0.2, 0.9))
         back_btn.bind(on_press=self.go_back)
         main_layout.add_widget(back_btn)
         
@@ -48,12 +57,12 @@ class LeaderboardScreen(Screen):
         scores = ScoreManager.load_scores()
         
         if not scores:
-            lbl = Label(text="No records yet.", font_size=30, color=(0.7, 0.7, 0.7, 1), size_hint_y=None, height=50)
+            lbl = Label(text="No records yet.", font_size=40, font_name="PixelFont", color=(0.7, 0.7, 0.7, 1), size_hint_y=None, height=80)
             self.list_layout.add_widget(lbl)
             return
 
         for idx, entry in enumerate(scores):
-            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=40)
+            row = BoxLayout(orientation="horizontal", size_hint_y=None, height=50)
             
             # Rank color
             if idx == 0:
@@ -65,12 +74,12 @@ class LeaderboardScreen(Screen):
             else:
                 color = (1, 1, 1, 1)
                 
-            row.add_widget(Label(text=f"#{idx+1}", color=color, size_hint_x=0.1))
-            row.add_widget(Label(text=str(entry.get("name", "???")), color=color, size_hint_x=0.25))
-            row.add_widget(Label(text=str(entry.get("character", "?")), color=color, size_hint_x=0.15))
-            row.add_widget(Label(text=str(entry.get("time_survived", "00:00")), color=color, size_hint_x=0.15))
-            row.add_widget(Label(text=f"{entry.get('level', 1)} / {entry.get('kills', 0)}", color=color, size_hint_x=0.15))
-            row.add_widget(Label(text=str(entry.get("score", 0)), color=color, bold=True, size_hint_x=0.2))
+            row.add_widget(Label(text=f"#{idx+1}", font_size=28, font_name="PixelFont", color=color, size_hint_x=0.1))
+            row.add_widget(Label(text=str(entry.get("name", "???")), font_size=28, font_name="PixelFont", color=color, size_hint_x=0.25))
+            row.add_widget(Label(text=str(entry.get("character", "?")), font_size=28, font_name="PixelFont", color=color, size_hint_x=0.15))
+            row.add_widget(Label(text=str(entry.get("time_survived", "00:00")), font_size=28, font_name="PixelFont", color=color, size_hint_x=0.15))
+            row.add_widget(Label(text=f"{entry.get('level', 1)} / {entry.get('kills', 0)}", font_size=28, font_name="PixelFont", color=color, size_hint_x=0.15))
+            row.add_widget(Label(text=str(entry.get("score", 0)), font_size=28, font_name="PixelFont", color=color, size_hint_x=0.2))
             
             self.list_layout.add_widget(row)
 

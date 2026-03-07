@@ -2,7 +2,6 @@ from kivy.app import App
 from kivy.uix.screenmanager import Screen
 from kivy.uix.floatlayout import FloatLayout
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 from kivy.graphics import Rectangle, Color
@@ -54,6 +53,16 @@ class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        # 🌟 ลงทะเบียน Pixel Font จาก assets
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(
+                name="PixelFont",
+                fn_regular="assets/fornt/Stacked pixel.ttf",
+            )
+        except Exception:
+            pass
+
         # --- [ระบบ Joy Navigation] ---
         self.selectable_buttons = [] 
         self.selected_index = 0      
@@ -81,76 +90,57 @@ class MainMenuScreen(Screen):
             orientation="vertical",
             spacing=30,
             size_hint=(None, None),
-            size=(600, 450),
-            pos_hint={"x": 0.1, "center_y": 0.4},
+            size=(700, 540),
+            pos_hint={"x": 0.1, "center_y": 0.48},
         )
 
         # ปรับสี Title ให้เข้ากับธีมบรรยากาศฝนตก (สีฟ้าอ่อนอมเทา)
         title_label = Label(
             text="APOCALITE",
-            font_size=80,
-            bold=True,
-            color=(0.8, 0.9, 1, 0.9),
-            outline_width=4,
-            outline_color=(0, 0, 0, 1),  # <--- เพิ่มขอบดำตรงนี้
-            # font_name='assets/fonts/pixel_font.ttf', # <--- ถ้ามีไฟล์ฟอนต์ Pixel ให้เอา # ออกแล้วแก้ Path
+            font_size=140,
+            font_name="PixelFont",
+            color=(1, 1, 1, 1),
             halign="left",
             valign="middle",
             size_hint=(1, None),
-            height=120,
+            height=170,
         )
         title_label.bind(size=title_label.setter("text_size"))
 
-        # 4. ปุ่มเข้ากับธีมฝน (Rain Theme: กระจกโปร่งแสงสีเข้ม)
+        # 4. ปุ่มแบบ Text ลอยๆ ไม่มีพื้นหลัง
         btn_layout = BoxLayout(
-            orientation="vertical", spacing=20, size_hint=(None, None), size=(350, 340)
+            orientation="vertical", spacing=8, size_hint=(None, None), size=(500, 360)
         )
 
-        btn_start = Button(
-            text="START SURVIVING",
-            font_size=22,
-            bold=True,
-            size_hint=(None, None),
-            size=(350, 70),
-            background_normal="",  # ต้องมีบรรทัดนี้ ไม่งั้นปุ่มจะเป็นก้อนสีขาว
-            background_color=(0.1, 0.15, 0.2, 0.85),  # สีเทาเข้มอมฟ้า โปร่งแสง
-            color=(0.9, 0.95, 1, 1),
-        )
-        btn_leaderboard = Button(
-            text="LEADERBOARD",
-            font_size=22,
-            bold=True,
-            size_hint=(None, None),
-            size=(350, 70),
-            background_normal="",
-            background_color=(0.1, 0.15, 0.2, 0.85),
-            color=(0.9, 0.95, 1, 1),
-        )
-        btn_settings = Button(
-            text="SETTINGS",
-            font_size=22,
-            bold=True,
-            size_hint=(None, None),
-            size=(350, 70),
-            background_normal="",
-            background_color=(0.1, 0.15, 0.2, 0.85),
-            color=(0.9, 0.95, 1, 1),
-        )
-        btn_quit = Button(
-            text="QUIT GAME",
-            font_size=22,
-            bold=True,
-            size_hint=(None, None),
-            size=(350, 70),
-            background_normal="",
-            background_color=(0.05, 0.08, 0.1, 0.85),  # สีดำเทา โปร่งแสง
-            color=(0.7, 0.75, 0.8, 1),
-        )
+        def make_menu_label(text, callback, is_quit=False):
+            color = (0.7, 0.75, 0.8, 0.85)
+            lbl = Label(
+                text=text,
+                font_size=42,
+                font_name="PixelFont",
+                size_hint=(1, None),
+                height=75,
+                color=color,
+                halign="left",
+                valign="middle",
+            )
+            lbl.bind(size=lbl.setter("text_size"))
+            lbl._callback = callback
+            lbl._is_quit = is_quit
+            lbl._base_color = color
 
-        btn_start.bind(on_press=lambda x: self.change_screen("char_select_screen"))
-        btn_leaderboard.bind(on_press=lambda x: self.change_screen("leaderboard_screen"))
-        btn_settings.bind(on_press=lambda x: self.open_settings())
-        btn_quit.bind(on_press=lambda x: App.get_running_app().stop())
+            def on_touch(obj, touch):
+                if obj.collide_point(*touch.pos):
+                    obj._callback()
+                    return True
+                return False
+            lbl.bind(on_touch_down=on_touch)
+            return lbl
+
+        btn_start      = make_menu_label("PLAY", lambda: self.change_screen("char_select_screen"))
+        btn_leaderboard= make_menu_label("LEADERBOARD",    lambda: self.change_screen("leaderboard_screen"))
+        btn_settings   = make_menu_label("SETTINGS",       lambda: self.open_settings())
+        btn_quit       = make_menu_label("QUIT GAME",      lambda: App.get_running_app().stop(), is_quit=True)
 
         btn_layout.add_widget(btn_start)
         btn_layout.add_widget(btn_leaderboard)
@@ -158,12 +148,11 @@ class MainMenuScreen(Screen):
         btn_layout.add_widget(btn_quit)
 
         # --- [เก็บปุ่มลงใน List สำหรับจอย] ---
-        self.selectable_buttons.clear()  # Ensure no duplicate pointers from multiple inits
+        self.selectable_buttons.clear()
         self.selectable_buttons.append(btn_start)
         self.selectable_buttons.append(btn_leaderboard)
         self.selectable_buttons.append(btn_settings)
         self.selectable_buttons.append(btn_quit)
-        # --------------------------------
 
         menu_group.add_widget(title_label)
         menu_group.add_widget(btn_layout)
@@ -226,7 +215,10 @@ class MainMenuScreen(Screen):
             self.show_highlight = True
             self.update_highlight()
             if self.selectable_buttons:
-                self.selectable_buttons[self.selected_index].dispatch('on_press')
+                # เรียก callback ของ Label โดยตรง
+                lbl = self.selectable_buttons[self.selected_index]
+                if hasattr(lbl, '_callback'):
+                    lbl._callback()
             return True
         return False
 
@@ -246,22 +238,21 @@ class MainMenuScreen(Screen):
             self.update_highlight()
 
     def update_highlight(self):
-        for i, btn in enumerate(self.selectable_buttons):
-            # เช็คว่า Index ตรงกัน และ สถานะโชว์ Highlight ทำงานอยู่
-            if i == self.selected_index and self.show_highlight:
-                
-                # --- [ส่วนปรับสีตอน Highlight (เลือกอยู่)] ---
-                if btn.text == "QUIT GAME": # แก้ตรงนี้ให้ตรงกับข้อความบนปุ่มคุณ
-                    # ชี้ปุ่ม QUIT: ไฮไลท์สีแดง
-                    btn.background_color = (0.9, 0.2, 0.2, 1)
-                else:
-                    # ชี้ปุ่มอื่นๆ: ไฮไลท์สีฟ้าสว่าง
-                    btn.background_color = (0.3, 0.5, 0.7, 1) 
-                
+        for i, lbl in enumerate(self.selectable_buttons):
+            is_selected = (i == self.selected_index and self.show_highlight)
+            is_quit = getattr(lbl, '_is_quit', False)
+            base = getattr(lbl, '_base_color', (0.92, 0.96, 1.0, 1.0))
+            if is_selected:
+                # ไฮไลท์: เปลี่ยนสีตัวอักษรและเพิ่ม > อว < ด้านหน้า
+                lbl.color = (1.0, 1.0, 1.0, 1.0)
+                lbl.font_size = 48
+                lbl.text = f"> {lbl.text.lstrip('> ').rstrip()}"
             else:
-                # --- [ส่วนปรับสีปกติ (ตอนไม่ได้เลือก)] ---
-                # ทุกปุ่มรวมถึง QUIT จะเป็นสีเทามืดปกติ
-                btn.background_color = (0.1, 0.15, 0.2, 0.85)
+                lbl.color = base
+                lbl.font_size = 42
+                # ลบ > ออกถ้ามี
+                if lbl.text.startswith("> "):
+                    lbl.text = lbl.text[2:]
 
     def _reset_cooldown(self, dt):
         self.joy_cooldown = False
@@ -294,7 +285,9 @@ class MainMenuScreen(Screen):
         self.update_highlight()
         
         if buttonid == 0:  
-            self.selectable_buttons[self.selected_index].dispatch('on_press')
+            lbl = self.selectable_buttons[self.selected_index]
+            if hasattr(lbl, '_callback'):
+                lbl._callback()
         elif buttonid == 1:  
             self.go_back(None)
     # ==========================================
