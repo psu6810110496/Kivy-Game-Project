@@ -1,1 +1,10 @@
-[]
+[
+    {
+        "name": "Player",
+        "score": 805,
+        "character": "Lostman",
+        "time_survived": "01:04",
+        "level": 2,
+        "kills": 13
+    }
+]
