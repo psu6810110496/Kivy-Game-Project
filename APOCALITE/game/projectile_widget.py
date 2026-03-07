@@ -134,21 +134,51 @@ class RPGRocket(_Linear):
 
 
 class HealthPickup(Widget):
-    def __init__(self, pos=(0,0), heal_amount=25, texture_path=None, **kw):
-        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(28,28))
+    def __init__(self, pos=(0,0), heal_amount=25, size=(28,28), texture_path=None, **kw):
+        kw.setdefault('size_hint',(None,None)); kw.setdefault('size', size)
         super().__init__(**kw)
-        self.pos=pos; self.heal_amount=heal_amount; self.size=(28,28)
+        self.pos=pos; self.heal_amount=heal_amount; self.size=size
+        
+        # ปรับขนาดตัวหนังสือตามขนาดกล่อง
+        f_size = 10 if size[0] <= 16 else 16
+        
+        self.tex = None
+        if texture_path:
+            import os
+            # ลองหาในหลายๆ path root
+            for root_pre in ["", "APOCALITE/", "../", "../../"]:
+                full_path = os.path.join(root_pre, texture_path).replace('\\', '/')
+                if os.path.exists(full_path):
+                    try:
+                        self.tex = CoreImage(full_path).texture
+                        break
+                    except: pass
+
         with self.canvas:
-            Color(0.1,0.8,0.3,1)
-            self._rect=Rectangle(pos=self.pos, size=self.size)
-        self._lbl=Label(text="+",size_hint=(None,None),size=self.size,pos=self.pos,
-                        color=(1,1,1,1),bold=True,font_size=16)
-        self.add_widget(self._lbl)
+            if self.tex:
+                Color(1, 1, 1, 1)
+                self._rect = Rectangle(pos=self.pos, size=self.size, texture=self.tex)
+            else:
+                # Fallback: วาดกล่องสีถ้าไม่มี Texture
+                if heal_amount >= 30:
+                    Color(0, 1, 0.6, 1) # Cyan-Green for Large
+                else:
+                    Color(0, 1, 0.4, 1) # Standard Green
+                self._rect = Rectangle(pos=self.pos, size=self.size)
+            
+        # สร้าง Label เฉพาะกรณีที่ไม่มี Texture (กันรก) หรือจะโชว์ทับก็ได้
+        if not self.tex:
+            self._lbl = Label(text="+", size_hint=(None,None), size=self.size, pos=self.pos,
+                            color=(1,1,1,1), bold=True, font_size=f_size)
+            self.add_widget(self._lbl)
+        else:
+            self._lbl = None
+
         self.bind(pos=self._sync)
 
-    def _sync(self,i,v):
-        if hasattr(self,'_rect'): self._rect.pos=v
-        if hasattr(self,'_lbl'): self._lbl.pos=v
+    def _sync(self, i, v):
+        if hasattr(self, '_rect'): self._rect.pos = v
+        if self._lbl: self._lbl.pos = v
 
 
 class MagnetPickup(Widget):
@@ -191,24 +221,36 @@ class GlobalMagnetPickup(Widget):
 
 
 class ExpOrb(Widget):
-    """EXP orb ที่ drop จากศัตรู — ต้องเดินไปเก็บ"""
+    """EXP orb ที่ drop จากศัตรู — ขนาด 8x8 พร้อมแอนิเมชันสีรุ้ง (เหลือง-เขียว)"""
     def __init__(self, pos=(0,0), exp_amount=10, texture_path=None, **kw):
-        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(20,20))
+        kw.setdefault('size_hint',(None,None)); kw.setdefault('size',(8,8))
         super().__init__(**kw)
-        self.pos=pos; self.exp_amount=exp_amount; self.size=(20,20)
+        self.pos=pos; self.exp_amount=exp_amount; self.size=(8,8)
+        self._hue = 0.16 # เริ่มที่สีเหลือง
+        
         with self.canvas:
-            if texture_path:
-                try:
-                    tex=CoreImage(texture_path).texture
-                    Color(1,1,1,1)
-                    self._shape=Rectangle(pos=self.pos, size=self.size, texture=tex)
-                    self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
-                    return
-                except Exception:
-                    pass
-            Color(1,0.9,0.1,1)
-            self._shape=Ellipse(pos=self.pos, size=self.size)
+            self.color_inst = Color(1, 1, 0, 1) # Fallback RGB
+            # กำหนดเป็นสี่เหลี่ยมขนาด 2x2 (Pixel look)
+            self._shape = Rectangle(pos=self.pos, size=self.size)
+            
         self.bind(pos=lambda i,v: setattr(self._shape,'pos',v))
+        # สเกจูลให้เปลี่ยนสีทุกเฟรม
+        Clock.schedule_interval(self._update_rainbow, 1/30.0)
+
+    def _update_rainbow(self, dt):
+        # ขยับค่า Hue วนระหว่าง 0.15 (เหลือง) ถึง 0.40 (เขียว)
+        self._hue += 0.3 * dt
+        if self._hue > 0.40:
+            self._hue = 0.15
+            
+        # แปลง HSV เป็น RGB (ใช้ colorsys หรือ manual)
+        # เพื่อความง่ายและประสิทธิภาพ ใช้สูตรเปลี่ยนสีในย่าน เหลือง (1,1,0) -> เขียว (0,1,0)
+        # ช่วง hue 0.15 -> 0.40: R จะค่อยๆ ลดลงจาก 1 -> 0
+        r = max(0, min(1, 1.0 - (self._hue - 0.15) * 4.0)) 
+        self.color_inst.rgb = (r, 1.0, 0.1) # G=1, B=0.1 คงที่เพื่อให้ได้โทน เหลือง-เขียว
+
+    def on_expire(self):
+        Clock.unschedule(self._update_rainbow)
 
 
 class DinoProjectile(_Linear):

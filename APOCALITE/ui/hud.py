@@ -183,13 +183,34 @@ class Minimap(Widget):
                 ex, ey = enemy.pos
                 nx = self.x + (ex * scale_x)
                 ny = self.y + (ey * scale_y)
-                # Keep dots within minimap bounds
                 nx = max(self.x + 2, min(self.right - 2, nx))
                 ny = max(self.y + 2, min(self.top - 2, ny))
                 Ellipse(pos=(nx-1.5, ny-1.5), size=(3, 3))
 
-            # Draw Player (Green dot)
-            Color(0.2, 1, 0.3, 1)
+            # Draw EXP Orbs (Yellow dots)
+            Color(1, 1, 0.3, 0.7)
+            for orb in getattr(self.game, 'exp_orbs', []):
+                ox, oy = orb.pos
+                nx = self.x + (ox * scale_x)
+                ny = self.y + (oy * scale_y)
+                if self.x < nx < self.right and self.y < ny < self.top:
+                    Ellipse(pos=(nx-1, ny-1), size=(2, 2))
+
+            # Draw Dropped Items / Health (Cyan/Pink dots)
+            for item in getattr(self.game, 'dropped_items', []):
+                ix, iy = item.pos
+                nx = self.x + (ix * scale_x)
+                ny = self.y + (iy * scale_y)
+                if self.x < nx < self.right and self.y < ny < self.top:
+                    # 🌟 แยกสี: ถ้าเป็นเลือด (มี heal_amount) ให้เป็นสีเขียว ถ้าอย่างอื่นเป็น Cyan
+                    if hasattr(item, 'heal_amount'):
+                        Color(0, 1, 0.4, 1) # Green for Health
+                    else:
+                        Color(0.2, 0.9, 1, 0.9) # Cyan for magnets/others
+                    Ellipse(pos=(nx-2, ny-2), size=(4, 4))
+
+            # Draw Player (Blue dot)
+            Color(0, 0.6, 1, 1)
             px, py = getattr(self.game, 'player_pos', (2500, 2500))
             nx = self.x + (px * scale_x)
             ny = self.y + (py * scale_y)

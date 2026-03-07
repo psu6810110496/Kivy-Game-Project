@@ -933,7 +933,7 @@ def _show_cone_vfx(game, px, py, radius, angle_deg, spread_deg, anim_frames=None
 
 def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     if anim_frames:
-        _play_vfx_sprite(game, px, py, radius * 2, radius * 2, anim_frames, 0.08)
+        _play_vfx_sprite(game, px, py, radius * 2, radius * 2, anim_frames, 0.20)
         return
     ig = InstructionGroup()
     ig.add(Color(1, 1, 0, 0.6))
@@ -965,9 +965,14 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0):
 
 def _play_vfx_sprite(game, cx, cy, w, h, frames, duration=0.25):
     textures = []
-    for path in frames:
+    for item in frames:
+        # Check if item is already a texture (e.g. from engine.py self.slash_textures)
+        if hasattr(item, 'width') and hasattr(item, 'height'):
+            textures.append(item)
+            continue
         try:
-            textures.append(CoreImage(path).texture)
+            if isinstance(item, str):
+                textures.append(CoreImage(item).texture)
         except Exception:
             continue
     if not textures:
@@ -994,9 +999,13 @@ def _play_vfx_sprite(game, cx, cy, w, h, frames, duration=0.25):
 def _play_slash_circle_vfx(game, cx, cy, radius, frames, duration=0.25, blades=6):
     import math as _m
     textures = []
-    for path in frames:
+    for item in frames:
+        if hasattr(item, 'width') and hasattr(item, 'height'):
+            textures.append(item)
+            continue
         try:
-            textures.append(CoreImage(path).texture)
+            if isinstance(item, str):
+                textures.append(CoreImage(item).texture)
         except Exception:
             continue
     if not textures:

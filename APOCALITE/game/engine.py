@@ -313,22 +313,38 @@ class GameScreen(Screen):
 
     # ── Character attack effects ───────────────────────────
     def _load_attack_effects(self):
+        """โหลด Texture เอฟเฟกต์การโจมตี (Slash/Combo) ตามตัวละคร"""
+        import os
         self.slash_textures = []
-        if self.player_stats.name == "PTae":
-            for path in [f"assets/PTae/skill1/aoeptae0{i}.png" for i in range(1, 5)]:
-                try:
-                    self.slash_textures.append(CoreImage(path).texture)
-                except Exception:
-                    pass
-        if not self.slash_textures:
-            self._load_lostman_effects()
+        name = self.player_stats.name
+        
+        # Helper ในการลองโหลดจากหลายๆ Path root (กันหาไม่เจอเมื่อรันจากคนละโฟลเดอร์)
+        def try_load_set(paths):
+            for root_pre in ["", "APOCALITE/", "../", "../../"]:
+                batch = []
+                for p in paths:
+                    full_path = os.path.join(root_pre, p).replace('\\', '/')
+                    try:
+                        tex = CoreImage(full_path).texture
+                        if tex: batch.append(tex)
+                    except: pass
+                if batch: return batch
+            return []
 
-    def _load_lostman_effects(self):
-        for path in [f"assets/Lostman/skill1/axe_hit{i}.png" for i in range(1, 5)]:
-            try:
-                self.slash_textures.append(CoreImage(path).texture)
-            except Exception:
-                pass
+        if name == "PTae":
+            paths = [f"assets/PTae/skill1/aoeptae0{i}.png" for i in range(1, 5)]
+            self.slash_textures = try_load_set(paths)
+        elif name.lower() == "monkey":
+            # ลองหาใน M (ตัวใหญ่) ก่อน แล้วลอง m (ตัวเล็ก)
+            self.slash_textures = try_load_set([f"assets/Monkey/M/m{i}.png" for i in range(1, 6)])
+            if not self.slash_textures:
+                self.slash_textures = try_load_set([f"assets/Monkey/m/m{i}.png" for i in range(1, 6)])
+
+        # ถ้ายังไม่มี (หรือเป็น Lostman) ให้ใช้ของ Lostman เป็นตัวหลัก/ตัวสำรอง
+        if name == "Lostman" or not self.slash_textures:
+            paths = [f"assets/Lostman/skill1/axe_hit{i}.png" for i in range(1, 5)]
+            res = try_load_set(paths)
+            if res: self.slash_textures = res
 
     def _apply_audio_settings(self):
         """อัปเดตระดับเสียงตาม Settings"""
@@ -551,7 +567,18 @@ class GameScreen(Screen):
         # อัตราการดรอปเลือดอิงตาม settings
         health_rate = getattr(settings, 'health_drop_rate', 0.12)
         if r < health_rate:
-            heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
+            # ดึง Texture จาก PlayerStats
+            s_tex = getattr(self.player_stats, 'heal_small_tex', None)
+            l_tex = getattr(self.player_stats, 'heal_large_tex', None)
+
+            # 🌟 สุ่มว่าจะดรอปเลือด เล็ก หรือ ใหญ่ (80% เล็ก, 20% ใหญ่)
+            if random.random() < 0.2:
+                # แบบใหญ่ (Heal 30)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=30, size=(28, 28), texture_path=l_tex)
+            else:
+                # แบบเล็ก (Heal 15)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=15, size=(28, 28), texture_path=s_tex)
+            
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
         elif r < health_rate + 0.005:  # 0.5% chance for Global Magnet
@@ -779,8 +806,8 @@ class GameScreen(Screen):
         
         name = getattr(self.player_stats, "name", "")
         
-        # 🌟 พิเศษสำหรับ Lostman: ใช้แอนิเมชันรูปภาพการตี (skill1) แทนแบบปกติ
-        if name == "Lostman" and hasattr(self, "slash_textures") and self.slash_textures:
+        # 🌟 ใช้แอนิเมชันรูปภาพการตี ถ้ามี slash_textures (สำหรับ Lostman, Monkey และคนอื่นๆ)
+        if (name == "Lostman" or name == "Monkey" or name == "PTae") and hasattr(self, "slash_textures") and self.slash_textures:
             size_w = radius * 2.5
             size_h = radius * 2.5
             eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(cx - size_w/2, cy - size_h/2))
