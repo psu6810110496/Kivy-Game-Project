@@ -25,18 +25,24 @@ class CharacterSelectScreen(Screen):
                 idle_frames=["assets/PTae/PTIdle/PTTG1.png","assets/PTae/PTIdle/PTTG2.png"],
                 walk_frames=["assets/PTae/PTPushUp/PTaeTester1.png","assets/PTae/PTPushUp/PTaeTester2.png",
                              "assets/PTae/PTPushUp/PTaeTester3.png","assets/PTae/PTPushUp/PTaeTester4.png"],
+                heal_small_tex="assets/PTae/skill2/heal_s.png",
+                heal_large_tex="assets/PTae/skill2/heal_l.png",
             ),
             "Lostman": PlayerStats(
                 name="Lostman", hp=120, speed=4.5, damage=12,
                 idle_frames=["assets/Lostman/idle/idleman1.png","assets/Lostman/idle/idleman2.png"],
                 walk_frames=["assets/Lostman/walk/walk1.png","assets/Lostman/walk/walk2.png",
                              "assets/Lostman/walk/walk3.png","assets/Lostman/walk/walk4.png"],
+                heal_small_tex="assets/Lostman/skill3/heal_s.png",
+                heal_large_tex="assets/Lostman/skill3/heal_l.png",
             ),
             "Monkey": PlayerStats(
                 name="Monkey", hp=80, speed=6.0, damage=10,
                 idle_frames=["assets/Monkey/IdleM/IdleM01.png","assets/Monkey/IdleM/IdleM02.png"],
                 walk_frames=["assets/Monkey/WalkM/W01.png","assets/Monkey/WalkM/W02.png",
                              "assets/Monkey/WalkM/W03.png","assets/Monkey/WalkM/W04.png"],
+                heal_small_tex="assets/Monkey/Heal/Banana_s1.png",
+                heal_large_tex="assets/Monkey/Heal/Banana_s2.png",
             ),
         }
 

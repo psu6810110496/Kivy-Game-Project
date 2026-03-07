@@ -251,6 +251,8 @@ class WaveManager:
         Clock.schedule_once(lambda _: self.start_boss_intro(1, is_big=False, is_final=True), 0.1)
         # 🌟 Start spawning XP periodically for Wave 45
         Clock.schedule_interval(self._spawn_wave_45_xp, 5.0)
+        # 🌟 Start spawning Heal periodically for Wave 45
+        Clock.schedule_interval(self._spawn_wave_45_heal, 15.0)
 
     def _spawn_wave_45_xp(self, dt):
         """สุ่มเสก XP ให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
@@ -261,6 +263,23 @@ class WaveManager:
         for _ in range(random.randint(8, 12)):
             pos = self._get_valid_spawn_pos("normal", r_min=300, r_max=900)
             self.game.spawn_exp_orb(pos)
+        return True
+
+    def _spawn_wave_45_heal(self, dt):
+        """สุ่มเสกเลือดให้ผู้เล่นเก็บใน Wave 45 (Final Boss) ทุกๆ 15 วินาที"""
+        if self.current_wave != 45 or self.game.is_dead or not self.game.game_started:
+            return False # Stop interval
+            
+        # เสกเลือด 1-2 กล่องรอบตัวผู้เล่น
+        for _ in range(random.randint(1, 2)):
+            pos = self._get_valid_spawn_pos("normal", r_min=200, r_max=600)
+            # เผื่อว่า spawn_drop_item สุ่มไม่ติดเลือด เราจะบังคับเสก HealthPickup ผ่าน engine ทันที
+            from game.projectile_widget import HealthPickup
+            l_tex = getattr(self.game.player_stats, 'heal_large_tex', None)
+            # ปรับเป็น 30% ของเลือดสูงสุด
+            heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.30, size=(32, 32), texture_path=l_tex)
+            self.game.dropped_items.append(heal)
+            self.game.world_layout.add_widget(heal)
         return True
 
     def _apply_wave_scaling(self, enemy):

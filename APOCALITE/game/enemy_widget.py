@@ -9,8 +9,10 @@ from game.projectile_widget import EnemyProjectile
 
 
 # --- [ Class สำหรับตัวศัตรู ] ---
+from game.game_settings import settings
+
 class EnemyWidget(Widget):
-    SHOW_DEBUG_STATS = False # Global toggle for HP/ATK display
+    SHOW_DEBUG_STATS = settings.show_enemy_hp
     # โหลด texture ของศัตรูแต่ละประเภท (ใช้ร่วมกันทุก instance)
     # bosses may be updated by placing a file named boss.png in assets/enemy
     import os
@@ -104,7 +106,7 @@ class EnemyWidget(Widget):
             },
             "sniper": {
                 "hp": 60,
-                "speed": 0.5, # แทบไม่เดิน
+                "speed": 0.5,
                 "damage": 15,
                 "color": (0.4, 0.8, 0.9, 1), # 🩵 ฟ้าอ่อน
                 "size": (45, 45),
@@ -126,14 +128,14 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 50000, 
+                "hp": 10000, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),
                 "size": (180, 180),
             },
             "final_boss_clone": {
-                "hp": 5000,
+                "hp": 1000,
                 "speed": 0.2,
                 "damage": 30,
                 "color": (0.3, 0.1, 0.6, 0.6), # Semi-transparent
@@ -206,59 +208,114 @@ class EnemyWidget(Widget):
 
         vx, vy = 0, 0
 
+        self.time_counter += dt
+
+        # --- [ Smart Dodge Projectiles ] ---
+        # หลบกระสุนผู้เล่น (Dodge Logic) - ปรับให้หลบได้บ้างไม่ได้บ้างตามความฉลาด
+        dodge_vx, dodge_vy = 0, 0
+        if hasattr(self, "game") and self.game and self.game.player_bullets:
+            # กำหนดเกณฑ์การตัดสินใจหลบ (ยิ่งต่ำยิ่งฉลาด/หลบบ่อย)
+            # 10 คือไม่หลบเลย, 0 คือหลบทุกนัด
+            threshold = 6  # Default: 40% chance
+            if self.enemy_type == "stalker": threshold = 5    # 50%
+            elif self.enemy_type == "sniper": threshold = 4   # 60%
+            elif self.enemy_type == "ranger": threshold = 8   # 20%
+            elif self.enemy_type in ["normal", "bomber"]: threshold = 9 # 10%
+            elif self.enemy_type == "big_boss": threshold = 7 # 30%
+            elif self.enemy_type == "final_boss": threshold = 6 # 40%
+
+            for bullet in self.game.player_bullets:
+                bx, by = bullet.pos
+                dist_b = math.hypot(ex - bx, ey - by)
+                
+                # ระยะที่เริ่มมองเห็นกระสุน (140-180 ตามความฉลาด)
+                detect_range = 150 + (10 - threshold) * 5
+                
+                if dist_b < detect_range:
+                    # ใช้ id ผสมกันเพื่อให้ผลลัพธ์ "คงทัด" ต่อกระสุนลูกเดิม (ไม่ส่ายไปมา) 
+                    # แต่ "สุ่ม" ว่านัดนี้จะหลบพ้นไหม
+                    if (id(self) + id(bullet)) % 10 >= threshold:
+                        if hasattr(bullet, 'direction'):
+                            bdx, bdy = bullet.direction
+                            # เวกเตอร์ตั้งฉาก (Perpendicular)
+                            side = 1 if (ex-bx)*(-bdy) + (ey-by)*(bdx) > 0 else -1
+                            
+                            # ความแรงในการหลบ (ใส่ความ "เหวอ" เล็กน้อย)
+                            react_force = 1.2 + (id(self) % 5) * 0.1
+                            dodge_vx += (-bdy) * side * self.speed * react_force
+                            dodge_vy += (bdx) * side * self.speed * react_force
+            
+            # จำกัดความเร็วในการหลบไม่ให้พุ่งทะลุจอถ้ากระสุนเยอะ
+            max_d = self.speed * 2.0
+            mag_d = math.hypot(dodge_vx, dodge_vy)
+            if mag_d > max_d:
+                dodge_vx = (dodge_vx / mag_d) * max_d
+                dodge_vy = (dodge_vy / mag_d) * max_d
+
         # --- [ AI Logic ] ---
         if self.enemy_type == "ranger":
-            # ระยะปลอดภัยของ Ranger (Kiting)
-            if dist > 450:  # ไกลไปให้เดินเข้าหา
+            # ระยะปลอดภัยของ Ranger (Kiting + Side Strafe)
+            if dist > 450:
                 vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
-            elif dist < 250:  # ใกล้ไปให้เดินหนี (ถอยหลังยิง)
+            elif dist < 250:
                 vx, vy = -(dx / dist) * self.speed, -(dy / dist) * self.speed
+            
+            # เพิ่ม Orbiting movement (เดินวนรอบผู้เล่นเล็กน้อย)
+            if dist > 0:
+                vx += (-dy / dist) * self.speed * 0.4 * math.sin(self.time_counter * 3)
+                vy += (dx / dist) * self.speed * 0.4 * math.sin(self.time_counter * 3)
 
-            self.attack_cooldown -= 1 / 60.0
+            self.attack_cooldown -= dt
             if dist < 600 and self.attack_cooldown <= 0:
                 self.shoot(player_pos)
                 self.attack_cooldown = self.shoot_delay
 
+        elif self.enemy_type == "stalker":
+            # Stalker: วิ่งเข้าหาแบบ Fast Orbit (เดินวนพุ่งเข้าหา)
+            if dist > 0:
+                # 70% พุ่งเข้าหา, 50% วนข้าง
+                vx = (dx / dist) * self.speed * 0.8
+                vy = (dy / dist) * self.speed * 0.8
+                orbit_dir = 1 if id(self) % 2 == 0 else -1
+                vx += (-dy / dist) * self.speed * 0.7 * orbit_dir
+                vy += (dx / dist) * self.speed * 0.7 * orbit_dir
+            
         elif self.enemy_type == "sniper":
-            self.sniper_cooldown -= 1 / 60.0
+            self.sniper_cooldown -= dt
             if self.sniper_cooldown <= 0:
                 self.shoot_sniper(player_pos)
                 self.sniper_cooldown = 2.0
-            # Sniper แทบไม่เดิน (speed = 0.5)
+            # Sniper หลบกระสุนอย่างเดียว
+            vx, vy = dodge_vx * 0.3, dodge_vy * 0.3
 
         elif self.enemy_type == "charger":
-            self.charge_timer -= 1 / 60.0
+            self.charge_timer -= dt
             if self.is_charging:
-                self.charge_duration -= 1 / 60.0
+                self.charge_duration -= dt
                 vx, vy = self.charge_dir[0] * self.speed * 4, self.charge_dir[1] * self.speed * 4
                 if self.charge_duration <= 0:
                     self.is_charging = False
-                    self.color_inst.rgba = (1.0, 0.5, 0.0, 1) # กลับมาสีส้มปกติ
+                    self.color_inst.rgba = (1.0, 0.5, 0.0, 1)
             else:
                 if dist > 0:
                     vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
                 if self.charge_timer <= 0 and dist < 700:
                     self.charge_timer = self.charge_cooldown
-                    # ไฮไลต์เหลือง/ขาวก่อนพุ่ง
                     self.color_inst.rgba = (1.0, 1.0, 0.8, 1)
-                    # เก็บ vector ไปหาผู้เล่นไว้พุ่งตรงๆ
                     if dist > 0:
                         self.charge_dir = (dx / dist, dy / dist)
-                    # ร่ายชาร์จ 1 วิ ก่อนพุ่ง
                     Clock.schedule_once(lambda dt: self._start_charge_dash(), 1.0)
 
         elif self.enemy_type == "shielder":
-            self.time_counter += dt
             if not self.has_shield:
-                self.speed = 4.5 # Enrage (วิ่งเร็วมาก)
-                self.color_inst.rgba = (1, 0, 0, 1) # กลายเป็นสีแดง
+                self.speed = 4.5 
+                self.color_inst.rgba = (1, 0, 0, 1)
                 if dist > 0:
-                    # เดินหาแบบซิกแซ็ก (Zigzag)
+                    # Zigzag แบบดุเดือดขึ้น
                     vx = (dx / dist) * self.speed
                     vy = (dy / dist) * self.speed
-                    # เพิ่มทิศทางตั้งฉากเพื่อทำซิกแซ็ก
-                    z_freq = 12.0
-                    z_mag = 4.0
+                    z_freq = 15.0
+                    z_mag = 6.0
                     vx += (-dy / dist) * math.sin(self.time_counter * z_freq) * z_mag
                     vy += (dx / dist) * math.sin(self.time_counter * z_freq) * z_mag
             else:
@@ -268,38 +325,42 @@ class EnemyWidget(Widget):
         elif self.enemy_type == "bomber":
             if dist > 0:
                 vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                # Bomber แอบหลบข้างๆ เล็กน้อย
+                vx += (-dy / dist) * self.speed * 0.3 * math.cos(self.time_counter * 5)
+                vy += (dx / dist) * self.speed * 0.3 * math.cos(self.time_counter * 5)
             if dist < 45:
-                # ระเบิดทันทีหากโดนตัวผู้เล่น
                 self._explode_bomber()
 
         else:
-            # Normal & Stalker: วิ่งเข้าหาตรงๆ
+            # Normal: วิ่งเข้าหาปกติ แต่มีการส่ายตัว (Wavering)
             if dist > 0:
-                vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                vx = (dx / dist) * self.speed
+                vy = (dy / dist) * self.speed
+                vx += (-dy / dist) * self.speed * 0.2 * math.sin(self.time_counter * 4)
+                vy += (dx / dist) * self.speed * 0.2 * math.sin(self.time_counter * 4)
+
+        # รวมแรงหลบกระสุนเข้าไปด้วย (Priority สูง)
+        vx += dodge_vx
+        vy += dodge_vy
 
         # --- [ Big boss special behavior ] ---
         if self.enemy_type == "big_boss":
-            # always move toward player
             if dist > 0:
                 vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
 
-            # decrement cooldowns (approximate dt=1/60)
-            dec = 1.0 / 60.0
+            dec = dt
             self.slam_cooldown -= dec
             self.swipe_cooldown -= dec
             self.missile_cooldown -= dec
 
-            # slam when close
             if self.slam_cooldown <= 0 and dist < 300:
                 self.do_slam()
                 self.slam_cooldown = random.uniform(4.0, 6.0)
 
-            # swipe attack periodically
             if self.swipe_cooldown <= 0:
                 self.do_swipe(player_pos)
                 self.swipe_cooldown = random.uniform(3.0, 5.0)
 
-            # missile barrage periodically
             if self.missile_cooldown <= 0:
                 self.do_missile(player_pos)
                 self.missile_cooldown = random.uniform(4.0, 6.0)
@@ -308,22 +369,18 @@ class EnemyWidget(Widget):
         if self.enemy_type == "final_boss":
             self.final_attack_timer -= dt
             
-            # Phase Change
             if self.final_phase == 1 and self.hp < self.max_hp * 0.5:
                 self.final_phase = 2
                 self.speed = 5.0
-                self.color_inst.rgba = (0.8, 0.0, 0.2, 1) # Dark Red
-                self.final_attack_timer = 3.0 # Immediate reset
+                self.color_inst.rgba = (0.8, 0.0, 0.2, 1)
+                self.final_attack_timer = 3.0
 
-            # Move
             if not self.final_is_acting:
                 if dist > 0:
                     vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
 
-            # Attack Patterns
             if self.final_attack_timer <= 0:
                 if self.final_phase == 1:
-                    # Phase 1: Spiral -> Beam -> Spawn Clones
                     if self.final_attack_index == 0:
                         self.do_final_spiral()
                         self.final_attack_timer = 6.0
@@ -332,14 +389,13 @@ class EnemyWidget(Widget):
                         self.final_attack_timer = 6.0
                     else:
                         self.do_final_clones()
-                        self.final_attack_timer = 8.0 # Longer delay for clones
+                        self.final_attack_timer = 8.0
                     
                     self.final_attack_index = (self.final_attack_index + 1) % 3
                 else:
-                    # Phase 2: Systematic Pattern (+ Lethal Homing if ready)
                     if self.lethal_cooldown <= 0:
                         self.do_final_lethal_homing()
-                        self.lethal_cooldown = 30.0 # 30s cooldown
+                        self.lethal_cooldown = 30.0
                     
                     if self.final_attack_index == 0:
                         self.do_final_spiral()
@@ -357,7 +413,6 @@ class EnemyWidget(Widget):
                     
                     self.final_attack_index = (self.final_attack_index + 1) % 5
             
-            # Update cooldowns
             self.lethal_cooldown -= dt
 
         # --- [ Separation (ไม่ให้ทับกัน) ] ---

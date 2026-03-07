@@ -9,6 +9,8 @@ class PlayerStats:
         skill_loadout: list | None = None,
         size: tuple = (64, 64),
         melee_cooldown: float = 0.5,
+        heal_small_tex: str = "",
+        heal_large_tex: str = "",
     ):
         self.name = name
         self.hp = hp
@@ -17,6 +19,8 @@ class PlayerStats:
         self.damage = damage
         self.size = size
         self.melee_cooldown = melee_cooldown   # ใช้ใน engine.perform_melee_attack
+        self.heal_small_tex = heal_small_tex
+        self.heal_large_tex = heal_large_tex
         self.idle_frames = idle_frames
         self.walk_frames = walk_frames
         self.skill_loadout = skill_loadout

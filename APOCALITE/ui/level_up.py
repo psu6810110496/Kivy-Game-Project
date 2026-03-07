@@ -192,7 +192,7 @@ class LevelUpPopup(ModalView):
         v = value / 32767.0
         if abs(v) > 0.5:
             if getattr(self, '_axis_cooldown', False): return
-            if axisid == 0:
+            if axisid == 0 or axisid == 1:
                 if v > 0:
                     self.selected_idx = (self.selected_idx + 1) % len(self.cards)
                 else:
@@ -200,6 +200,15 @@ class LevelUpPopup(ModalView):
                 self._update_highlight()
                 self._axis_cooldown = True
                 Clock.schedule_once(lambda dt: setattr(self, '_axis_cooldown', False), 0.2)
+
+    def _on_joy_hat(self, win, stickid, hatid, value):
+        x, y = value
+        if x == 1 or y == -1: 
+            self.selected_idx = (self.selected_idx + 1) % len(self.cards)
+            self._update_highlight()
+        elif x == -1 or y == 1:
+            self.selected_idx = (self.selected_idx - 1) % len(self.cards)
+            self._update_highlight()
                 
     def _on_joy_button(self, win, stick, buttonid):
         if buttonid == 0:

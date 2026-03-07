@@ -5,9 +5,11 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.app import App
 from kivy.animation import Animation
+from kivy.uix.textinput import TextInput
+from game.score_manager import ScoreManager
 
 class GameOverPopup(Popup):
-    def __init__(self, win=False, **kwargs):
+    def __init__(self, win=False, game_screen=None, **kwargs):
         super().__init__(**kwargs)
         self.title = ""
         self.separator_height = 0
@@ -23,12 +25,32 @@ class GameOverPopup(Popup):
         self.menu_btn = None
         self.retry_btn = None
         self.die_label = None
+        self.score_label = None
         # สำหรับ Navigation ด้วยจอย
         self.selectable_buttons = []
         self.selected_index = 0
         self.show_highlight = False
         self.joy_cooldown = False
         self.win = win
+        
+        # --- Score calculation ---
+        self.score = 0
+        self.character = "Unknown"
+        self.time_survived = 0.0
+        self.level = 1
+        self.kills = 0
+        
+        if game_screen:
+            self.time_survived = getattr(game_screen, "play_time", 0.0)
+            self.kills = getattr(game_screen, "total_kills", 0)
+            if game_screen.player_stats:
+                self.level = getattr(game_screen.player_stats, "level", 1)
+                self.character = getattr(game_screen.player_stats, "name", "Unknown")
+            
+            # Formula: (Time x 10) + (kills x 5) + (level x 50)
+            self.score = int(self.time_survived * 10) + (self.kills * 5) + (self.level * 50)
+            if win:
+                self.score += 5000
 
         # Bind อีเวนต์ตอน Popup เปิด/ปิด
         self.bind(on_open=self._on_open, on_dismiss=self._remove_joy)
@@ -36,7 +58,7 @@ class GameOverPopup(Popup):
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         
         # ข้อความแจ้งเตือน
-        text = "VICTORY!" if win else "YOU DIED"
+        text = "THANKS FOR PLAYING!" if win else "YOU DIED"
         color = (0, 1, 0, 1) if win else (1, 0, 0, 1) # Green = Win, Red = Die
 
         die_label = Label(
@@ -48,9 +70,28 @@ class GameOverPopup(Popup):
         die_label.opacity = 0  # ให้ค่อย ๆ โผล่ทีหลัง
         self.die_label = die_label
         
+        # --- Stats Label ---
+        mins, secs = divmod(int(self.time_survived), 60)
+        time_str = f"{mins:02d}:{secs:02d}"
+        score_text = f"Time: {time_str} | Kills: {self.kills} | Lvl: {self.level}\nTOTAL SCORE: {self.score}"
+        self.score_label = Label(text=score_text, font_size=24, color=(1,1,1,1), halign="center")
+        self.score_label.opacity = 0
+
+        # --- Name Input ---
+        self.name_input = TextInput(
+            hint_text="Enter Name",
+            font_size=24,
+            size_hint=(None, None),
+            size=(250, 45),
+            pos_hint={'center_x': 0.5},
+            multiline=False,
+            halign="center"
+        )
+        self.name_input.opacity = 0
+
         # ปุ่ม Try Again -> เปลี่ยนเป็น Label แบบ "ลอย" (ใช้ฟอนต์เหมือน PausePopup)
         retry_lbl = Label(
-            text="TRY AGAIN",
+            text="TRY AGAIN (Don't Save)",
             font_size=30,
             bold=True,
             size_hint_y=None,
@@ -67,7 +108,7 @@ class GameOverPopup(Popup):
 
         # ปุ่มกลับหน้าเมนู -> ใช้ Label ด้วย
         menu_lbl = Label(
-            text="BACK TO MENU",
+            text="SAVE & BACK TO MENU",
             font_size=30,
             bold=True,
             size_hint_y=None,
@@ -75,23 +116,52 @@ class GameOverPopup(Popup):
             color=(1, 1, 1, 1),
         )
         menu_lbl.opacity = 0
-        menu_lbl.callback = self.return_to_menu
+        menu_lbl.callback = self.save_and_return_to_menu
         menu_lbl.bind(on_touch_down=self._on_label_pressed)
         self.menu_btn = menu_lbl
         self.selectable_buttons.append(menu_lbl)
 
+        # ปุ่มกลับหน้าเมนูแบบไม่เซฟ
+        no_save_menu_lbl = Label(
+            text="BACK TO MENU (Don't Save)",
+            font_size=30,
+            bold=True,
+            size_hint_y=None,
+            height=50,
+            color=(1, 1, 1, 1),
+        )
+        no_save_menu_lbl.opacity = 0
+        no_save_menu_lbl.callback = self.back_to_menu_no_save
+        no_save_menu_lbl.bind(on_touch_down=self._on_label_pressed)
+        self.no_save_menu_btn = no_save_menu_lbl
+        self.selectable_buttons.append(no_save_menu_lbl)
+
         layout.add_widget(die_label)
+        layout.add_widget(self.score_label)
+        layout.add_widget(self.name_input)
         layout.add_widget(retry_lbl)
         layout.add_widget(menu_lbl)
+        layout.add_widget(no_save_menu_lbl)
         self.content = layout
 
-    def return_to_menu(self, instance):
+    def save_and_return_to_menu(self, instance):
+        name = self.name_input.text.strip()
+        if not name:
+            name = "Player"
+            
+        mins, secs = divmod(int(self.time_survived), 60)
+        time_str = f"{mins:02d}:{secs:02d}"
+            
+        ScoreManager.save_score(name, self.score, self.character, time_str, self.level, self.kills)
+        
         self.dismiss()
-        # ถ้าชนะ ให้ไปที่ credits_screen ถ้าแพ้ไป main_menu
-        if getattr(self, "win", False):
-            App.get_running_app().root.current = "credits_screen"
-        else:
-            App.get_running_app().root.current = "main_menu"
+        # 🌟 ไปที่ main_menu เสมอ (ไม่วนกลับ credits_screen)
+        App.get_running_app().root.current = "main_menu"
+
+    def back_to_menu_no_save(self, instance):
+        """กลับหน้าเมนูโดยไม่บันทึกคะแนน"""
+        self.dismiss()
+        App.get_running_app().root.current = "main_menu"
 
     def try_again(self, instance):
         """เริ่มเกมใหม่ทันทีด้วยตัวละครเดิม"""
@@ -99,15 +169,20 @@ class GameOverPopup(Popup):
         sm = app.root
         game_screen = sm.get_screen("game_screen")
 
-        # รีเซ็ตสถานะ GameScreen คล้ายตอนเข้าใหม่
+        # รีเซ็ต Player
         if hasattr(app, "current_player") and app.current_player:
             app.current_player.reset()
 
-        # เรียก on_enter ของ GameScreen เพื่อเซ็ตทุกอย่างใหม่
+        # รีเซ็ต GameScreen state
         game_screen.on_leave()
         game_screen.on_enter()
 
         self.dismiss()
+
+        # 🌟 เปลี่ยน Screen ไป game_screen เพื่อให้หน้าดำหายไป
+        def _switch(dt):
+            sm.current = "game_screen"
+        Clock.schedule_once(_switch, 0.1)
 
     # ================================
     # --- อนิเมชัน & รองรับจอย ---
@@ -144,8 +219,11 @@ class GameOverPopup(Popup):
             buttons_anim = Animation(opacity=1.0, d=0.3)
 
             def start_buttons_anim(*_):
+                buttons_anim.start(self.score_label)
+                buttons_anim.start(self.name_input)
                 buttons_anim.start(self.retry_btn)
                 buttons_anim.start(self.menu_btn)
+                buttons_anim.start(self.no_save_menu_btn)
 
             if self.die_label:
                 title_anim.bind(on_complete=start_buttons_anim)
@@ -162,6 +240,11 @@ class GameOverPopup(Popup):
 
     # --- [ระบบ Keyboard WASD + Space] ---
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
+        # 🌟 ถ้ากำลังพิมพ์ชื่ออยู่ ให้ Keyboard ทำงานปกติ (พิมพ์ตัวอักษร)
+        # ไม่ให้ WASD/Space มาเลื่อนปุ่ม
+        if self.name_input.focus:
+            return False
+
         if key == 119 or key == 97: # W or A
             self._navigate("prev")
             return True
@@ -186,7 +269,7 @@ class GameOverPopup(Popup):
             if hasattr(btn, "callback") and btn.callback:
                 btn.callback(btn)
         elif buttonid == 1 and self.menu_btn:
-            self.return_to_menu(self.menu_btn)
+            self.save_and_return_to_menu(self.menu_btn)
 
     # -------------------------
     # Navigation ด้วยอนาล็อก / D-Pad

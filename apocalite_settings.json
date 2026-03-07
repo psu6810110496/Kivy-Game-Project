@@ -1,0 +1,28 @@
+{
+  "music_volume": 0.6,
+  "sfx_volume": 0.6,
+  "fullscreen": false,
+  "camera_shake": true,
+  "show_damage_numbers": true,
+  "show_enemy_hp": true,
+  "health_drop_rate": 0.45,
+  "screen_shake_intensity": 1.0,
+  "key_bindings": {
+    "move_up": "w",
+    "move_down": "s",
+    "move_left": "a",
+    "move_right": "d",
+    "dash": "space",
+    "skill1": "q",
+    "skill2": "e",
+    "skill3": "lmb",
+    "pause": "escape"
+  },
+  "joy_bindings": {
+    "dash": "5",
+    "skill1": "2",
+    "skill2": "3",
+    "skill3": "4",
+    "pause": "7"
+  }
+}

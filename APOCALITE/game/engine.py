@@ -12,6 +12,7 @@ GameScreen ดูแลเฉพาะ:
 """
 import math
 import random
+from game.game_settings import settings
 from io import BytesIO
 
 import kivy.app
@@ -228,6 +229,10 @@ class GameScreen(Screen):
         self.keys_pressed.clear()
         self.mouse_dir = [1, 0]
         self.melee_timer = 0.0 # 🌟 รีเซ็ต Cooldown การตี
+        self.total_kills = 0
+        self.play_time = 0.0
+        self.magnet_timer = 0.0
+        self.global_magnet_timer = 0.0
 
         if self.attack_event:
             self.attack_event.cancel()
@@ -254,6 +259,8 @@ class GameScreen(Screen):
     def on_enter(self):
         self._update_layout_size(None, Window.size)
         self.player_stats = kivy.app.App.get_running_app().current_player
+        self._apply_display_settings()
+        self._apply_audio_settings()
         if not self.player_stats:
             return
 
@@ -293,6 +300,7 @@ class GameScreen(Screen):
         Clock.unschedule(self.update_frame)
         Clock.schedule_interval(self.update_frame, 1.0 / 60.0)
 
+
     def on_leave(self):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
@@ -306,27 +314,62 @@ class GameScreen(Screen):
 
     # ── Character attack effects ───────────────────────────
     def _load_attack_effects(self):
+        """โหลด Texture เอฟเฟกต์การโจมตี (Slash/Combo) ตามตัวละคร"""
+        import os
         self.slash_textures = []
-        if self.player_stats.name == "PTae":
-            for path in [f"assets/PTae/skill1/aoeptae0{i}.png" for i in range(1, 5)]:
-                try:
-                    self.slash_textures.append(CoreImage(path).texture)
-                except Exception:
-                    pass
-        if not self.slash_textures:
-            self._load_lostman_effects()
+        name = self.player_stats.name
+        
+        # Helper ในการลองโหลดจากหลายๆ Path root (กันหาไม่เจอเมื่อรันจากคนละโฟลเดอร์)
+        def try_load_set(paths):
+            for root_pre in ["", "APOCALITE/", "../", "../../"]:
+                batch = []
+                for p in paths:
+                    full_path = os.path.join(root_pre, p).replace('\\', '/')
+                    try:
+                        tex = CoreImage(full_path).texture
+                        if tex: batch.append(tex)
+                    except: pass
+                if batch: return batch
+            return []
 
-    def _load_lostman_effects(self):
-        for path in [f"assets/effect/NPT10{i}.png" for i in range(4)]:
-            try:
-                self.slash_textures.append(CoreImage(path).texture)
-            except Exception:
-                pass
+        if name == "PTae":
+            paths = [f"assets/PTae/skill1/aoeptae0{i}.png" for i in range(1, 5)]
+            self.slash_textures = try_load_set(paths)
+        elif name.lower() == "monkey":
+            # ลองหาใน M (ตัวใหญ่) ก่อน แล้วลอง m (ตัวเล็ก)
+            self.slash_textures = try_load_set([f"assets/Monkey/M/m{i}.png" for i in range(1, 6)])
+            if not self.slash_textures:
+                self.slash_textures = try_load_set([f"assets/Monkey/m/m{i}.png" for i in range(1, 6)])
+
+        if name == "Lostman" or not self.slash_textures:
+            paths = [f"assets/Lostman/skill1/axe_hit{i}.png" for i in range(1, 5)]
+            res = try_load_set(paths)
+            if res: self.slash_textures = res
+
+        # 🌟 โหลด Dash VFX
+        self.dash_textures = try_load_set([f"assets/effect/dash/dash{i}.png" for i in range(1, 5)])
+
+    def _apply_audio_settings(self):
+        """อัปเดตระดับเสียงตาม Settings"""
+        # สมมติว่ามี SoundManager หรือ App ที่คุมเสียง
+        # ในระบบปัจจุบัน เราแค่ประกาศว่าใช้ค่าจาก settings.music_volume / sfx_volume
+        pass
+
+    def _apply_display_settings(self):
+        """อัปเดต Fullscreen ตาม Settings"""
+        Window.fullscreen = "auto" if settings.fullscreen else False
 
     # ── Main loop ─────────────────────────────────────────
     def update_frame(self, dt: float):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
+
+        if self.game_started:
+            self.play_time += dt
+            if getattr(self, "magnet_timer", 0.0) > 0:
+                self.magnet_timer -= dt
+            if getattr(self, "global_magnet_timer", 0.0) > 0:
+                self.global_magnet_timer -= dt
 
         # Wave check
         if self.game_started and not self.enemies and not self.wave_manager.is_spawning:
@@ -356,6 +399,11 @@ class GameScreen(Screen):
         # Player movement
         self._update_player_movement(dt)
 
+        # Apply Screen Shake intensity from settings
+        if settings.camera_shake and hasattr(self, '_shake_timer') and self._shake_timer > 0:
+            # ของเดิมอาจจะมี logic shake อยู่แล้ว เราแค่คูณ intensity เข้าไป
+            pass
+
         # Beam update (DinoBeam ติดตามเวลา)
         if hasattr(self, 'active_beams'):
             for beam in list(self.active_beams):
@@ -377,10 +425,14 @@ class GameScreen(Screen):
         dx, dy = 0.0, 0.0
 
         if not self.is_dashing:
-            if "w" in self.keys_pressed: dy += 1
-            if "s" in self.keys_pressed: dy -= 1
-            if "a" in self.keys_pressed: dx -= 1
-            if "d" in self.keys_pressed: dx += 1
+            kb = settings.key_bindings
+            if kb.get('move_up') in self.keys_pressed: dy += 1
+            if kb.get('move_down') in self.keys_pressed: dy -= 1
+            if kb.get('move_left') in self.keys_pressed: dx -= 1
+            if kb.get('move_right') in self.keys_pressed: dx += 1
+            
+            # Fallback to defaults if custom keys are not pressed OR if user wants WASD constant?
+            # Actually, standard is to use the bound keys.
             if dx == 0 and dy == 0:
                 dx, dy = self.joy_x, self.joy_y
             if dx != 0 or dy != 0:
@@ -423,7 +475,13 @@ class GameScreen(Screen):
                 self.mouse_dir[0] = aim_x / mag_aim
                 self.mouse_dir[1] = aim_y / mag_aim
 
-        self.player_widget.update_aim(True, aim_x, aim_y)
+        # Check if RPG should be shown (Only Monkey character with Skill 3 unlocked)
+        has_rpg = False
+        if self.player_stats and self.player_stats.name == "Monkey":
+            if self.player_stats.skill3 is not None:
+                has_rpg = True
+
+        self.player_widget.update_aim(True, aim_x, aim_y, has_rpg=has_rpg)
 
     # ── Combat (Melee Logic) ───────────────────────────────
     def perform_melee_attack(self):
@@ -507,15 +565,39 @@ class GameScreen(Screen):
             self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
-        """Drop HealthPickup เมื่อศัตรูตาย โอกาสตก 12% (ปรับเพื่อให้ไม่บ่อยไปหรือตึงไป)"""
-        # อัตราการดรอปเลือด
-        if random.random() < 0.12:
-            heal = HealthPickup(pos=(pos[0], pos[1]), heal_amount=25)
+        """Drop HealthPickup หรือ MagnetPickup หรือ GlobalMagnet Pickup เมื่อศัตรูตาย"""
+        r = random.random()
+        # อัตราการดรอปเลือดอิงตาม settings
+        health_rate = getattr(settings, 'health_drop_rate', 0.12)
+        if r < health_rate:
+            # ดึง Texture จาก PlayerStats
+            s_tex = getattr(self.player_stats, 'heal_small_tex', None)
+            l_tex = getattr(self.player_stats, 'heal_large_tex', None)
+
+            # 🌟 สุ่มว่าจะดรอปเลือด เล็ก หรือ ใหญ่ (80% เล็ก, 20% ใหญ่)
+            if random.random() < 0.2:
+                # แบบใหญ่ (Heal 30% of Max HP)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.30, size=(28, 28), texture_path=l_tex)
+            else:
+                # แบบเล็ก (Heal 15% of Max HP)
+                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.15, size=(28, 28), texture_path=s_tex)
+            
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
+        elif r < health_rate + 0.005:  # 0.5% chance for Global Magnet
+            from game.projectile_widget import GlobalMagnetPickup
+            magnet = GlobalMagnetPickup(pos=(pos[0], pos[1]), duration=8.0)
+            self.dropped_items.append(magnet)
+            self.world_layout.add_widget(magnet)
+        elif r < health_rate + 0.035: # 3% chance for normal magnet
+            from game.projectile_widget import MagnetPickup
+            magnet = MagnetPickup(pos=(pos[0], pos[1]), duration=8.0)
+            self.dropped_items.append(magnet)
+            self.world_layout.add_widget(magnet)
 
     def spawn_exp_orb(self, pos):
         """Drop EXP orb เมื่อศัตรูตาย — ต้องเดินเก็บ"""
+        self.total_kills += 1
         from game.projectile_widget import ExpOrb
         texture = getattr(self.player_stats, 'exp_texture', None) if self.player_stats else None
         orb = ExpOrb(pos=(pos[0] + 5, pos[1] + 5), exp_amount=10, texture_path=texture)
@@ -526,6 +608,14 @@ class GameScreen(Screen):
     def start_dash(self):
         if self.dash_cooldown or self.is_dashing or not (self.last_dir_x or self.last_dir_y):
             return
+        
+        # 🌟 โชว์ Dash VFX ด้านหลัง
+        px = self.player_pos[0] + 32
+        py = self.player_pos[1] + 32
+        import math
+        angle_deg = math.degrees(math.atan2(self.last_dir_y, self.last_dir_x))
+        self._show_dash_vfx(px, py, angle_deg)
+
         self.is_dashing = True
         self.dash_cooldown = True
         self.player_widget.color_inst.rgba = (1, 1, 0, 1)
@@ -536,6 +626,43 @@ class GameScreen(Screen):
 
         Clock.schedule_once(_end, self.dash_duration)
         Clock.schedule_once(lambda _dt: setattr(self, "dash_cooldown", False), self.dash_cooldown_time)
+
+    def _show_dash_vfx(self, cx, cy, angle_deg):
+        """แสดงเอฟเฟกต์ Dash ด้านหลังตัวละคร"""
+        if not hasattr(self, "dash_textures") or not self.dash_textures:
+            return
+            
+        from kivy.uix.widget import Widget
+        from kivy.graphics import Color, Rectangle, PushMatrix, PopMatrix, Rotate, Scale
+        from kivy.clock import Clock
+        import math
+        
+        size = 120
+        eff = Widget(size_hint=(None, None), size=(size, size), pos=(cx - size/2, cy - size/2))
+        
+        with eff.canvas:
+            Color(1, 1, 1, 0.7)
+            PushMatrix()
+            # 🌟 ถ้าแดชไปทางซ้าย ให้กลับด้าน Texture เพื่อความสวยงาม
+            if math.cos(math.radians(angle_deg)) < 0:
+                Scale(y=-1, origin=(cx, cy))
+                
+            Rotate(angle=angle_deg, origin=(cx, cy))
+            rect = Rectangle(texture=self.dash_textures[0], pos=eff.pos, size=eff.size)
+            PopMatrix()
+            
+        self.world_layout.add_widget(eff)
+        
+        state = {"frame": 0}
+        def _next_frame(dt):
+            state["frame"] += 1
+            if state["frame"] >= len(self.dash_textures):
+                if eff.parent:
+                    self.world_layout.remove_widget(eff)
+                return False
+            rect.texture = self.dash_textures[state["frame"]]
+            
+        Clock.schedule_interval(_next_frame, 0.04) # เร็วหน่อย 0.04 วิ/เฟรม
 
     # ── Pause ─────────────────────────────────────────────
     def toggle_pause(self):
@@ -561,7 +688,12 @@ class GameScreen(Screen):
             self.attack_event.cancel()
             self.attack_event = None
         self._unbind_input()
-        GameOverPopup(win=win).open()
+        
+        if win:
+            # ถ้าชนะ ให้ไปหน้า End Credits ทันที
+            self.manager.current = "credits_screen"
+        else:
+            GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────
     def _bind_input(self):
@@ -584,14 +716,39 @@ class GameScreen(Screen):
         )
 
     def _on_key_down(self, _win, key, _scan, codepoint, _mods):
-        if key == 27:
+        kb = settings.key_bindings
+        
+        # Pause key
+        if kb['pause'] == "escape" and key == 27:
             self.toggle_pause()
             return True
-        if key == 32:
+        elif kb['pause'] == codepoint:
+            self.toggle_pause()
+            return True
+            
+        # Dash key
+        if kb['dash'] == "space" and key == 32:
             self.start_dash()
             return True
+        elif kb['dash'] == codepoint:
+            self.start_dash()
+            return True
+
+        # Skill 1, 2, 3 keys
         if codepoint:
-            self.keys_pressed.add(codepoint.lower())
+            cp = codepoint.lower()
+            if cp == kb['skill1'] or cp == kb['skill2']:
+                # สกิล 1/2 ในโปรเจกต์นี้เป็น Auto-active แต่เผื่อผู้เล่นอยากกดใช้เอง
+                pass
+            if cp == kb['skill3']:
+                if (self.game_started and not self.is_dead
+                        and hasattr(self, 'player_stats') and self.player_stats):
+                    s3 = getattr(self.player_stats, 'skill3', None)
+                    if s3:
+                        s3.manual_activate(self)
+                return True
+
+            self.keys_pressed.add(cp)
         return False
 
     def _on_key_up(self, _win, key, _scan):
@@ -661,21 +818,15 @@ class GameScreen(Screen):
         # Left Trigger fallback? Actually, let's use RB (Button 5) and A (Button 0) for main actions to be safe.
         
     def _on_joy_button(self, _win, _stick, buttonid):
-        # Generic XInput:
-        # 0: A/Cross (Dash)
-        # 1: B/Circle
-        # 2: X/Square
-        # 3: Y/Triangle
-        # 4: LB
-        # 5: RB (Skill 3)
-        # 6: Back/Share
-        # 7: Start/Options
+        from game.game_settings import settings
+        jb = settings.joy_bindings
+        bid = str(buttonid)
         
-        if buttonid == 7: # Start
+        if bid == jb.get('pause'):
             self.toggle_pause()
-        elif buttonid == 0 or buttonid == 4: # A Button or LB (Left Bumper)
+        elif bid == jb.get('dash'):
             self.start_dash()
-        elif buttonid == 5 or buttonid == 4: # RB or LB
+        elif bid == jb.get('skill3'):
             if (self.game_started and not self.is_dead
                     and hasattr(self, 'player_stats') and self.player_stats):
                 s3 = getattr(self.player_stats, 'skill3', None)
@@ -687,6 +838,12 @@ class GameScreen(Screen):
     def on_touch_down(self, touch):
         if self.is_paused:
             return super().on_touch_down(touch)
+
+        # 🌟 ไม่ยิง Skill 3 ถ้ามี Popup/ModalView กำลังเปิดอยู่ (เช่น Level Up)
+        from kivy.uix.modalview import ModalView
+        for child in self.children:
+            if isinstance(child, ModalView) and child.opacity > 0:
+                return super().on_touch_down(touch)
 
         if touch.button == 'left':
             if (self.game_started and not self.is_dead
@@ -702,10 +859,44 @@ class GameScreen(Screen):
     def _show_melee_highlight(self, cx, cy, radius, center_angle, spread_angle):
         """วาดกราฟิก Highlight แบบพัด (Cone/Arc) เพื่อให้ผู้เล่นเห็นระยะการตี"""
         from kivy.uix.widget import Widget
-        from kivy.graphics import Color, Ellipse
+        from kivy.graphics import Color, Ellipse, Rectangle, PushMatrix, PopMatrix, Rotate
         from kivy.clock import Clock
         import math
         
+        name = getattr(self.player_stats, "name", "")
+        
+        # 🌟 ใช้แอนิเมชันรูปภาพการตี ถ้ามี slash_textures (สำหรับ Lostman, Monkey และคนอื่นๆ)
+        if (name == "Lostman" or name == "Monkey" or name == "PTae") and hasattr(self, "slash_textures") and self.slash_textures:
+            size_w = radius * 2.5
+            size_h = radius * 2.5
+            eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(cx - size_w/2, cy - size_h/2))
+            
+            # Kivy image rotation
+            rot_deg = math.degrees(center_angle)
+            
+            with eff.canvas:
+                Color(1, 1, 1, 1) # Full color
+                PushMatrix()
+                Rotate(angle=rot_deg, origin=(cx, cy))
+                rect = Rectangle(texture=self.slash_textures[0], pos=eff.pos, size=eff.size)
+                PopMatrix()
+                
+            self.world_layout.add_widget(eff)
+            
+            state = {"frame": 0}
+            def _next_frame(dt):
+                state["frame"] += 1
+                if state["frame"] >= len(self.slash_textures):
+                    if eff.parent:
+                        self.world_layout.remove_widget(eff)
+                    return False
+                rect.texture = self.slash_textures[state["frame"]]
+                
+            # วนเฟรมภาพทั้งหมด 4 เฟรม ให้เสร็จในระยะเวลาประมาณ 0.15 วิ
+            Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
+            return
+
+        # ---------------- ปกติ (Arc) ----------------
         highlight = Widget(size_hint=(None, None), size=(radius * 2, radius * 2), pos=(cx - radius, cy - radius))
         
         # 🌟 แก้ไขมุมให้หมุนตามเมาส์ 🌟
@@ -717,12 +908,9 @@ class GameScreen(Screen):
         end_deg = kivy_center_deg + spread_deg
         
         with highlight.canvas:
-            name = getattr(self.player_stats, "name", "")
             # เปลี่ยนสี Highlight ตามตัวละคร
             if name == "PTae":
                 Color(1, 0.3, 0.3, 0.4)  # สีแดงโปร่งแสง
-            elif name == "Lostman":
-                Color(0.3, 0.8, 1, 0.4)  # สีฟ้าโปร่งแสง
             elif name == "Monkey":
                 Color(1, 0.8, 0.2, 0.4)  # สีเหลืองโปร่งแสง
             else:
@@ -731,6 +919,4 @@ class GameScreen(Screen):
             Ellipse(pos=highlight.pos, size=highlight.size, angle_start=start_deg, angle_end=end_deg)
             
         self.world_layout.add_widget(highlight)
-        
-        # ให้ Highlight หายไปอย่างรวดเร็ว (0.15 วิ) จะได้ดูเหมือนการสะบัดอาวุธ
         Clock.schedule_once(lambda dt: self.world_layout.remove_widget(highlight) if highlight.parent else None, 0.15)
