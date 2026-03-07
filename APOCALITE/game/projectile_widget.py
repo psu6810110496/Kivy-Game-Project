@@ -395,9 +395,27 @@ class LethalHomingMissile(_Linear):
         return self._traveled < self._range
 class DinoBeam(Widget):
     """PTae Skill 3 — ลำแสงตรงไปตามทิศเมาส์ ทำดาเมจทุก enemy ที่ผ่าน"""
-    DEFAULT_WIDTH = 160  # ความกว้างเริ่มต้น (กว้างขึ้นเยอะ)
-    DURATION = 0.55      # วินาทีที่แสดง (อยู่นานขึ้น)
-    SPEED = 900          # px/s (ความเร็วหัว beam)
+    DEFAULT_WIDTH = 160
+    DURATION = 0.55
+    SPEED = 900
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            # frame_00_delay-0.05s.png ถึง frame_10_delay-0.05s.png
+            for i in range(11):
+                try:
+                    from kivy.core.image import Image as CoreImage
+                    path = f"assets/PTae/skill3/frame_{i:02d}_delay-0.05s.png"
+                    cls._TEXTURES.append(CoreImage(path).texture)
+                except: pass
+            # frame_11_delay-0.02s.png
+            try:
+                from kivy.core.image import Image as CoreImage
+                cls._TEXTURES.append(CoreImage("assets/PTae/skill3/frame_11_delay-0.02s.png").texture)
+            except: pass
 
     def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
         kw.setdefault('size_hint', (None, None))
@@ -412,22 +430,21 @@ class DinoBeam(Widget):
         self._hit_enemies: set = set()
         self._alive = True
 
+        self._load()
+        self._frame = 0
+        self._at = 0.0
+        self._fd = 0.05
+
         angle_deg = math.degrees(math.atan2(direction[1], direction[0]))
         with self.canvas:
             PushMatrix()
             self._tr = Translate(start_pos[0], start_pos[1])
             Rotate(angle=angle_deg, origin=(0, 0))
-            # เงากว้างด้านนอก (สีอ่อน โปร่งแสง)
-            Color(0.4, 1.0, 0.5, 0.30)
-            self._rect_outer = Rectangle(
+            Color(1, 1, 1, 1)
+            self._rect = Rectangle(
                 pos=(0, -self._width // 2),
-                size=(0, self._width))
-            # แกนกลาง (สีสว่าง)
-            inner_w = max(20, self._width // 4)
-            Color(0.7, 1.0, 0.6, 0.95)
-            self._rect_inner = Rectangle(
-                pos=(0, -inner_w // 2),
-                size=(0, inner_w))
+                size=(0, self._width),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
             PopMatrix()
         self.bind(pos=lambda i, v: setattr(self._tr, 'x', v[0]) or
                                     setattr(self._tr, 'y', v[1]))
@@ -440,9 +457,15 @@ class DinoBeam(Widget):
         self._traveled = min(self._traveled + step, self._length)
 
         # ขยาย beam ตาม traveled
-        self._rect_outer.size = (self._traveled, self._width)
-        inner_w = max(20, self._width // 4)
-        self._rect_inner.size = (self._traveled, inner_w)
+        self._rect.size = (self._traveled, self._width)
+        
+        # [Animation] เปลี่ยนเฟรมตามเวลา
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                self._rect.texture = self._TEXTURES[self._frame]
 
         # เช็ค hit ทุก enemy ในแนว beam
         sx, sy = self.pos
