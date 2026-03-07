@@ -885,7 +885,7 @@ class GameScreen(Screen):
                 offset_dist = radius * 0.7 # ขยับไปข้างหน้า 70% ของระยะตี
                 render_cx = cx + math.cos(center_angle) * offset_dist
                 render_cy = cy + math.sin(center_angle) * offset_dist
-                draw_color = (0.9, 0.95, 1, 1) # สีฟ้าอ่อนมาก (Ice Glow) เพื่อให้สีขาวในรูปยังชัดเจน
+                draw_color = (1, 0.2, 0.2, 1) # สีแดง (Slash Red) 🌟
                 
             eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(render_cx - size_w/2, render_cy - size_h/2))
             
@@ -933,7 +933,7 @@ class GameScreen(Screen):
         with highlight.canvas:
             # เปลี่ยนสี Highlight ตามตัวละคร
             if name == "PTae":
-                Color(1, 0.3, 0.3, 0.4)  # สีแดงโปร่งแสง
+                Color(1, 0.1, 0.1, 0.5)  # สีแดงโปร่งแสง (เข้มขึ้นเล็กน้อย)
             elif name == "Monkey":
                 Color(1, 0.8, 0.2, 0.4)  # สีเหลืองโปร่งแสง
             else:

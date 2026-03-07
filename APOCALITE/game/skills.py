@@ -111,16 +111,36 @@ class DinoCircle(BaseSkill):
     description = "ไดโนเสาร์วิ่งวนรอบตัว ทำดาเมจทุกศัตรูที่โดน"
 
     _TEXTURES = None
+    _ORBIT_TEXTURES = None
 
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
+            import os
             cls._TEXTURES = []
+            cls._ORBIT_TEXTURES = []
+            # base: c:\Users\Nicky\Kivy-Game-Project
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            
+            # Load Dinosaurs (Skill 1)
             for i in range(1, 5):
                 try:
-                    path = f"assets/PTae/skill1/aoeptae{i:02d}.png"
-                    cls._TEXTURES.append(CoreImage(path).texture)
-                except: pass
+                    path = os.path.join(base, "assets", "PTae", "skill1", f"aoeptae{i:02d}.png")
+                    if os.path.exists(path):
+                        cls._TEXTURES.append(CoreImage(path).texture)
+                except Exception as e:
+                    print(f"[DinoCircle] Error loading {i}: {e}")
+            
+            # Load Orbit Aura (lo)
+            # frame_00_delay-0.02s.png ถึง frame_13_delay-0.02s.png
+            for i in range(14):
+                try:
+                    path = os.path.join(base, "assets", "PTae", "lo", f"frame_{i:02d}_delay-0.02s.png")
+                    if os.path.exists(path):
+                        cls._ORBIT_TEXTURES.append(CoreImage(path).texture)
+                except:
+                    pass
+            print(f"[DinoCircle] Loaded {len(cls._TEXTURES)} dinos and {len(cls._ORBIT_TEXTURES)} orbit frames")
 
     def __init__(self):
         super().__init__()
@@ -132,6 +152,8 @@ class DinoCircle(BaseSkill):
         self._hit_cooldowns: dict = {}  # enemy_id → cooldown
         self._frame = 0
         self._at = 0.0
+        self._orbit_frame = 0
+        self._orbit_at = 0.0
 
     @property
     def cooldown(self):
@@ -157,6 +179,13 @@ class DinoCircle(BaseSkill):
             if self._at >= 0.08:
                 self._at = 0.0
                 self._frame = (self._frame + 1) % len(self._TEXTURES)
+                
+        # [Animation] อัปเดตเฟรม Orbit Aura
+        if self._ORBIT_TEXTURES:
+            self._orbit_at += dt
+            if self._orbit_at >= 0.05:
+                self._orbit_at = 0.0
+                self._orbit_frame = (self._orbit_frame + 1) % len(self._ORBIT_TEXTURES)
 
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -199,8 +228,10 @@ class DinoCircle(BaseSkill):
                     break
 
         # วาด dino indicators และวงกลมป้องกันชั้นใน
+        # วาด dino indicators และวงกลมป้องกันชั้นใน
         _draw_orbit_indicators(game, positions, self._orbit_angle, inner_radius=60, 
-                               textures=self._TEXTURES, frame=self._frame)
+                               textures=self._TEXTURES, frame=self._frame,
+                               orbit_textures=self._ORBIT_TEXTURES, orbit_frame=self._orbit_frame)
 
     def activate(self, game):
         pass  # ใช้ tick แทน
@@ -975,25 +1006,36 @@ def _show_punch_vfx(game, px, py, radius, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.08)
 
 
-def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None, frame=0):
+def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None, frame=0, 
+                           orbit_textures=None, orbit_frame=0):
     """วาดจุดเล็กๆ แสดงตำแหน่งไดโน orbit และวงกลมป้องกันด้านใน"""
     ig = InstructionGroup()
     
-    # วงกลมป้องกันชั้นใน
+    # วงกลมป้องกันชั้นใน (Orbit Aura)
     if inner_radius > 0:
-        ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
-        ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
-                       size=(inner_radius * 2, inner_radius * 2)))
-        ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
-        ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
+        if orbit_textures:
+            ig.add(Color(1, 1, 1, 0.8)) # ใช้สีขาวตาม texture (ปรับ alpha เล็กน้อย)
+            tex = orbit_textures[orbit_frame % len(orbit_textures)]
+            # วาดสีกว้างกว่า radius เล็กน้อยให้ดูเป็น aura
+            aura_size = inner_radius * 2.8
+            ig.add(Rectangle(texture=tex, 
+                             pos=(game.player_pos[0]+32 - aura_size/2, game.player_pos[1]+32 - aura_size/2), 
+                             size=(aura_size, aura_size)))
+        else:
+            ig.add(Color(0.2, 0.9, 0.3, 0.25))  # โปร่งแสง
+            ig.add(Ellipse(pos=(game.player_pos[0]+32 - inner_radius, game.player_pos[1]+32 - inner_radius), 
+                           size=(inner_radius * 2, inner_radius * 2)))
+            ig.add(Color(0.3, 1.0, 0.5, 0.5))   # ขอบจางๆ
+            ig.add(Line(circle=(game.player_pos[0]+32, game.player_pos[1]+32, inner_radius), width=1.5))
 
     # จุดไดโนรอบนอก
     if textures:
-        ig.add(Color(1, 1, 1, 1))
+        ig.add(Color(0.85, 0.85, 0.85, 1)) # สีเข้มขึ้น
         tex = textures[frame % len(textures)]
         for (ox, oy) in positions:
-            # ขนาดไดโน 40x40 (ใหญ่กว่าเดิมที่เป็นจุด 20x20)
-            ig.add(Rectangle(texture=tex, pos=(ox - 20, oy - 20), size=(40, 40)))
+            # 🌟 [Fix] ใช้ Rectangle พร้อม Texture แทนการวาด Ellipse สีเขียวเฉยๆ
+            # ขนาดใหญ่ขึ้นจาก 40 เป็น 65
+            ig.add(Rectangle(texture=tex, pos=(ox-32.5, oy-32.5), size=(65, 65)))
     else:
         ig.add(Color(0.3, 1.0, 0.4, 0.8))
         for (ox, oy) in positions:

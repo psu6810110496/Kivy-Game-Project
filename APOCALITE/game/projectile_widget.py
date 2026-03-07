@@ -290,22 +290,48 @@ class DinoProjectile(_Linear):
 class HomingDino(_Linear):
     """PTae Skill 2 — ไดโนเสาร์ติดตามศัตรู (homing)"""
     TURN_SPEED = 4.0   # rad/s
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            import os
+            cls._TEXTURES = []
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            # frame_00_delay-0.05s.png ถึง frame_17_delay-0.05s.png
+            for i in range(18):
+                try:
+                    path = os.path.join(base, "assets", "PTae", "skill2", f"frame_{i:02d}_delay-0.05s.png")
+                    if os.path.exists(path):
+                        cls._TEXTURES.append(CoreImage(path).texture)
+                except Exception as e:
+                    print(f"[HomingDino] Error loading {i}: {e}")
+            print(f"[HomingDino] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, target_ref, speed=320, proj_range=900, damage=20, game=None, **kw):
         # target_ref = enemy widget (ติดตาม live pos)
         tx = target_ref.pos[0] + 20
         ty = target_ref.pos[1] + 20
         super().__init__(start_pos, (tx, ty), speed=speed, damage=damage, **kw)
+        self._load()
+        self._frame = 0
+        self._at = 0.0
+        self._fd = 0.05
+
         self._target = target_ref
         self._game = game  # 🌟 เก็บ reference ของเกมเพื่อหาเป้าหมายใหม่
         self._range = proj_range
         self._traveled = 0.0
-        self.size = (28, 28)
+        sz = 100 # ใหญ่ขึ้นชัดเจนตามคำขอ
+        self.size = (sz, sz)
+        offset = sz / 2
         with self.canvas:
-            Color(0.3, 1.0, 0.4, 1)
-            self.rect = Rectangle(
-                pos=(start_pos[0]-14, start_pos[1]-14), size=(28,28))
-        self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-14, v[1]-14)))
+            Color(0.85, 0.85, 0.85, 1) # สีเข้มขึ้น
+            self.dino_rect = Rectangle(
+                pos=(start_pos[0]-offset, start_pos[1]-offset), 
+                size=(sz, sz),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
+        self.bind(pos=lambda i, v: setattr(self.dino_rect, 'pos', (v[0]-offset, v[1]-offset)))
 
     def update(self, dt) -> bool:
         # ถ้า target เดิมตาย ลองหาตัวใหม่
@@ -332,6 +358,15 @@ class HomingDino(_Linear):
         my = self.direction[1]*self.speed*dt
         self.pos = (self.pos[0]+mx, self.pos[1]+my)
         self._traveled += math.hypot(mx, my)
+
+        # [Animation] อัปเดตเฟรม
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                self.dino_rect.texture = self._TEXTURES[self._frame]
+
         return self._traveled < self._range
 
 
@@ -403,19 +438,23 @@ class DinoBeam(Widget):
     @classmethod
     def _load(cls):
         if cls._TEXTURES is None:
+            import os
             cls._TEXTURES = []
+            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             # frame_00_delay-0.05s.png ถึง frame_10_delay-0.05s.png
             for i in range(11):
                 try:
-                    from kivy.core.image import Image as CoreImage
-                    path = f"assets/PTae/skill3/frame_{i:02d}_delay-0.05s.png"
-                    cls._TEXTURES.append(CoreImage(path).texture)
+                    path = os.path.join(base, "assets", "PTae", "skill3", f"frame_{i:02d}_delay-0.05s.png")
+                    if os.path.exists(path):
+                        cls._TEXTURES.append(CoreImage(path).texture)
                 except: pass
             # frame_11_delay-0.02s.png
             try:
-                from kivy.core.image import Image as CoreImage
-                cls._TEXTURES.append(CoreImage("assets/PTae/skill3/frame_11_delay-0.02s.png").texture)
+                path11 = os.path.join(base, "assets", "PTae", "skill3", "frame_11_delay-0.02s.png")
+                if os.path.exists(path11):
+                    cls._TEXTURES.append(CoreImage(path11).texture)
             except: pass
+            print(f"[DinoBeam] Loaded {len(cls._TEXTURES)} frames")
 
     def __init__(self, start_pos, direction, damage, length=1200, width=None, **kw):
         kw.setdefault('size_hint', (None, None))
