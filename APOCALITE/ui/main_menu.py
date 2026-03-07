@@ -8,6 +8,7 @@ from kivy.graphics import Rectangle, Color
 from kivy.core.window import Window
 from kivy.clock import Clock
 import random
+from game.sound_manager import sound_manager
 
 
 # --- คลาสเอฟเฟกต์ฝนตก ---
@@ -131,6 +132,7 @@ class MainMenuScreen(Screen):
 
             def on_touch(obj, touch):
                 if obj.collide_point(*touch.pos):
+                    sound_manager.play_sfx("button")
                     obj._callback()
                     return True
                 return False
@@ -190,6 +192,7 @@ class MainMenuScreen(Screen):
             mouse_pos=self._on_mouse_pos, # <--- เพิ่ม Event จับการขยับเมาส์
             on_key_down=self._on_keyboard_down
         )
+        sound_manager.play_bgm("main_menu")
         self.selected_index = 0
         self.show_highlight = False  # <--- ใช้ตัวนี้คุมแสง Highlight ทั้งคู่
         self.update_highlight()
@@ -208,7 +211,7 @@ class MainMenuScreen(Screen):
         if key == 119 or key == 97: # W or A
             self.navigate("prev")
             return True
-        elif key == 115 or key == 100: # S or D
+        elif key in (115, 100, 274, 275): # S, D or Down, Right
             self.navigate("next")
             return True
         elif key == 32 or key == 13: # Spacebar or Enter
@@ -216,8 +219,8 @@ class MainMenuScreen(Screen):
             self.update_highlight()
             if self.selectable_buttons:
                 # เรียก callback ของ Label โดยตรง
-                lbl = self.selectable_buttons[self.selected_index]
                 if hasattr(lbl, '_callback'):
+                    sound_manager.play_sfx("button")
                     lbl._callback()
             return True
         return False
@@ -261,6 +264,7 @@ class MainMenuScreen(Screen):
         if self.joy_cooldown: return
         self.joy_cooldown = True
         self.show_highlight = True  # ขยับจอยปุ๊บ เปิดแสง
+        sound_manager.play_sfx("button") # ขยับเปลี่ยนปุ่มก็มีเสียง
         Clock.schedule_once(self._reset_cooldown, 0.2) 
 
         if direction == "next":
@@ -285,6 +289,7 @@ class MainMenuScreen(Screen):
         self.update_highlight()
         
         if buttonid == 0:  
+            sound_manager.play_sfx("button")
             lbl = self.selectable_buttons[self.selected_index]
             if hasattr(lbl, '_callback'):
                 lbl._callback()

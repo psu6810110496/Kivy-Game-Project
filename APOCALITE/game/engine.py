@@ -13,6 +13,7 @@ GameScreen ดูแลเฉพาะ:
 import math
 import random
 from game.game_settings import settings
+from game.sound_manager import sound_manager
 from io import BytesIO
 
 import kivy.app
@@ -299,6 +300,7 @@ class GameScreen(Screen):
         self.is_paused = True
         self.countdown = CountdownOverlay(callback=self._start_game)
         self.root_layout.add_widget(self.countdown)
+        sound_manager.play_bgm("ingame")
 
         self._bind_input()
         Clock.unschedule(self.update_frame)
@@ -514,6 +516,7 @@ class GameScreen(Screen):
             angle_spread = math.radians(60)   # Default
 
         # 🌟 เรียกฟังก์ชันแสดง Highlight วงสวิงการโจมตี ตรงนี้เลย!
+        sound_manager.play_sfx("attack")
         self._show_melee_highlight(p_x, p_y, attack_radius, mouse_angle, angle_spread)
 
         for enemy in list(self.enemies):
@@ -887,6 +890,7 @@ class GameScreen(Screen):
                 render_cy = cy + math.sin(center_angle) * offset_dist
                 draw_color = (1, 0.2, 0.2, 1) # สีแดง (Slash Red) 🌟
                 
+            sound_manager.play_sfx("attack")
             eff = Widget(size_hint=(None, None), size=(size_w, size_h), pos=(render_cx - size_w/2, render_cy - size_h/2))
             
             # Kivy image rotation

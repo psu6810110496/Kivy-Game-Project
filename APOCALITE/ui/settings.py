@@ -22,7 +22,7 @@ from kivy.clock import Clock
 from kivy.animation import Animation
 from kivy.core.text import LabelBase
 import random
-
+from game.sound_manager import sound_manager
 from game.game_settings import settings
 
 
@@ -734,6 +734,7 @@ class SettingsScreen(Screen):
         self.update_highlight()
         w = self.focusable_widgets[self.selected_index]
         if action == "press":
+            sound_manager.play_sfx("button")
             if hasattr(w, "trigger"):
                 w.trigger(0)
             elif isinstance(w, Button):
@@ -814,10 +815,12 @@ class SettingsScreen(Screen):
 
         def music_cb(v):
             settings.music_volume = v
+            sound_manager.update_music_volume()
             settings.save()
 
         def sfx_cb(v):
             settings.sfx_volume = v
+            # SFX will scale automatically on next play
             settings.save()
 
         self.content_box.add_widget(
