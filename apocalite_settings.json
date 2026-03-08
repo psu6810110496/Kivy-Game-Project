@@ -1,6 +1,6 @@
 {
-  "music_volume": 0.11,
-  "sfx_volume": 0.16,
+  "music_volume": 0.06,
+  "sfx_volume": 0.11,
   "fullscreen": true,
   "camera_shake": true,
   "show_damage_numbers": true,

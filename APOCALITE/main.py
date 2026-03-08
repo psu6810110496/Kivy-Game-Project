@@ -21,6 +21,7 @@ from ui.leaderboard import LeaderboardScreen
 
 class Apocalite(App):
     def build(self):
+        Window.show_cursor = True
         Window.bind(on_key_down=self._on_keyboard_down)
         
         self.current_player = None
@@ -39,6 +40,8 @@ class Apocalite(App):
                 Window.fullscreen = False
             else:
                 Window.fullscreen = 'auto'
+            # Force cursor visibility after toggle
+            Window.show_cursor = True
             return True
         return False
 if __name__ == "__main__":
