@@ -32,11 +32,11 @@ SKILL_ICONS = {
     "MonkeyCombo":   "assets/Monkey/M/m1.png",
 }
 
-# ─── Stat icons (Unicode emoji as fallback) ─────────────────────────
-STAT_ICONS = {
-    "hp":     "❤",
-    "damage": "⚔",
-    "speed":  "💨",
+# ─── Stat icon images ────────────────────────────────────────────────
+STAT_ICON_PATHS = {
+    "hp":     "assets/icons/Skillicon7_16.png",
+    "damage": "assets/icons/atk.png",
+    "speed":  "assets/icons/speed.png",
 }
 
 # ─── Color palettes ─────────────────────────────────────────────────
@@ -47,8 +47,6 @@ CARD_COLORS = {
         "accent": (0.80, 0.45, 1.00, 1),
         "glow":   (0.75, 0.35, 1.00, 0.65),
         "label":  (0.92, 0.65, 1.00, 1),
-        "badge":  "★ NEW",
-        "badge_color": (1.0, 0.85, 0.20, 1),
     },
     "upgrade_skill": {
         "bg":     (0.08, 0.16, 0.30, 1),     # deep blue
@@ -56,8 +54,6 @@ CARD_COLORS = {
         "accent": (0.40, 0.75, 1.00, 1),
         "glow":   (0.30, 0.65, 1.00, 0.50),
         "label":  (0.55, 0.88, 1.00, 1),
-        "badge":  "⬆ UP",
-        "badge_color": (0.55, 0.88, 1.00, 1),
     },
     "stat": {
         "bg":     (0.06, 0.22, 0.14, 1),     # deep green
@@ -65,8 +61,6 @@ CARD_COLORS = {
         "accent": (0.40, 1.00, 0.55, 1),
         "glow":   (0.30, 0.90, 0.45, 0.50),
         "label":  (0.55, 1.00, 0.65, 1),
-        "badge":  "STAT",
-        "badge_color": (0.55, 1.00, 0.65, 1),
     },
 }
 
@@ -146,17 +140,7 @@ class LevelUpPopup(ModalView):
         )
         root.add_widget(title)
 
-        # ── subtitle ──────────────────────────────────────────
-        sub = Label(
-            text="เลือกอัพเกรดหนึ่งอย่าง",
-            font_size=14,
-            color=(0.7, 0.7, 0.8, 0.8),
-            size_hint=(1, None),
-            height=26,
-            pos_hint={"center_x": 0.5, "top": 0.86},
-            halign="center",
-        )
-        root.add_widget(sub)
+
 
         # ── card container ─────────────────────────────────────
         card_box = BoxLayout(
@@ -242,94 +226,43 @@ class LevelUpPopup(ModalView):
 
         card.bind(pos=_update_rects, size=_update_rects)
 
-        # — badge (top-left corner) —
-        badge = Label(
-            text=f"[b]{pal['badge']}[/b]",
-            markup=True,
-            font_size=11,
-            color=pal["badge_color"],
-            size_hint=(None, None),
-            size=(60, 20),
-            pos_hint={"x": 0.04, "top": 0.97},
-            halign="center",
-            valign="middle",
-        )
-        badge.bind(size=lambda i, v: setattr(i, "text_size", v))
-        card.add_widget(badge)
 
-        # — icon / emoji —
+
+        # — icon image —
         icon_path = _get_skill_icon(choice)
-        if icon_path:
-            try:
-                icon_img = Image(
-                    source=icon_path,
-                    size_hint=(None, None),
-                    size=(56, 56),
-                    pos_hint={"center_x": 0.5, "top": 0.88},
-                    allow_stretch=True,
-                )
-                card.add_widget(icon_img)
-            except Exception:
-                pass
-        elif ctype == "stat":
+        if ctype == "stat":
             stat_key = choice.get("stat", "hp")
-            emoji = STAT_ICONS.get(stat_key, "✦")
-            icon_lbl = Label(
-                text=emoji,
-                font_size=44,
-                size_hint=(None, None),
-                size=(56, 56),
-                pos_hint={"center_x": 0.5, "top": 0.88},
-                halign="center",
-                valign="middle",
-            )
-            card.add_widget(icon_lbl)
+            icon_path = STAT_ICON_PATHS.get(stat_key)
+        if icon_path:
+            import os
+            if os.path.isfile(icon_path):
+                try:
+                    icon_img = Image(
+                        source=icon_path,
+                        size_hint=(None, None),
+                        size=(56, 56),
+                        pos_hint={"center_x": 0.5, "top": 0.88},
+                        allow_stretch=True,
+                    )
+                    card.add_widget(icon_img)
+                except Exception:
+                    pass
 
         # — title label —
         lbl = Label(
             text=f"[b]{choice['label']}[/b]",
             markup=True,
-            font_size=16,
+            font_size=17,
             color=pal["label"],
             halign="center",
             valign="middle",
-            size_hint=(0.92, 0.18),
-            pos_hint={"center_x": 0.5, "top": 0.55},
+            size_hint=(0.92, 0.22),
+            pos_hint={"center_x": 0.5, "top": 0.42},
             outline_width=1,
             outline_color=(0, 0, 0, 1),
         )
         lbl.bind(size=lambda i, v: setattr(i, "text_size", v))
         card.add_widget(lbl)
-
-        # — description —
-        desc = Label(
-            text=choice.get("description", ""),
-            font_size=12,
-            color=(0.78, 0.78, 0.85, 0.9),
-            halign="center",
-            valign="top",
-            size_hint=(0.88, 0.28),
-            pos_hint={"center_x": 0.5, "top": 0.38},
-        )
-        desc.bind(size=lambda i, v: setattr(i, "text_size", v))
-        card.add_widget(desc)
-
-        # — separator line —
-        with card.canvas.after:
-            card._sep_col = Color(*pal["accent"][:3], 0.25)
-            card._sep_line = Line(
-                points=[card.x + card.width * 0.1, card.y + card.height * 0.42,
-                        card.x + card.width * 0.9, card.y + card.height * 0.42],
-                width=1,
-            )
-
-        def _update_sep(inst, value):
-            card._sep_line.points = [
-                card.x + card.width * 0.1, card.y + card.height * 0.42,
-                card.x + card.width * 0.9, card.y + card.height * 0.42,
-            ]
-
-        card.bind(pos=_update_sep, size=_update_sep)
 
         # — touch handling (click to select) —
         def on_card_down(touch):
@@ -350,8 +283,8 @@ class LevelUpPopup(ModalView):
         for i, (card, choice) in enumerate(self.cards):
             pal = _card_palette(choice)
             if i == self.selected_idx:
-                card._border_color.rgba = (1, 0.85, 0.20, 0.9)
-                card._glow_color.a = pal["glow"][3]
+                card._border_color.rgba = (1, 0.95, 0.65, 0.40)
+                card._glow_color.a = pal["glow"][3] * 0.5
             else:
                 card._border_color.rgba = (1, 1, 1, 0)
                 card._glow_color.a = 0
