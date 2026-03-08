@@ -23,6 +23,7 @@ class SoundManager:
 
     SFX_PATHS = {
         "attack": "assets/sound/attack/ninja-star-throw-joshua-chivers-1-00-00.mp3",
+        "enemy_hit": "assets/sound/attack/bullet-impacting-body-gamemaster-audio-2-2-00-00.mp3",
         "button": "assets/sound/button/computer-mouse-click-joshua-chivers-1-00-00.mp3",
     }
 
@@ -122,7 +123,7 @@ class SoundManager:
         if self.current_ambient:
             self.current_ambient.volume = settings.music_volume * self.ambient_volume_factor
 
-    def play_sfx(self, name):
+    def play_sfx(self, name, volume=None):
         """เล่นเสียงเอฟเฟกต์ (SFX) หนึ่งครั้ง"""
         path = self.SFX_PATHS.get(name)
         if not path or not os.path.exists(path):
@@ -138,7 +139,7 @@ class SoundManager:
                 return
 
         sfx = self._sfx_cache[name]
-        sfx.volume = settings.sfx_volume
+        sfx.volume = volume if volume is not None else settings.sfx_volume
         sfx.play()
 
 # --- Global Instance ---

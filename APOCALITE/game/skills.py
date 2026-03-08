@@ -840,6 +840,13 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
 #  HELPERS
 # ═══════════════════════════════════════════════════════════
 def _hit_enemy(game, enemy, dmg: float):
+    if not enemy or enemy.is_dead:
+        return
+        
+    # [Aesthetic] Play hit sound (quieter than melee)
+    from game.sound_manager import sound_manager
+    sound_manager.play_sfx("enemy_hit", volume=settings.sfx_volume * 0.4)
+
     if hasattr(enemy, "take_damage"):
         enemy.take_damage(dmg)
     else:
@@ -854,6 +861,7 @@ def _hit_enemy(game, enemy, dmg: float):
 
     if enemy in game.enemies:
         game.enemies.remove(enemy)
+        enemy.is_dead = True
         
     # เช็คว่าเป็นบอสหรือไม่ เพื่อดรอประเบิดตัวเอง
     is_any_boss = False

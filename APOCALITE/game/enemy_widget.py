@@ -141,6 +141,7 @@ class EnemyWidget(Widget):
         self.speed = current_stats["speed"]
         self.damage = current_stats["damage"]
         self.enemy_size = current_stats["size"]
+        self.is_dead = False
         
         # 🌟 สุ่มขนาดตัวสำหรับ Normal ให้ดูหลากหลาย (ใหญ่ขึ้นบ้างเล็กน้อย)
         if enemy_type == "normal":
