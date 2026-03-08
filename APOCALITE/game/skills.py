@@ -166,6 +166,11 @@ class DinoCircle(BaseSkill):
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
         self._load()
+        
+        # [Aesthetic] Play looping skill sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_loop_sfx("dino_circle_loop", volume=settings.sfx_volume * 0.4)
+        
         self._orbit_angle += self.orbit_speed * dt
         if self._orbit_angle > 2 * math.pi:
             self._orbit_angle -= 2 * math.pi
@@ -257,6 +262,11 @@ class DinoSummon(BaseSkill):
     def activate(self, game):
         if not game.enemies:
             return
+        
+        # [Aesthetic] Play summon sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("dino_summon")
+
         from game.projectile_widget import HomingDino
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -304,6 +314,10 @@ class DinoPunch(StackSkill):
         self.beam_length  = min(2000, self.beam_length + 80)
 
     def activate(self, game):
+        # [Aesthetic] Play activation sound (low volume as it's loud/meme)
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 0.35)
+
         from game.projectile_widget import DinoBeam
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32

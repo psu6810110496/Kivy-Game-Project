@@ -329,6 +329,7 @@ class GameScreen(Screen):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
             self.attack_event.cancel()
+        sound_manager.stop_all_loops()
         self._unbind_input()
 
     def _start_game(self):
@@ -713,12 +714,14 @@ class GameScreen(Screen):
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
+        sound_manager.stop_all_loops()
         self._unbind_input()
         
         if win:
             # ถ้าชนะ ให้ไปหน้า End Credits ทันที
             self.manager.current = "credits_screen"
         else:
+            sound_manager.play_sfx("player_death")
             GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────

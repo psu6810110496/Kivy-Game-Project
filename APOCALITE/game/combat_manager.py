@@ -68,6 +68,8 @@ class CombatManager:
                         
                         # 🌟 Lifesteal for HomingDino (PTae Skill 2) - Nerfed to 15%
                         if type(b).__name__ == "HomingDino":
+                            from game.sound_manager import sound_manager
+                            sound_manager.play_sfx("dino_hit")
                             heal_amount = b.damage * 0.15
                             g.player_stats.current_hp = min(g.player_stats.hp, g.player_stats.current_hp + heal_amount)
                             if hasattr(g, 'hud') and g.hud:
