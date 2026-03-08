@@ -1012,10 +1012,10 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
     if inner_radius > 0:
         if orbit_textures:
             # ใช้สีขาวเข้มขึ้นตาม texture (ปรับ alpha ให้เห็นชัด)
-            ig.add(Color(1, 1, 1, 0.9)) 
+            ig.add(Color(1, 1, 1, 1)) # [Fix] Revert to original bright colors
             tex = orbit_textures[orbit_frame % len(orbit_textures)]
-            # ขยายขนาด Aura จาก 2.8 เป็น 3.2 เท่าของ radius ให้ดูใหญ่ขึ้น
-            aura_size = inner_radius * 3.5
+            # [Fix] Reduce Aura size multiplier from 3.5 to 3.0
+            aura_size = inner_radius * 3.0
             ig.add(Rectangle(texture=tex, 
                              pos=(game.player_pos[0]+32 - aura_size/2, game.player_pos[1]+32 - aura_size/2), 
                              size=(aura_size, aura_size)))
@@ -1026,12 +1026,12 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
 
     # จุดไดโนรอบนอก
     if textures:
-        # สีเข้มขรึมขึ้นตามเควส (Darken: 0.85 -> 0.4)
-        ig.add(Color(0.4, 0.4, 0.4, 1))
+        # [Fix] Revert to original bright colors
+        ig.add(Color(1, 1, 1, 1))
         tex = textures[frame % len(textures)]
         for (ox, oy) in positions:
-            # ขนาดใหญ่ขึ้นจาก 65 เป็น 110 (ตัวใหญ่ขึ้นตามคำขอ)
-            sz = 110
+            # [Fix] Reduced size from 110 to 64
+            sz = 64
             ig.add(Rectangle(texture=tex, pos=(ox - sz/2, oy - sz/2), size=(sz, sz)))
     else:
         ig.add(Color(0.2, 0.6, 0.2, 0.9))

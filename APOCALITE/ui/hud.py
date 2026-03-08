@@ -121,6 +121,14 @@ class SkillSlotBox(BoxLayout):
             # Container
             slot_container = FloatLayout(size_hint=(None, None), size=(current_size, current_size))
             
+            # 🌟 Background Icon (สำหรับสกิลที่ต้องการ 2 layer เช่น Dino Circle)
+            bg_icon_img = KivyImage(
+                size_hint=(0.9, 0.9),
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+                allow_stretch=True,
+                keep_ratio=True,
+                opacity=0
+            )
             # 🌟 Icon Image Widget (สำหรับภาพ Pixel Art ให้คมชัด)
             icon_img = KivyImage(
                 size_hint=(0.9, 0.9),
@@ -139,9 +147,12 @@ class SkillSlotBox(BoxLayout):
                 background_normal="",
                 background_color=(0.2, 0.2, 0.2, 0.6),
                 color=(1, 1, 1, 1),
-                text_size=(current_size - 10, None),
+                text_size=(current_size - 10, current_size - 10),
                 halign="center",
-                valign="middle"
+                valign="bottom",
+                padding=(2, 2),  # [Fix] Minimal padding to sit tight at the bottom edge
+                outline_width=1.5,
+                outline_color=(0,0,0,1)
             )
 
             # Level Label (มุมขวาบน)
@@ -165,48 +176,86 @@ class SkillSlotBox(BoxLayout):
             # เราจะ draw ผ่าน canvas ของ overlay โดยตรงใน update()
             overlay.canvas.clear()
             
+            slot_container.add_widget(bg_icon_img) 
+            slot_container.add_widget(icon_img) 
             slot_container.add_widget(btn)
-            slot_container.add_widget(icon_img) # วางไอคอนทับปุ่ม แต่ใต้ overlay
             slot_container.add_widget(overlay)
             slot_container.add_widget(lvl_lbl)
             self.add_widget(slot_container)
             
-            self.slots.append((btn, lvl_lbl, overlay, icon_img, current_size))
+            self.slots.append((btn, lvl_lbl, overlay, icon_img, current_size, bg_icon_img))
 
     def update(self, skills: list, char_name: str = ""):
         """รีเฟรชข้อความ / สี / CD overlay ทุก frame"""
         char_name_lower = char_name.lower()
-        for (btn, lvl_lbl, overlay, icon_img, slot_sz), skill_idx in zip(self.slots, self.skill_indices):
+        for slot_data, skill_idx in zip(self.slots, self.skill_indices):
+            btn, lvl_lbl, overlay, icon_img, slot_sz, bg_icon = slot_data
             skill = skills[skill_idx] if skill_idx < len(skills) else None
 
             if skill is None:
                 btn.text = f"S{skill_idx + 1}\n[empty]"
                 btn.background_color = (0.15, 0.15, 0.15, 0.5)
                 icon_img.opacity = 0
+                bg_icon.opacity = 0
                 lvl_lbl.text = ""
                 overlay.canvas.clear()
                 continue
 
-            # --- จัดการ Icon สำหรับ Monkey ---
+            # --- identify skill by name for accuracy ---
+            skill_name = skill.name
+            skill_name_lower = skill_name.lower()
+            
+            icon_path = ""
+            bg_icon_path = ""
+            current_bg_rgba = (0.2, 0.2, 0.2, 0.6)
+
             if char_name_lower == "monkey":
                 icon_path = f"assets/Monkey/slotM/Sm{skill_idx + 1}.png"
-                if os.path.exists(icon_path):
-                    if icon_img.source != icon_path:
-                        icon_img.source = icon_path
-                        # ทำให้ภาพคมชัด (Pixel Art)
-                        icon_img.texture.mag_filter = 'nearest'
-                    
-                    icon_img.opacity = 1
-                    btn.background_color = (0, 0, 0, 0) # ปิดพื้นหลังปุ่มเพื่อให้เห็นรูปชัดๆ
-                    display_name = "" 
-                else:
-                    icon_img.opacity = 0
-                    btn.background_color = (0.2, 0.2, 0.2, 0.6)
-                    display_name = skill.name
+                current_bg_rgba = (0.1, 0.1, 0.1, 0.8)
+            elif char_name_lower == "ptae":
+                if "circle" in skill_name_lower:
+                    icon_path = "assets/PTae/skill1/aoeptae04.png"
+                    bg_icon_path = "assets/PTae/lo/frame_09_delay-0.02s.png"
+                    current_bg_rgba = (0.4, 0.1, 0.7, 0.5) # [Aesthetic] Lower alpha (0.5) for prominence
+                elif "summon" in skill_name_lower:
+                    icon_path = "assets/PTae/skill2/frame_00_delay-0.05s.png"
+                    current_bg_rgba = (0.1, 0.5, 0.1, 0.5) # [Aesthetic] Lower alpha
+                elif "beam" in skill_name_lower or "punch" in skill_name_lower:
+                    icon_path = "assets/PTae/skill3/frame_01_delay-0.05s.png"
+                    current_bg_rgba = (0, 0, 0, 0.6) # [Aesthetic] Lower alpha
+            elif char_name_lower == "lostman":
+                lost_icons = [
+                    "assets/Lostman/skill1/axe_hit1.png",
+                    "assets/Lostman/skill2/axe_t1.png",
+                    "assets/Lostman/skill3/c4_trap1.png"
+                ]
+                icon_path = lost_icons[skill_idx] if skill_idx < len(lost_icons) else ""
+                current_bg_rgba = (0.15, 0.15, 0.15, 0.7)
+
+            # Update BG Color using button's background
+            btn.background_color = current_bg_rgba
+
+            # Update Main Icon
+            if icon_path and os.path.exists(icon_path):
+                if icon_img.source != icon_path:
+                    icon_img.source = icon_path
+                    try: icon_img.texture.mag_filter = 'nearest'
+                    except: pass
+                icon_img.opacity = 1.0 # [Aesthetic] Full opacity for texture
+                display_name = "" if char_name_lower == "monkey" else skill_name
             else:
                 icon_img.opacity = 0
-                btn.background_color = (0.2, 0.2, 0.2, 0.6)
-                display_name = skill.name
+                display_name = skill_name
+
+            # Update BG Icon
+            if bg_icon_path and os.path.exists(bg_icon_path):
+                if bg_icon.source != bg_icon_path:
+                    bg_icon.source = bg_icon_path
+                    try: bg_icon.texture.mag_filter = 'nearest'
+                    except: pass
+                bg_icon.opacity = 0.8 # [Aesthetic] Increase slightly
+            else:
+                bg_icon.opacity = 0
 
             # อัปเดตเลเวล
             lvl_lbl.text = f"LV.{skill.level}"
@@ -216,12 +265,11 @@ class SkillSlotBox(BoxLayout):
             max_stacks_val = getattr(skill, 'MAX_STACKS', 3)
 
             if stacks_val is not None:
-                full = "●" * stacks_val
-                empty = "○" * max(0, max_stacks_val - stacks_val)
+                # [Fix] Use simple characters instead of special circles for better font compatibility
+                full = "A" * stacks_val
+                empty = "-" * max(0, max_stacks_val - stacks_val)
                 btn.text = f"{display_name}\n{full}{empty}"
-                if char_name_lower != "monkey":
-                    btn.background_color = (0.4, 0.1, 0.7, 1) if stacks_val > 0 else (0.2, 0.2, 0.2, 0.6)
-
+                
                 # 🌟 Stack CD overlay: ถ้า stack ไม่เต็มให้แสดง recharge progress
                 overlay.canvas.clear()
                 if stacks_val < max_stacks_val:
@@ -245,12 +293,8 @@ class SkillSlotBox(BoxLayout):
 
                 if cd_remaining <= 0:
                     btn.text = f"{display_name}\n✔"
-                    if char_name_lower != "monkey":
-                        btn.background_color = (0.15, 0.5, 0.15, 1)  # สีเขียวพร้อมใช้
                 else:
                     btn.text = f"{display_name}\n{cd_remaining:.1f}s"
-                    if char_name_lower != "monkey":
-                        btn.background_color = (0.2, 0.2, 0.2, 0.6)
 
                 # 🌟 วาด CD Overlay: overlay ทึบส่วน top ลดลงเรื่อยๆ
                 overlay.canvas.clear()

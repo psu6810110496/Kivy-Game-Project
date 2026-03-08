@@ -118,7 +118,7 @@ class GameScreen(Screen):
             try:
                 tex = CoreImage("assets/maps/map.jpg").texture
             except Exception:
-                tex = CoreImage("assets/maps/map.jpg").texture
+                tex = CoreImage("assets/maps/map3.jpg").texture
             tex.wrap = "repeat"
             scale = 3.0
             tex.uvsize = (5000 / (tex.width * scale), -5000 / (tex.height * scale))
@@ -935,8 +935,6 @@ class GameScreen(Screen):
                 return True
             
             # 🌟 [Optimization] ใช้ความเร็วคงที่ ไม่สร้างภาระ Clock มากเกินไป
-            Clock.schedule_interval(_next_frame, 0.05)
-                
             # วนเฟรมภาพทั้งหมดให้เสร็จในระยะเวลาประมาณ 0.15 วิ
             Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
             return

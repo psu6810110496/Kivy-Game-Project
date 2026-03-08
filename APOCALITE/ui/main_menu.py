@@ -220,6 +220,7 @@ class MainMenuScreen(Screen):
             self.show_highlight = True
             self.update_highlight()
             if self.selectable_buttons:
+                lbl = self.selectable_buttons[self.selected_index]
                 # เรียก callback ของ Label โดยตรง
                 if hasattr(lbl, '_callback'):
                     sound_manager.play_sfx("button")

@@ -64,7 +64,7 @@ class EnemyWidget(Widget):
                 "speed": 1.8,
                 "damage": 12,
                 "color": (1, 1, 1, 1),
-                "size": (200, 150), # Increased again as requested
+                "size": (80, 80), # Reduced size (2x smaller than previous 400x300)
             },
             "charger": {
                 "hp": 120,
@@ -99,7 +99,7 @@ class EnemyWidget(Widget):
                 "speed": 1.2,
                 "damage": 40,
                 "color": (0.9, 0.2, 0.2, 1),
-                "size": (96, 96),
+                "size": (180, 180), # Synced with Final Boss
             },
             # Big boss type with additional special attacks
             "big_boss": {
@@ -107,7 +107,7 @@ class EnemyWidget(Widget):
                 "speed": 1.0,
                 "damage": 55,
                 "color": (0.5, 0.1, 0.7, 1),
-                "size": (128, 128),
+                "size": (180, 180), # Synced with Boss and Final Boss
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
@@ -122,7 +122,7 @@ class EnemyWidget(Widget):
                 "speed": 0.2,
                 "damage": 30,
                 "color": (0.3, 0.1, 0.6, 0.6), # Semi-transparent
-                "size": (140, 140),
+                "size": (180, 180), # Synced with others
             },
         }
 
@@ -161,8 +161,8 @@ class EnemyWidget(Widget):
         self._init_enemy_visuals(enemy_type)
 
         # 🌟 ลดขนาด Texture แสดงผล (Visual) ลงอีกให้ดูพอดีช่อง (Hitbox เท่าเดิม)
-        # ปรับเหลือ 0.5 (50%) สำหรับมอนทั่วไป และ 0.6 สำหรับบอส
-        visual_scale = 0.6 if enemy_type in ["boss", "big_boss", "final_boss"] else 0.5
+        # ปรับเหลือ 0.5 (50%) สำหรับมอนทั่วไป และ 1.0 (100%) สำหรับศัตรูตัวใหญ่ที่ขยายมาแล้ว
+        visual_scale = 1.0 if enemy_type in ["boss", "big_boss", "final_boss", "ranger"] else 0.5
         self.render_size = (self.enemy_size[0] * visual_scale, self.enemy_size[1] * visual_scale)
 
         with self.canvas:
@@ -198,11 +198,22 @@ class EnemyWidget(Widget):
         """โหลด Texture และเตรียม Animation ตามประเภท"""
 
         if etype == "ranger" or etype == "sniper":
-            # [Fix] Ranger row ใน enemy3.png ถ้า 0 อยู่บนสุด
-            # ลอง Row 1 หรือ 2 เผื่อเป็นท่าเดินที่ชัดเจนกว่า
-            self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 16, row=1)
-            if not self.anim_frames: self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 16, row=0)
-            self.anim_speed = 0.08 # Faster animation for smoother look
+            # [Fix] เปลี่ยนมาใช้ไฟล์ภาพแยก ranger1-8.png ตามคำขอ
+            frames = []
+            for i in range(1, 9):
+                p = resolve_path(f"assets/enemy/ranger{i}.png")
+                if p:
+                    try:
+                        frames.append(CoreImage(p).texture)
+                    except: pass
+            
+            if frames:
+                self.anim_frames = frames
+            else:
+                # Fallback to spritesheet if files not found
+                self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=1)
+                if not self.anim_frames: self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=0)
+            self.anim_speed = 0.08
         elif etype == "bomber":
             # 🌟 โหลดเฟรมระเบิดแยกไฟล์ Bomb1, 2, ...
             frames = []
@@ -246,9 +257,10 @@ class EnemyWidget(Widget):
             row_walk = 1
             row_idle = 2
             sheet_path = "assets/enemy/boss/minotaur_288x160_SpriteSheet.png"
-            self.boss_idle = get_frames(sheet_path, 288, 160, 16, row=row_idle)
-            self.boss_walk = get_frames(sheet_path, 288, 160, 16, row=row_walk)
-            self.boss_attack = get_frames(sheet_path, 288, 160, 16, row=row_attack)
+            # [Fix] Boss frames count reduced from 12 to 10 for safety
+            self.boss_idle = get_frames(sheet_path, 288, 160, 10, row=row_idle)
+            self.boss_walk = get_frames(sheet_path, 288, 160, 10, row=row_walk)
+            self.boss_attack = get_frames(sheet_path, 288, 160, 10, row=row_attack)
             
             def set_boss_anim(state, loop=True):
                 if state == "idle": frames = self.boss_idle
@@ -263,7 +275,8 @@ class EnemyWidget(Widget):
             self.anim_frames = self.boss_walk
             self.anim_speed = 0.08
         elif etype == "final_boss" or etype == "final_boss_clone":
-            self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 16, row=1)
+            # [Fix] Consistency: Final Boss also uses 10 frames to avoid flickering
+            self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
             self.anim_speed = 0.06
         else:
             # Normal / Default (enemy1, 2 Alt) - STATIC TEXTURE
