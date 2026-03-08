@@ -276,9 +276,22 @@ class EnemyWidget(Widget):
             self.anim_frames = self.boss_walk
             self.anim_speed = 0.08
         elif etype == "final_boss" or etype == "final_boss_clone":
-            # [Fix] Consistency: Final Boss also uses 10 frames to avoid flickering
-            self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
-            self.anim_speed = 0.06
+            # 🌟 Change to Agis 1-15 animation for Wave 45 Boss
+            frames = []
+            for i in range(1, 16):
+                p = resolve_path(f"assets/enemy/boss/Agis{i}.png")
+                if p:
+                    try:
+                        frames.append(CoreImage(p).texture)
+                    except: pass
+            
+            if frames:
+                self.anim_frames = frames
+                self.anim_speed = 0.05
+            else:
+                # Fallback to minotaur spritesheet if files not found
+                self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
+                self.anim_speed = 0.06
         else:
             # Normal / Default (enemy1, 2 Alt) - STATIC TEXTURE
             chosen = random.choice(["enemy1.png", "enemy2.png"])
@@ -836,7 +849,7 @@ class EnemyWidget(Widget):
         py = self.pos[1] + self.enemy_size[1] / 2
         
         from game.skills import _show_aoe_vfx
-        _show_aoe_vfx(self.game, px, py, 180)
+        _show_aoe_vfx(self.game, px, py, 220) # Slightly increased radius for new anim
         
         player_x = self.game.player_pos[0] + 32
         player_y = self.game.player_pos[1] + 32
@@ -938,16 +951,34 @@ class EnemyWidget(Widget):
             if not self.game: return
             px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
             final_rot = rot_speed * 2.0
-            from game.skills import _show_cone_vfx
+            from game.projectile_widget import BossBeam
             
+            beams = []
             for ox, oy in origins:
                 for i in range(8):
                     fa = start_angle + (i * math.pi / 4) + math.radians(final_rot)
-                    p_angle = math.atan2(py-oy, px-ox)
+                    angle_deg = math.degrees(fa)
+                    beam = BossBeam(start_pos=(ox, oy), angle_deg=angle_deg, damage=50)
+                    self.game.world_layout.add_widget(beam)
+                    beams.append((beam, fa, ox, oy))
+
+            def _update_beams(dt, elapsed=0):
+                if elapsed >= 0.8: # Match BossBeam.DURATION
+                    return
+                
+                # Check player collision during active beam
+                player_px, player_py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
+                for b, fa, ox, oy in beams:
+                    b.advance_anim(dt)
+                    # Simple line-player collision check
+                    p_angle = math.atan2(player_py-oy, player_px-ox)
                     diff = abs((p_angle - fa + math.pi) % (2*math.pi) - math.pi)
-                    if diff < 0.08 and math.hypot(px-ox, py-oy) < 2000:
-                        self.game.take_damage(50)
-                    _show_cone_vfx(self.game, ox, oy, 2000, math.degrees(fa), 6, None)
+                    if diff < 0.1 and math.hypot(player_px-ox, player_py-oy) < 2000:
+                        self.game.take_damage(50 * dt * 2) # Continuous damage over duration
+
+                Clock.schedule_once(lambda d: _update_beams(d, elapsed+dt), 0.016)
+
+            _update_beams(0.016)
 
         Clock.schedule_once(_fire, 2.0)
 
@@ -1009,7 +1040,7 @@ class EnemyWidget(Widget):
             
         # Visual effect
         from game.skills import _show_aoe_vfx
-        _show_aoe_vfx(self.game, self.pos[0]+90, self.pos[1]+90, 250)
+        _show_aoe_vfx(self.game, self.pos[0]+90, self.pos[1]+90, 300)
         
         def _done(dt): self.final_is_acting = False
         Clock.schedule_once(_done, 2.0)
@@ -1071,6 +1102,6 @@ class EnemyWidget(Widget):
                 if math.hypot(px-target_pos[0], py-target_pos[1]) < 400:
                     self.game.take_damage(70)
                 from game.skills import _show_aoe_vfx
-                _show_aoe_vfx(self.game, target_pos[0], target_pos[1], 400)
+                _show_aoe_vfx(self.game, target_pos[0], target_pos[1], 450)
 
         Clock.schedule_once(_execute_slam, 5.0)

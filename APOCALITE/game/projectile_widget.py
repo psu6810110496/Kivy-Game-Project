@@ -370,6 +370,7 @@ class HomingDino(_Linear):
 class LethalHomingMissile(_Linear):
     """Final Boss lethal projectile - targets player and deals 50% max HP damage"""
     TURN_SPEED = 3.5
+    _SKULL_TEX = None
 
     def __init__(self, start_pos, game, speed=220, proj_range=2500, **kw):
         # Target is player
@@ -378,17 +379,22 @@ class LethalHomingMissile(_Linear):
         self.game = game
         self._range = proj_range
         self._traveled = 0.0
-        self.size = (40, 40)
+        self.size = (64, 64) # Increased size for skull texture
+        
+        if LethalHomingMissile._SKULL_TEX is None:
+            path = resolve_path("assets/enemy/boss/skull1.png")
+            if path:
+                try: LethalHomingMissile._SKULL_TEX = CoreImage(path).texture
+                except: pass
+
         with self.canvas:
-            Color(1, 0, 0, 1) # Solid bright red
-            self.rect = Rectangle(pos=(start_pos[0]-20, start_pos[1]-20), size=(40, 40))
             Color(1, 1, 1, 1)
-            self.inner = Ellipse(pos=(start_pos[0]-10, start_pos[1]-10), size=(20, 20))
+            self.rect = Rectangle(pos=(start_pos[0]-32, start_pos[1]-32), size=(64, 64), 
+                                  texture=LethalHomingMissile._SKULL_TEX)
         self.bind(pos=self._update_graphics)
 
     def _update_graphics(self, i, v):
-        self.rect.pos = (v[0]-20, v[1]-20)
-        self.inner.pos = (v[0]-10, v[1]-10)
+        self.rect.pos = (v[0]-32, v[1]-32)
 
     def update(self, dt) -> bool:
         if not self.game or self.game.is_dead:
@@ -522,21 +528,103 @@ class DinoBeam(Widget):
         if self.parent:
             self.parent.remove_widget(self)
 
-# ── Final Boss Specials ───────────────────────────────────
+class BossBeam(Widget):
+    """Wave 45 Boss Beam — Black core with thick purple border, uses PTae textures"""
+    DEFAULT_WIDTH = 120
+    DEFAULT_LENGTH = 2000
+    DURATION = 0.8
+    _TEXTURES = None
+
+    @classmethod
+    def _load(cls):
+        if cls._TEXTURES is None:
+            cls._TEXTURES = []
+            # Reuse PTae Skill 3 textures
+            for i in range(11):
+                path = resolve_path(f"assets/PTae/skill3/frame_{i:02d}_delay-0.05s.png")
+                if path:
+                    try: cls._TEXTURES.append(CoreImage(path).texture)
+                    except: pass
+            path11 = resolve_path("assets/PTae/skill3/frame_11_delay-0.02s.png")
+            if path11:
+                try: cls._TEXTURES.append(CoreImage(path11).texture)
+                except: pass
+
+    def __init__(self, start_pos, angle_deg, damage, width=None, **kw):
+        kw.setdefault('size_hint', (None, None))
+        kw.setdefault('size', (1, 1))
+        super().__init__(**kw)
+        self.pos = start_pos
+        self.damage = damage
+        self._angle = angle_deg
+        self._width = width if width is not None else self.DEFAULT_WIDTH
+        self._length = self.DEFAULT_LENGTH
+        self._alive = True
+
+        self._load()
+        self._frame = 0
+        self._at = 0.0
+        self._fd = 0.05
+
+        with self.canvas:
+            PushMatrix()
+            self._tr = Translate(start_pos[0], start_pos[1])
+            self._rot = Rotate(angle=angle_deg, origin=(0, 0))
+            
+            # Layer 1: Thick Purple Border
+            Color(0.6, 0.1, 1.0, 1) # Solid bright purple
+            self._border_rect = Rectangle(
+                pos=(0, -self._width // 2 - 8), # Extra 8px padding for thickness
+                size=(self._length, self._width + 16),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
+            
+            # Layer 2: Black Core
+            Color(0, 0, 0, 1) # Solid black
+            self._core_rect = Rectangle(
+                pos=(0, -self._width // 2),
+                size=(self._length, self._width),
+                texture=self._TEXTURES[0] if self._TEXTURES else None)
+            
+            PopMatrix()
+            
+        Clock.schedule_once(lambda dt: self.parent.remove_widget(self) if self.parent else None, self.DURATION)
+
+    def update_rotation(self, angle_deg):
+        self._rot.angle = angle_deg
+
+    def advance_anim(self, dt):
+        if self._TEXTURES:
+            self._at += dt
+            if self._at >= self._fd:
+                self._at = 0.0
+                self._frame = (self._frame + 1) % len(self._TEXTURES)
+                tex = self._TEXTURES[self._frame]
+                self._border_rect.texture = tex
+                self._core_rect.texture = tex
 
 class BossSpiralMissile(_Linear):
     """Missile that spirals outward"""
+    _BH_TEX = None
+
     def __init__(self, start_pos, angle, speed, damage, spiral_speed=1.5, **kw):
         # We'll use self.direction but rotate it over time
         dx, dy = math.cos(angle), math.sin(angle)
         super().__init__(start_pos, (start_pos[0]+dx, start_pos[1]+dy), speed=speed, damage=damage, **kw)
         self.angle = angle
         self.spiral_speed = spiral_speed
-        self.size = (20, 20)
+        self.size = (50, 50) # Increased size for texture
+        
+        if BossSpiralMissile._BH_TEX is None:
+            path = resolve_path("assets/enemy/boss/bh11.png")
+            if path:
+                try: BossSpiralMissile._BH_TEX = CoreImage(path).texture
+                except: pass
+
         with self.canvas:
-            Color(1, 1, 0, 1) # Yellow
-            self.ell = Ellipse(pos=(start_pos[0]-10, start_pos[1]-10), size=(20, 20))
-        self.bind(pos=lambda i, v: setattr(self.ell, 'pos', (v[0]-10, v[1]-10)))
+            Color(1, 1, 1, 1)
+            self.rect = Rectangle(pos=(start_pos[0]-25, start_pos[1]-25), size=(50, 50),
+                                  texture=BossSpiralMissile._BH_TEX)
+        self.bind(pos=lambda i, v: setattr(self.rect, 'pos', (v[0]-25, v[1]-25)))
 
     def update(self, dt):
         # Move straight in the initial direction to form an outward spiral pattern

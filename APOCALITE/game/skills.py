@@ -989,10 +989,26 @@ def _show_slash_vfx(game, px, py, radius, angle_deg, spread, anim_frames=None):
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.12)
 
 
+EXPLOSION_ANIM_FRAMES = []
+
+def _load_explosion_frames():
+    global EXPLOSION_ANIM_FRAMES
+    if not EXPLOSION_ANIM_FRAMES:
+        for i in range(1, 13):
+            path = resolve_path(f"assets/enemy/boss/{i}.png")
+            if path:
+                EXPLOSION_ANIM_FRAMES.append(path)
+    return EXPLOSION_ANIM_FRAMES
+
 def _show_aoe_vfx(game, px, py, radius, anim_frames=None):
+    if not anim_frames:
+        anim_frames = _load_explosion_frames()
+        
     if anim_frames:
-        _play_vfx_sprite(game, px, py, radius * 2.2, radius * 2.2, anim_frames, 0.2)
+        # Increase duration slightly for 12 frames
+        _play_vfx_sprite(game, px, py, radius * 2.2, radius * 2.2, anim_frames, 0.45)
         return
+        
     ig = InstructionGroup()
     ig.add(Color(1, 0.2, 0.2, 0.4))
     ig.add(Ellipse(pos=(px - radius, py - radius), size=(radius * 2, radius * 2)))
