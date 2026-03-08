@@ -7,6 +7,7 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 
 from game.enemy_widget import EnemyWidget
+from ui.font import PIXEL_FONT
 
 
 class WaveManager:
@@ -32,13 +33,20 @@ class WaveManager:
         
         # Check Win Condition: Just finished Wave 45
         if self.current_wave > 45:
-            # เมื่อเคลียร์ Wave 45 (Final Boss) แล้ว
-            # รอ 15 วินาทีก่อนจบเกมตามที่ User ต้องการ
+            # เมื่อเคลียร์ Wave 45 และลูกน้อง(ศัตรูตัวสุดท้าย)ตายหมดแล้ว
+            # ทิ้งความเงียบไว้ 3 วินาทีก่อนเริ่มเพลงเพื่อให้ดูดราม่าขึ้น
+            def _start_music(dt):
+                from game.sound_manager import sound_manager
+                sound_manager.play_bgm("endcredit", loop=False, seek_pos=49.0)
+            
+            Clock.schedule_once(_start_music, 3.0)
+
+            # ตอนนี้เพลงเปิดช้าลง 3 วิ ดังนั้นต้องรอ 3 + 19 = 22 วินาที เพื่อให้พอดีกับท่อนฮุคนาทีที่ 1:08
             def _delayed_victory(dt):
-                if not self.game.is_dead: # Don't win if player died in the last 15s
+                if not self.game.is_dead: # Don't win if player died in the last period
                     self.game.show_game_over(win=True)
             
-            Clock.schedule_once(_delayed_victory, 15.0)
+            Clock.schedule_once(_delayed_victory, 22.0)
             return
 
         self.is_spawning = True
@@ -338,7 +346,8 @@ class WaveManager:
         self._wave_label = Label(
             text=f"[b]WAVE {self.current_wave}[/b]",
             markup=True, font_size=80,
-            color=(1, 1, 1, 1), outline_width=4, outline_color=(0, 0, 0, 1),
+            font_name=PIXEL_FONT,
+            color=(1, 1, 1, 1),
             pos_hint={"center_x": 0.5, "top": 0.92},
         )
         game.root_layout.add_widget(self._wave_label)
@@ -357,7 +366,8 @@ class WaveManager:
         self._boss_overlay = Label(
             text=f"[b]{text}[/b]",
             markup=True, font_size=100,
-            color=color, outline_width=4, outline_color=(0, 0, 0, 1),
+            font_name=PIXEL_FONT,
+            color=color,
             pos_hint={"center_x": 0.5, "center_y": 0.7},
         )
         game.root_layout.add_widget(self._boss_overlay)

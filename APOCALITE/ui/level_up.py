@@ -12,6 +12,7 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.animation import Animation
 from game.skills import get_upgrade_choices, CHAR_SPEED_CAP
+from ui.font import PIXEL_FONT
 
 # ─── Icon mapping: skill class name → first asset frame ────────────
 SKILL_ICONS = {
@@ -130,12 +131,11 @@ class LevelUpPopup(ModalView):
             text="[b]LEVEL UP![/b]",
             markup=True,
             font_size=42,
+            font_name=PIXEL_FONT,
             color=(1, 0.85, 0.20, 1),
             size_hint=(1, None),
             height=62,
             pos_hint={"center_x": 0.5, "top": 0.98},
-            outline_width=3,
-            outline_color=(0, 0, 0, 1),
             halign="center",
         )
         root.add_widget(title)
@@ -253,13 +253,12 @@ class LevelUpPopup(ModalView):
             text=f"[b]{choice['label']}[/b]",
             markup=True,
             font_size=17,
+            font_name=PIXEL_FONT,
             color=pal["label"],
             halign="center",
             valign="middle",
             size_hint=(0.92, 0.22),
             pos_hint={"center_x": 0.5, "top": 0.42},
-            outline_width=1,
-            outline_color=(0, 0, 0, 1),
         )
         lbl.bind(size=lambda i, v: setattr(i, "text_size", v))
         card.add_widget(lbl)

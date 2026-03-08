@@ -24,17 +24,11 @@ from kivy.core.text import LabelBase
 import random
 from game.sound_manager import sound_manager
 from game.game_settings import settings
+from ui.font import PIXEL_FONT
 
 
-# ─── Register Pixel Font ─────────────────────────────────────
-try:
-    LabelBase.register(
-        name="PixelFont",
-        fn_regular="assets/fornt/Stacked pixel.ttf",
-    )
-    _PIXEL_FONT = "PixelFont"
-except Exception:
-    _PIXEL_FONT = "Roboto"
+# ฟ้อนต์ถูก register ไว้แล้วใน ui.font
+_PIXEL_FONT = PIXEL_FONT
 
 
 # ─── Rain Effect (ใช้ซ้ำจาก main_menu) ───────────────────────
@@ -73,7 +67,7 @@ class RainEffect(Widget):
 # ─── Helper: Pixel-styled label ──────────────────────────────
 def _lbl(text, font_size=16, color=(0.85, 0.9, 1, 1), bold=False,
          halign="left", font_name=None, **kw):
-    fn = font_name or "Roboto"
+    fn = font_name or PIXEL_FONT  # ใช้ PixelFont เป็น default
     l = Label(text=text, font_size=font_size, color=color, bold=bold,
                markup=True, halign=halign, font_name=fn, **kw)
     l.bind(size=lambda inst, v: setattr(inst, "text_size", (v[0], None)))
@@ -874,8 +868,12 @@ class SettingsScreen(Screen):
         if not self.manager:
             return
         target = self._previous_screen
-        self.manager.current = target
         if target == "game_screen":
-            from ui.pause import PausePopup
+            # ตั้ง flag ก่อน เพื่อให้ on_enter() ไม่ reset state
             game_screen = self.manager.get_screen("game_screen")
+            game_screen._returning_from_settings = True
+            self.manager.current = target
+            from ui.pause import PausePopup
             Clock.schedule_once(lambda dt: PausePopup(game_screen).open(), 0.1)
+        else:
+            self.manager.current = target

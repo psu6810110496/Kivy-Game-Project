@@ -5,6 +5,7 @@ from kivy.uix.label import Label
 from kivy.core.window import Window
 from kivy.clock import Clock
 import kivy.app
+from ui.font import PIXEL_FONT
 
 
 class PausePopup(Popup):
@@ -12,12 +13,7 @@ class PausePopup(Popup):
         super().__init__(**kwargs)
         self.game_screen = game_screen
 
-        # 🌟 Pixel Font
-        from kivy.core.text import LabelBase
-        try:
-            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
-        except Exception:
-            pass
+        # ฟ้อนต์ถูก register ไว้แล้วใน ui.font
         
         # --- [ซ่อนหัว Popup เดิมทิ้ง] ---
         self.title = ""
@@ -44,7 +40,7 @@ class PausePopup(Popup):
         lbl_pause = Label(
             text="PAUSED",
             font_size=70,
-            font_name="PixelFont",
+            font_name=PIXEL_FONT,
             color=(1, 0.9, 0.2, 1),
             size_hint=(1, 0.5),
         )
@@ -56,19 +52,19 @@ class PausePopup(Popup):
         # --- [สร้างปุ่มแบบโปร่งใส (Floating Buttons)] ---
         btn_resume = Button(
             text="RESUME",
-            font_size=30, font_name="PixelFont",
+            font_size=30, font_name=PIXEL_FONT,
             background_normal="", background_color=(0, 0, 0, 0),
             color=(0.5, 0.5, 0.5, 1),
         )
         btn_settings = Button(
             text="SETTINGS",
-            font_size=30, font_name="PixelFont",
+            font_size=30, font_name=PIXEL_FONT,
             background_normal="", background_color=(0, 0, 0, 0),
             color=(0.5, 0.75, 1, 1),
         )
         btn_menu = Button(
             text="RETURN TO MENU",
-            font_size=30, font_name="PixelFont",
+            font_size=30, font_name=PIXEL_FONT,
             background_normal="", background_color=(0, 0, 0, 0),
             color=(0.7, 0.2, 0.2, 1),
         )
@@ -77,6 +73,7 @@ class PausePopup(Popup):
         btn_debug_wave = Button(
             text="DEBUG: WAVE 45",
             font_size=20,
+            font_name=PIXEL_FONT,
             bold=True,
             background_normal="",
             background_color=(0, 0, 0, 0),
@@ -85,6 +82,7 @@ class PausePopup(Popup):
         btn_debug_end = Button(
             text="DEBUG: TEST END",
             font_size=20,
+            font_name=PIXEL_FONT,
             bold=True,
             background_normal="",
             background_color=(0, 0, 0, 0),
@@ -93,6 +91,7 @@ class PausePopup(Popup):
         btn_debug_max = Button(
             text="DEBUG: MAX LVL",
             font_size=20,
+            font_name=PIXEL_FONT,
             bold=True,
             background_normal="",
             background_color=(0, 0, 0, 0),

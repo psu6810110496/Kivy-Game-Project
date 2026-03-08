@@ -696,6 +696,7 @@ class FinalBossExplosion(Widget):
                 self.game.take_damage(999999) # Instant death
             from game.skills import _show_aoe_vfx
             _show_aoe_vfx(self.game, self.pos[0], self.pos[1], self.radius)
+            
         if self.parent: self.parent.remove_widget(self)
 
 

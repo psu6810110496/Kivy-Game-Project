@@ -88,6 +88,7 @@ class GameScreen(Screen):
         self.countdown = None
         self.attack_event = None
         self.slash_textures: list = []
+        self._returning_from_settings = False  # flag: กลับจาก Settings ไม่ reset
 
         # ── Camera ──────────────────────────────────────────
         self.zoom_target = 2.0
@@ -281,9 +282,18 @@ class GameScreen(Screen):
     # ── Screen events ─────────────────────────────────────
     def on_enter(self):
         self._update_layout_size(None, Window.size)
-        self.player_stats = kivy.app.App.get_running_app().current_player
         self._apply_display_settings()
         self._apply_audio_settings()
+
+        # ถ้ากลับมาจาก Settings (ไม่ต้อง reset state)
+        if self._returning_from_settings:
+            self._returning_from_settings = False
+            self._bind_input()
+            Clock.unschedule(self.update_frame)
+            Clock.schedule_interval(self.update_frame, 1.0 / 60.0)
+            return
+
+        self.player_stats = kivy.app.App.get_running_app().current_player
         if not self.player_stats:
             return
 

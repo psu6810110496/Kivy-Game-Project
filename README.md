@@ -2,7 +2,6 @@
 
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
 [![Kivy](https://img.shields.io/badge/Kivy-2.3+-gray.svg)](https://kivy.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 **Apocalite** เป็นโครงการเกมแนว **Top Down Survival Roguelike** สุดมันส์ โฟกัสการต่อสู้แบบ **fast-paced, action-packed** สร้างด้วยเฟรมเวิร์ก **Kivy** ของภาษา Python โดยผู้เล่นจะต้องเอาชีวิตรอดจาก Wave ของศัตรูที่ทวีความโหดขึ้นเรื่อยๆ เผชิญหน้ากับบอสสุดแกร่ง รวมถึงการเก็บเเลเวลเพื่อปลดล็อกสกิลเทพๆ และเอาชีวิตรอดให้นานที่สุด
 
@@ -115,8 +114,8 @@ APOCALITE/
 
 ## 🤝 เครดิต (Credits)
 - **พัฒนาโดย**: ทีมพัฒนาโปรเจกต์เกม 
-                psu6810010266/Phuminan Jivanantapravat
-                psu6810110496/Chappawit 
-                psu6810110496/Phuwadon Thapthrai
+                 psu6810010266/Phuminan Jivanantapravat,
+                 psu6810110455/Chappawit Chuchai,
+                 psu6810110496/Phuwadon Thapthrai
 - **Engine/Framework**: [Kivy 2.3](https://kivy.org/)
 - **งานศิลป์**: สไปรต์ตัวละคร เอฟเฟกต์ แอนิเมชัน สกิล ถูกประกอบสร้างสำหรับการรังสรรค์นี้โดยเฉพาะ

@@ -7,6 +7,7 @@ from kivy.app import App
 from kivy.animation import Animation
 from kivy.uix.textinput import TextInput
 from game.score_manager import ScoreManager
+from ui.font import PIXEL_FONT
 
 class GameOverPopup(Popup):
     def __init__(self, win=False, game_screen=None, **kwargs):
@@ -64,6 +65,7 @@ class GameOverPopup(Popup):
         die_label = Label(
             text=text,
             font_size=60 if win else 50,
+            font_name=PIXEL_FONT,
             color=color,
             bold=True
         )
@@ -74,13 +76,14 @@ class GameOverPopup(Popup):
         mins, secs = divmod(int(self.time_survived), 60)
         time_str = f"{mins:02d}:{secs:02d}"
         score_text = f"Time: {time_str} | Kills: {self.kills} | Lvl: {self.level}\nTOTAL SCORE: {self.score}"
-        self.score_label = Label(text=score_text, font_size=24, color=(1,1,1,1), halign="center")
+        self.score_label = Label(text=score_text, font_size=24, font_name=PIXEL_FONT, color=(1,1,1,1), halign="center")
         self.score_label.opacity = 0
 
         # --- Name Input ---
         self.name_input = TextInput(
             hint_text="Enter Name",
             font_size=24,
+            font_name=PIXEL_FONT,
             size_hint=(None, None),
             size=(250, 45),
             pos_hint={'center_x': 0.5},
@@ -93,6 +96,7 @@ class GameOverPopup(Popup):
         retry_lbl = Label(
             text="TRY AGAIN (Don't Save)",
             font_size=30,
+            font_name=PIXEL_FONT,
             bold=True,
             size_hint_y=None,
             height=50,
@@ -110,6 +114,7 @@ class GameOverPopup(Popup):
         menu_lbl = Label(
             text="SAVE & BACK TO MENU",
             font_size=30,
+            font_name=PIXEL_FONT,
             bold=True,
             size_hint_y=None,
             height=50,
@@ -125,6 +130,7 @@ class GameOverPopup(Popup):
         no_save_menu_lbl = Label(
             text="BACK TO MENU (Don't Save)",
             font_size=30,
+            font_name=PIXEL_FONT,
             bold=True,
             size_hint_y=None,
             height=50,

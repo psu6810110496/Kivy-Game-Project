@@ -23,6 +23,7 @@ from kivy.uix.modalview import ModalView
 from kivy.uix.image import Image as KivyImage
 
 from ui.level_up import LevelUpPopup
+from ui.font import PIXEL_FONT
 
 
 # ═══════════════════════════════════════════════════════════
@@ -150,9 +151,7 @@ class SkillSlotBox(BoxLayout):
                 text_size=(current_size - 10, current_size - 10),
                 halign="center",
                 valign="bottom",
-                padding=(2, 2),  # [Fix] Minimal padding to sit tight at the bottom edge
-                outline_width=1.5,
-                outline_color=(0,0,0,1)
+                padding=(2, 2),
             )
 
             # Level Label (มุมขวาบน)
@@ -164,8 +163,6 @@ class SkillSlotBox(BoxLayout):
                 size=(50, 25),
                 pos_hint={"right": 1, "top": 1},
                 color=(1, 1, 0, 1),
-                outline_width=2,
-                outline_color=(0, 0, 0, 1)
             )
 
             # 🌟 Cooldown Overlay Widget (วาดทับปุ่มตามสัดส่วน CD ที่เหลือ)
@@ -408,11 +405,7 @@ class HUD(FloatLayout):
         super().__init__(**kwargs)
         self.game_screen = game_screen
 
-        # 🌟 ลงทะเบียน Pixel Font (เผื่อยังไม่ได้โหลด)
-        from kivy.core.text import LabelBase
-        try:
-            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
-        except: pass
+        # ฟ้อนต์ถูก register ไว้แล้วใน ui.font
 
         self._build_top_left()
         self._build_wave_label()
@@ -444,7 +437,7 @@ class HUD(FloatLayout):
         hp_row = BoxLayout(orientation="vertical", spacing=2)
         self.hp_label = Label(
             text="100 / 100", size_hint=(1, None), height=32,
-            font_name="PixelFont", font_size=28, color=(1, 0.3, 0.3, 1),
+            font_name=PIXEL_FONT, font_size=28, color=(1, 0.3, 0.3, 1),
             halign="left", valign="middle"
         )
         self.hp_label.bind(size=lambda i,v: setattr(i, "text_size", v))
@@ -456,7 +449,7 @@ class HUD(FloatLayout):
         exp_row = BoxLayout(orientation="vertical", spacing=2)
         self.lbl_level = Label(
             text="LV : 1", size_hint=(1, None), height=28,
-            font_name="PixelFont", font_size=24, color=(0.4, 0.8, 1, 1),
+            font_name=PIXEL_FONT, font_size=24, color=(0.4, 0.8, 1, 1),
             halign="left", valign="middle"
         )
         self.lbl_level.bind(size=lambda i,v: setattr(i, "text_size", v))
@@ -473,7 +466,7 @@ class HUD(FloatLayout):
             text="WAVE 0",
             size_hint=(None, None), size=(200, 48),
             pos_hint={"center_x": 0.5, "top": 0.99},
-            font_size=26, bold=True, font_name="PixelFont",
+            font_size=26, bold=True, font_name=PIXEL_FONT,
             color=(1, 0.9, 0.4, 1), halign="center", valign="middle",
         )
         with self.lbl_wave.canvas.before:
@@ -488,7 +481,7 @@ class HUD(FloatLayout):
             text="00:00",
             size_hint=(None, None), size=(110, 32),
             pos_hint={"center_x": 0.5, "top": 0.915},
-            font_size=20, font_name="PixelFont", color=(1, 1, 1, 1),
+            font_size=20, font_name=PIXEL_FONT, color=(1, 1, 1, 1),
             halign="center", valign="middle",
         )
         with self.lbl_time.canvas.before:
@@ -519,7 +512,7 @@ class HUD(FloatLayout):
     def _build_pause_button(self):
         from kivy.graphics import Line
         btn = Button(
-            text="||", font_size=22, font_name="PixelFont",
+            text="||", font_size=22, font_name=PIXEL_FONT,
             size_hint=(None, None), size=(55, 55),
             pos_hint={"right": 0.985, "top": 0.985},
             background_normal="", background_color=(0, 0, 0, 0),
@@ -639,11 +632,10 @@ class CountdownOverlay(Label):
         self.callback = callback
         self._count = 3
         self.text = "GET READY\n3"
+        self.font_name = PIXEL_FONT
         self.font_size = 200
         self.bold = True
         self.color = (0.9, 0.95, 1, 1)
-        self.outline_width = 4
-        self.outline_color = (0, 0, 0, 1)
         self.pos_hint = {"center_x": 0.5, "center_y": 0.5}
         self.halign = self.valign = "center"
         self.bind(size=lambda inst, v: setattr(inst, "text_size", v))
