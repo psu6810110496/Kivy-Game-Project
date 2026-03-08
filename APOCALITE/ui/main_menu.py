@@ -193,6 +193,7 @@ class MainMenuScreen(Screen):
             on_key_down=self._on_keyboard_down
         )
         sound_manager.play_bgm("main_menu")
+        sound_manager.play_ambient("rain", volume_factor=0.2) # 🌟 เสียงฝนคลอเบาๆ
         self.selected_index = 0
         self.show_highlight = False  # <--- ใช้ตัวนี้คุมแสง Highlight ทั้งคู่
         self.update_highlight()
@@ -205,6 +206,7 @@ class MainMenuScreen(Screen):
             mouse_pos=self._on_mouse_pos, # <--- อย่าลืม unbind เมาส์ตอนออกหน้าด้วย
             on_key_down=self._on_keyboard_down
         )
+        sound_manager.stop_ambient()
 
     # --- [ระบบ Keyboard WASD + Space] ---
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):

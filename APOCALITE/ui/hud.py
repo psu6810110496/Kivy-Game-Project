@@ -29,7 +29,7 @@ from ui.level_up import LevelUpPopup
 #  HealthBar — Custom HP bar widget
 # ═══════════════════════════════════════════════════════════
 class HealthBar(Widget):
-    """แถบ HP สีแดง บน background สีเทาเข้ม"""
+    """แถบ HP สไตล์ Modern พร้อมเส้นขอบและ Rounded Corner"""
 
     current_hp = NumericProperty(100)
     max_hp = NumericProperty(100)
@@ -42,11 +42,48 @@ class HealthBar(Widget):
     def _redraw(self, *_args):
         self.canvas.clear()
         with self.canvas:
-            Color(0.2, 0.2, 0.2, 1)
-            Rectangle(pos=self.pos, size=self.size)
-            Color(0.8, 0.1, 0.1, 1)
+            # Border
+            Color(1, 1, 1, 0.2)
+            RoundedRectangle(pos=(self.x - 2, self.y - 2), 
+                             size=(self.width + 4, self.height + 4), radius=[5])
+            
+            # Background
+            Color(0.1, 0.1, 0.1, 0.7)
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[5])
+            
             ratio = max(0, min(self.current_hp / max(self.max_hp, 1), 1))
-            Rectangle(pos=self.pos, size=(self.width * ratio, self.height))
+            if ratio > 0:
+                # Main Bar
+                Color(0.85, 0.15, 0.15, 1)
+                RoundedRectangle(pos=self.pos, size=(self.width * ratio, self.height), radius=[5])
+                # Highlight Line
+                Color(1, 1, 1, 0.15)
+                Rectangle(pos=(self.x, self.y + self.height * 0.6), 
+                          size=(self.width * ratio, self.height * 0.2))
+
+class ExpBar(Widget):
+    """แถบ EXP สีฟ้า/ม่วง สไตล์เดียวกับ HealthBar"""
+    value = NumericProperty(0)
+    max = NumericProperty(100)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.bind(pos=self._redraw, size=self._redraw,
+                  value=self._redraw, max=self._redraw)
+
+    def _redraw(self, *_args):
+        self.canvas.clear()
+        with self.canvas:
+            Color(0.1, 0.1, 0.1, 0.7)
+            RoundedRectangle(pos=self.pos, size=self.size, radius=[4])
+            
+            ratio = max(0, min(self.value / max(self.max, 1), 1))
+            if ratio > 0:
+                Color(0.2, 0.6, 1, 1) # Blue
+                RoundedRectangle(pos=self.pos, size=(self.width * ratio, self.height), radius=[4])
+                Color(1, 1, 1, 0.1)
+                Rectangle(pos=(self.x, self.y + self.height * 0.6), 
+                          size=(self.width * ratio, self.height * 0.2))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -304,28 +341,34 @@ class Minimap(Widget):
             ny = self.y + (py * scale_y)
             # Clip player pos
             nx = max(self.x + 4, min(self.right - 4, nx))
-            ny = max(self.y + 4, min(self.top - 4, ny))
+            ny = max(self.y + 4, min(self.right - 4, ny))
             Ellipse(pos=(nx-2.5, ny-2.5), size=(5, 5))
 
 
 # ═══════════════════════════════════════════════════════════
-#  HUD — In-game heads-up display
+#  HUD — Overlay หลักทับบน GameScreen
 # ═══════════════════════════════════════════════════════════
 class HUD(FloatLayout):
     """
-    HUD หลักของเกม แสดง:
+    ประสานงาน UI ทุกอย่างหน้าเกม:
       - HP bar + HP text (มุมซ้ายบน)
       - EXP bar + Level label
       - Wave label (กลางบน)
       - Enemy count (ใต้ wave)
       - Skill slots (ซ้ายล่าง)
       - ปุ่ม Pause (ขวาบน)
-      - ปุ่ม debug (TEST LVL UP, ADD EXP, SUMMON BOSS, CLEAR)
+      - Minimap (ขวาบน)
     """
 
     def __init__(self, game_screen, **kwargs):
         super().__init__(**kwargs)
         self.game_screen = game_screen
+
+        # 🌟 ลงทะเบียน Pixel Font (เผื่อยังไม่ได้โหลด)
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
+        except: pass
 
         self._build_top_left()
         self._build_wave_label()
@@ -335,48 +378,45 @@ class HUD(FloatLayout):
         self._build_pause_button()
         self._build_minimap()
 
-        # 🌟 เปลี่ยนให้เรียกฟังก์ชันอัปเดตทั้ง UI (เลือด + สกิล) ทุกๆ 1/60 วินาที
         Clock.schedule_interval(self._realtime_ui_update, 1.0 / 60.0)
 
         try:
             self.update_enemy_count(len(self.game_screen.enemies))
-        except Exception:
-            pass
+        except: pass
 
     # ─── Builder helpers ──────────────────────────────────
     def _build_top_left(self):
+        # 🌟 Container with Glassmorphism
         container = BoxLayout(
             orientation="vertical",
             size_hint=(None, None),
-            size=(360, 85),
+            size=(450, 120),
             pos_hint={"x": 0.02, "top": 0.98},
-            spacing=5,
+            spacing=10,
+            padding=[8, 8]
         )
 
-        # HP row
-        hp_row = FloatLayout(size_hint=(1, 1))
-        self.health_bar = HealthBar(
-            size_hint=(None, None), size=(300, 25),
-            pos_hint={"right": 1, "center_y": 0.5},
-        )
+        # HP Row
+        hp_row = BoxLayout(orientation="vertical", spacing=2)
         self.hp_label = Label(
-            text="100 / 100",
-            size_hint=(None, None), size=(300, 25),
-            pos_hint={"right": 1, "center_y": 0.5},
-            bold=True,
+            text="100 / 100", size_hint=(1, None), height=32,
+            font_name="PixelFont", font_size=28, color=(1, 0.3, 0.3, 1),
+            halign="left", valign="middle"
         )
-        hp_row.add_widget(self.health_bar)
+        self.hp_label.bind(size=lambda i,v: setattr(i, "text_size", v))
+        self.health_bar = HealthBar(size_hint=(None, None), size=(400, 15))
         hp_row.add_widget(self.hp_label)
+        hp_row.add_widget(self.health_bar)
 
-        # EXP row
-        exp_row = BoxLayout(orientation="horizontal", size_hint=(1, 1), spacing=5)
+        # EXP Row
+        exp_row = BoxLayout(orientation="vertical", spacing=2)
         self.lbl_level = Label(
-            text="LV : 1", size_hint=(None, 1), width=55,
-            font_size=18, bold=True,
-            color=(0.9, 0.95, 1, 1),
-            outline_width=2, outline_color=(0, 0, 0, 1),
+            text="LV : 1", size_hint=(1, None), height=28,
+            font_name="PixelFont", font_size=24, color=(0.4, 0.8, 1, 1),
+            halign="left", valign="middle"
         )
-        self.exp_bar = ProgressBar(max=100, value=0, size_hint=(None, 1), width=300)
+        self.lbl_level.bind(size=lambda i,v: setattr(i, "text_size", v))
+        self.exp_bar = ExpBar(size_hint=(None, None), size=(400, 8))
         exp_row.add_widget(self.lbl_level)
         exp_row.add_widget(self.exp_bar)
 
@@ -387,46 +427,45 @@ class HUD(FloatLayout):
     def _build_wave_label(self):
         self.lbl_wave = Label(
             text="WAVE 0",
-            size_hint=(None, None), size=(240, 30),
-            pos_hint={"center_x": 0.5, "top": 0.98},
-            font_size=18, bold=True,
-            color=(0.9, 0.95, 1, 1),
-            outline_width=2, outline_color=(0, 0, 0, 1),
-            halign="center", valign="middle",
+            size_hint=(None, None), size=(200, 48),
+            pos_hint={"center_x": 0.5, "top": 0.99},
+            font_size=26, bold=True, font_name="PixelFont",
+            color=(1, 0.9, 0.4, 1), halign="center", valign="middle",
         )
-        self.lbl_wave.bind(size=lambda inst, v: setattr(inst, "text_size", v))
+        with self.lbl_wave.canvas.before:
+            Color(0, 0, 0, 0.5)
+            self._wave_bg = RoundedRectangle(pos=self.lbl_wave.pos, size=self.lbl_wave.size, radius=[0, 0, 15, 15])
+        self.lbl_wave.bind(pos=lambda i,v: setattr(self._wave_bg, "pos", v),
+                           size=lambda i,v: (setattr(self._wave_bg, "size", v), setattr(i, "text_size", v)))
         self.add_widget(self.lbl_wave)
 
     def _build_time_label(self):
         self.lbl_time = Label(
             text="00:00",
-            size_hint=(None, None), size=(240, 30),
-            pos_hint={"center_x": 0.5, "top": 0.94},
-            font_size=22, bold=True,
-            color=(1, 1, 1, 1),
-            outline_width=2, outline_color=(0, 0, 0, 1),
+            size_hint=(None, None), size=(110, 32),
+            pos_hint={"center_x": 0.5, "top": 0.915},
+            font_size=20, font_name="PixelFont", color=(1, 1, 1, 1),
             halign="center", valign="middle",
         )
-        self.lbl_time.bind(size=lambda inst, v: setattr(inst, "text_size", v))
+        with self.lbl_time.canvas.before:
+            Color(0, 0, 0, 0.4)
+            self._time_bg = RoundedRectangle(pos=self.lbl_time.pos, size=self.lbl_time.size, radius=[8])
+        self.lbl_time.bind(pos=lambda i,v: setattr(self._time_bg, "pos", v),
+                           size=lambda i,v: (setattr(self._time_bg, "size", v), setattr(i, "text_size", v)))
         self.add_widget(self.lbl_time)
 
     def _build_enemy_count(self):
         self.enemy_count_box = BoxLayout(
             orientation="horizontal",
-            size_hint=(None, None), size=(160, 30),
-            pos_hint={"center_x": 0.5, "top": 0.90},
-            spacing=4,
+            size_hint=(None, None), size=(120, 30),
+            pos_hint={"center_x": 0.5, "top": 0.865},
+            padding=[8, 0]
         )
         with self.enemy_count_box.canvas.before:
             Color(0, 0, 0, 0.5)
-            self._enemy_bg = Rectangle(
-                pos=self.enemy_count_box.pos,
-                size=self.enemy_count_box.size,
-            )
-        self.enemy_count_box.bind(
-            pos=lambda i, v: setattr(self._enemy_bg, "pos", v),
-            size=lambda i, v: setattr(self._enemy_bg, "size", v),
-        )
+            self._enemy_bg = RoundedRectangle(pos=self.enemy_count_box.pos, size=self.enemy_count_box.size, radius=[10])
+        self.enemy_count_box.bind(pos=lambda i, v: setattr(self._enemy_bg, "pos", v),
+                                  size=lambda i, v: setattr(self._enemy_bg, "size", v))
         self.add_widget(self.enemy_count_box)
 
     def _build_skill_slots(self):
@@ -434,14 +473,25 @@ class HUD(FloatLayout):
         self.add_widget(self.skill_slot_box)
 
     def _build_pause_button(self):
+        from kivy.graphics import Line
         btn = Button(
-            text="||", font_size=24, bold=True,
-            size_hint=(None, None), size=(50, 50),
-            pos_hint={"right": 0.98, "top": 0.98},
-            background_normal="",
-            background_color=(0.1, 0.15, 0.2, 0.85),
-            color=(0.9, 0.95, 1, 1),
+            text="||", font_size=22, font_name="PixelFont",
+            size_hint=(None, None), size=(55, 55),
+            pos_hint={"right": 0.985, "top": 0.985},
+            background_normal="", background_color=(0, 0, 0, 0),
+            color=(1, 1, 1, 1),
         )
+        with btn.canvas.before:
+            Color(0, 0, 0, 0.4)
+            self._p_bg = RoundedRectangle(pos=btn.pos, size=btn.size, radius=[10])
+            Color(1, 1, 1, 0.2)
+            self._p_line = Line(rounded_rectangle=(btn.x, btn.y, btn.width, btn.height, 10), width=1.5)
+        
+        btn.bind(pos=lambda i,v: (setattr(self._p_bg, "pos", v), 
+                                  setattr(self._p_line, "rounded_rectangle", (v[0], v[1], i.width, i.height, 10))),
+                 size=lambda i,v: (setattr(self._p_bg, "size", v),
+                                   setattr(self._p_line, "rounded_rectangle", (i.x, i.y, v[0], v[1], 10))))
+        
         btn.bind(on_press=self.game_screen.pause_game)
         self.add_widget(btn)
 

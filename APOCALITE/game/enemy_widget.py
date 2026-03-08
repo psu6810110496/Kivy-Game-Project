@@ -142,6 +142,11 @@ class EnemyWidget(Widget):
         self.damage = current_stats["damage"]
         self.enemy_size = current_stats["size"]
         
+        # 🌟 สุ่มขนาดตัวสำหรับ Normal ให้ดูหลากหลาย (ใหญ่ขึ้นบ้างเล็กน้อย)
+        if enemy_type == "normal":
+            scale = random.uniform(1.0, 1.3) # ใหญ่ขึ้นได้ถึง 30%
+            self.enemy_size = (self.enemy_size[0] * scale, self.enemy_size[1] * scale)
+        
         # [Fix] Sniper size should also be increased to match Ranger if they use same base
         if enemy_type == "sniper":
             self.enemy_size = (120, 120)
@@ -155,10 +160,22 @@ class EnemyWidget(Widget):
 
         self._init_enemy_visuals(enemy_type)
 
+        # 🌟 ลดขนาด Texture แสดงผล (Visual) ลงอีกให้ดูพอดีช่อง (Hitbox เท่าเดิม)
+        # ปรับเหลือ 0.5 (50%) สำหรับมอนทั่วไป และ 0.6 สำหรับบอส
+        visual_scale = 0.6 if enemy_type in ["boss", "big_boss", "final_boss"] else 0.5
+        self.render_size = (self.enemy_size[0] * visual_scale, self.enemy_size[1] * visual_scale)
+
         with self.canvas:
             self.color_inst = Color(*current_stats["color"])
+            
+            # คำนวณตำแหน่งเริ่มต้นให้กึ่งกลาง hitbox
+            off_x = (self.enemy_size[0] - self.render_size[0]) / 2
+            off_y = (self.enemy_size[1] - self.render_size[1]) / 2
+            
             self.rect = Rectangle(
-                pos=self.pos, size=self.enemy_size, texture=self.texture
+                pos=(self.pos[0] + off_x, self.pos[1] + off_y), 
+                size=self.render_size, 
+                texture=self.texture
             )
             if self.texture:
                 self.rect.tex_coords = self.texture.tex_coords
@@ -187,14 +204,40 @@ class EnemyWidget(Widget):
             if not self.anim_frames: self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 16, row=0)
             self.anim_speed = 0.08 # Faster animation for smoother look
         elif etype == "bomber":
-            self.anim_frames = get_frames("assets/enemy/Bomb_Walk.png", 40, 40, 8)
+            # 🌟 โหลดเฟรมระเบิดแยกไฟล์ Bomb1, 2, ...
+            frames = []
+            for i in range(1, 9):
+                p = resolve_path(f"assets/enemy/bomber/Bomb{i}.png")
+                if p:
+                    try:
+                        frames.append(CoreImage(p).texture)
+                    except: pass
+            
+            if frames:
+                self.anim_frames = frames
+            else:
+                # Fallback
+                self.anim_frames = get_frames("assets/enemy/bomber/Bomb_Walk.png", 40, 40, 8)
             self.anim_speed = 0.12
         elif etype == "stalker":
-            colors = ["Black", "Brown", "Gray", "White"]
+            # 🌟 สุ่มสีน้องหมา (Stalker) และดึงภาพแยก Run1, 2, 3, ... ตามที่ User ต้องการ
+            colors = ["Black", "Gray", "White"]
             chosen = random.choice(colors)
-            # [Fix] 192/24 = 8 frames. Previous 48px/4 frames showed 2 dogs.
-            # So 24px should show 1 dog correctly.
-            self.anim_frames = get_frames(f"assets/enemy/Canine_{chosen}_Run.png", 24, 64, 8)
+            
+            frames = []
+            for i in range(1, 7):
+                p = f"assets/enemy/Canine_{chosen}_Run{i}.png"
+                if os.path.exists(p):
+                    try:
+                        frames.append(CoreImage(p).texture)
+                    except: pass
+            
+            if frames:
+                self.anim_frames = frames
+            else:
+                # Fallback ถ้าหาไฟล์แยกไม่เจอ ให้ใช้ spritesheet เดิม
+                self.anim_frames = get_frames(f"assets/enemy/Canine_{chosen}_Run.png", 24, 64, 8)
+            
             self.anim_speed = 0.08
         elif etype == "boss" or etype == "big_boss":
             # Minotaur sheet: row 0=attack, row 1=walk, row 2=idle (ตามเดิมที่เดาไว้)
@@ -223,8 +266,9 @@ class EnemyWidget(Widget):
             self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 16, row=1)
             self.anim_speed = 0.06
         else:
-            # Normal / Default (enemy1.png) - STATIC TEXTURE (NOT SPRITESHEET)
-            path = resolve_path("assets/enemy/enemy1.png")
+            # Normal / Default (enemy1, 2 Alt) - STATIC TEXTURE
+            chosen = random.choice(["enemy1.png", "enemy2.png"])
+            path = resolve_path(f"assets/enemy/{chosen}")
             if path:
                 try:
                     self.texture = CoreImage(path).texture
@@ -245,14 +289,18 @@ class EnemyWidget(Widget):
         """จัดการ Animation และ Flip ทิศทาง (optimized เพื่อกันบัคกะพริบ)"""
         if not self.anim_frames: return
         
-        # 1. จัดการ Flip ทิศทาง
+        # 1. จัดการ Flip ทิศทาง (หันหน้าหา Player)
         flipped = False
         if hasattr(self, "game") and self.game and self.game.player_pos:
             px = self.game.player_pos[0] + 32
             ex = self.pos[0] + self.enemy_size[0]/2
-            old_facing = self.is_facing_right
-            self.is_facing_right = (px > ex)
-            if old_facing != self.is_facing_right:
+            
+            # สมมติว่าไฟล์ภาพต้นฉบับหันหน้าไปทาง "ซ้าย" (Standard assets)
+            # ถ้า Player อยู่ทางขวา (px > ex) เราต้อง Flip ทิศทาง (หันขวา)
+            new_facing_right = (px > ex)
+            
+            if self.is_facing_right != new_facing_right:
+                self.is_facing_right = new_facing_right
                 flipped = True
 
         # 2. จัดการเปลี่ยนเฟรม Animation
@@ -260,18 +308,17 @@ class EnemyWidget(Widget):
         if len(self.anim_frames) > 1:
             self.anim_timer += dt
             if self.anim_timer >= self.anim_speed:
-                # กันกรณี dt กระโดดสูงๆ
                 self.anim_timer = 0
                 self.frame_index = (self.frame_index + 1) % len(self.anim_frames)
                 self.texture = self.anim_frames[self.frame_index]
                 self.rect.texture = self.texture
                 frame_changed = True
 
-        # 3. อัปเดตพิกัด UV (tex_coords) เฉพาะตอนมีการเปลี่ยนแปลง
-        # (ครั้งแรกที่สร้าง, ตอนเปลี่ยนเฟรม, หรือตอนกลับด้าน)
+        # 3. อัปเดต UV (หันหน้า)
         if (frame_changed or flipped or not hasattr(self, "_initialized_uv")) and self.texture:
             tc = self.texture.tex_coords
-            if self.is_facing_right:
+            # ถ้าหันขวา (is_facing_right = True) ให้ใช้พิกัด Flip (เพราะรูปเดิมหันซ้าย)
+            if not self.is_facing_right:
                 self.rect.tex_coords = tc
             else:
                 # Flip Horizontal
@@ -279,11 +326,16 @@ class EnemyWidget(Widget):
             self._initialized_uv = True
 
     def _update_rect(self, instance, value):
-        new_pos = (value[0] + self.shake_offset[0], value[1] + self.shake_offset[1])
+        # 🌟 วาด Texture ให้กึ่งกลาง hitbox ที่เล็กลง
+        off_x = (self.enemy_size[0] - self.render_size[0]) / 2
+        off_y = (self.enemy_size[1] - self.render_size[1]) / 2
+        
+        new_pos = (value[0] + off_x + self.shake_offset[0], 
+                   value[1] + off_y + self.shake_offset[1])
         self.rect.pos = new_pos
-        # Sync debug label
+        # Sync debug label (จัดให้อยู่เหนือ hitbox จริง)
         if self._debug_label:
-            self._debug_label.pos = (new_pos[0] + self.enemy_size[0]/2 - 50, new_pos[1] + self.enemy_size[1] + 5)
+            self._debug_label.pos = (value[0] + self.enemy_size[0]/2 - 50, value[1] + self.enemy_size[1] + 5)
             if self.SHOW_DEBUG_STATS:
                 self._debug_label.text = f"HP:{int(self.hp)}  ATK:{int(self.damage)}"
                 self._debug_label.opacity = 1
@@ -644,6 +696,9 @@ class EnemyWidget(Widget):
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
+        
+        # 🌟 สร้างกระสุน Swipe พุ่งหาผู้เล่นอย่างรวดเร็ว
+        proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
         proj.speed = 700
         self.game.world_layout.add_widget(proj)
         self.game.enemy_projectiles.append(proj)
@@ -738,13 +793,18 @@ class EnemyWidget(Widget):
         """เขย่าตัวศัตรูเมื่อโดนดาเมจ"""
         if count >= 4 or self.hp <= 0:
             self.shake_offset = [0, 0]
-            self.rect.pos = self.pos
+            # Reset เป็นตำแหน่งกึ่งกลาง hitbox
+            off_x = (self.enemy_size[0] - self.render_size[0]) / 2
+            off_y = (self.enemy_size[1] - self.render_size[1]) / 2
+            self.rect.pos = (self.pos[0] + off_x, self.pos[1] + off_y)
             return
 
-        # สุ่ม offset ตามขนาดตัว (ประมาณ 12%)
         mag = self.enemy_size[0] * 0.12
         self.shake_offset = [random.uniform(-mag, mag), random.uniform(-mag, mag)]
-        self.rect.pos = (self.pos[0] + self.shake_offset[0], self.pos[1] + self.shake_offset[1])
+        
+        off_x = (self.enemy_size[0] - self.render_size[0]) / 2
+        off_y = (self.enemy_size[1] - self.render_size[1]) / 2
+        self.rect.pos = (self.pos[0] + off_x + self.shake_offset[0], self.pos[1] + off_y + self.shake_offset[1])
 
         Clock.schedule_once(lambda dt: self._apply_hit_shake(count + 1), 0.04)
 

@@ -216,14 +216,48 @@ class CharacterSelectScreen(Screen):
         self.selectable_buttons.append(back_btn)
         
         root_layout.add_widget(layout)
+        
+        # 🌟 Black Fade Overlay (ซ่อนไว้เริ่มต้น)
+        self.fade_overlay = Widget(size_hint=(1, 1), opacity=0)
+        with self.fade_overlay.canvas:
+            Color(0, 0, 0, 1)
+            self.fade_rect = Rectangle(pos=self.pos, size=Window.size)
+        self.bind(size=self._update_fade_rect, pos=self._update_fade_rect)
+        
+        root_layout.add_widget(self.fade_overlay)
         self.add_widget(root_layout)
+
+    def _update_fade_rect(self, inst, val):
+        self.fade_rect.size = Window.size
+        self.fade_rect.pos = self.pos
 
     def _update_bg(self, i, v): self.bg.pos = i.pos; self.bg.size = i.size
 
     def select_character(self, stats):
-        stats.reset()
-        App.get_running_app().current_player = stats
-        self.manager.current = "game_screen"
+        # 1. ปิด Input กันกดซ้ำ
+        Window.unbind(on_joy_axis=self._on_joy_axis, on_joy_hat=self._on_joy_hat,
+                      on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos,
+                      on_key_down=self._on_keyboard_down)
+        
+        # 2. Fade to Black
+        anim = Animation(opacity=1, duration=0.6, t='in_quad')
+        
+        def on_fade_done(*args):
+            # 3. เตรียม Stats และเปลี่ยนจอตอนหน้าจอดำสนิท
+            stats.reset()
+            App.get_running_app().current_player = stats
+            self.manager.current = "game_screen"
+            
+            # 4. Fade out กลับมาใส (และย้ายกลับมาที่หน้าจอเดิมในเบื้องหลัง)
+            Clock.schedule_once(lambda dt: self._fade_out_overlay(), 0.1)
+
+        anim.bind(on_complete=on_fade_done)
+        anim.start(self.fade_overlay)
+
+    def _fade_out_overlay(self):
+        # ทำให้ overlay จางหายไป
+        anim = Animation(opacity=0, duration=0.6, t='out_quad')
+        anim.start(self.fade_overlay)
 
     def go_back(self, _): self.manager.current = "main_menu"
 

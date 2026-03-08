@@ -29,6 +29,12 @@ class CreditsScreen(Screen):
             "Thank you for reaching the end."
         )
         
+        # 🌟 ลงทะเบียน Pixel Font
+        from kivy.core.text import LabelBase
+        try:
+            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
+        except: pass
+
         self.credits_label = Label(
             text=credits_text,
             markup=True,
@@ -37,7 +43,8 @@ class CreditsScreen(Screen):
             size_hint=(1, None),
             height=2000, # กำหนดความสูงเพื่อให้เลื่อนได้ยาวๆ
             pos_hint={'center_x': 0.5},
-            y=-2000 # เริ่มต้นจากด้านล่างหน้าจอ
+            y=-2000, # เริ่มต้นจากด้านล่างหน้าจอ
+            font_name="PixelFont" # 🌟 ใช้ฟอนต์เดียวกัน
         )
         
         layout.add_widget(self.credits_label)
