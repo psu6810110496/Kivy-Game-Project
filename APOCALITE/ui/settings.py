@@ -874,8 +874,12 @@ class SettingsScreen(Screen):
         if not self.manager:
             return
         target = self._previous_screen
-        self.manager.current = target
         if target == "game_screen":
-            from ui.pause import PausePopup
+            # ตั้ง flag ก่อน เพื่อให้ on_enter() ไม่ reset state
             game_screen = self.manager.get_screen("game_screen")
+            game_screen._returning_from_settings = True
+            self.manager.current = target
+            from ui.pause import PausePopup
             Clock.schedule_once(lambda dt: PausePopup(game_screen).open(), 0.1)
+        else:
+            self.manager.current = target

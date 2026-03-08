@@ -38,6 +38,9 @@ class BaseSkill:
         return 2.0
 
     def tick(self, dt: float, game):
+        if not getattr(game, "enemies", []):
+            return
+            
         self._timer -= dt
         if self._timer <= 0:
             self.activate(game)
@@ -165,6 +168,9 @@ class DinoCircle(BaseSkill):
 
     def tick(self, dt: float, game):
         """อัปเดต orbit angle และตรวจ collision"""
+        if not getattr(game, "enemies", []):
+            return
+            
         self._load()
         self._orbit_angle += self.orbit_speed * dt
         if self._orbit_angle > 2 * math.pi:

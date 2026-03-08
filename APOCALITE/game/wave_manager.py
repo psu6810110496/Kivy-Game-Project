@@ -32,13 +32,20 @@ class WaveManager:
         
         # Check Win Condition: Just finished Wave 45
         if self.current_wave > 45:
-            # เมื่อเคลียร์ Wave 45 (Final Boss) แล้ว
-            # รอ 15 วินาทีก่อนจบเกมตามที่ User ต้องการ
+            # เมื่อเคลียร์ Wave 45 และลูกน้อง(ศัตรูตัวสุดท้าย)ตายหมดแล้ว
+            # ทิ้งความเงียบไว้ 3 วินาทีก่อนเริ่มเพลงเพื่อให้ดูดราม่าขึ้น
+            def _start_music(dt):
+                from game.sound_manager import sound_manager
+                sound_manager.play_bgm("endcredit", loop=False, seek_pos=49.0)
+            
+            Clock.schedule_once(_start_music, 3.0)
+
+            # ตอนนี้เพลงเปิดช้าลง 3 วิ ดังนั้นต้องรอ 3 + 19 = 22 วินาที เพื่อให้พอดีกับท่อนฮุคนาทีที่ 1:08
             def _delayed_victory(dt):
-                if not self.game.is_dead: # Don't win if player died in the last 15s
+                if not self.game.is_dead: # Don't win if player died in the last period
                     self.game.show_game_over(win=True)
             
-            Clock.schedule_once(_delayed_victory, 15.0)
+            Clock.schedule_once(_delayed_victory, 22.0)
             return
 
         self.is_spawning = True

@@ -19,6 +19,7 @@ class SoundManager:
         "ingame":    "assets/sound/ingame/dodgin-bullets-bosnow-main-version-45830-02-32.mp3",
         "bossfight": "assets/sound/bossfight/speed-demon-abbynoise-main-version-18766-02-24.mp3",
         "rain":      "assets/sound/mainmenu/rain.wav",
+        "endcredit": "assets/sound/endcredit/endc1.mp3",
     }
 
     SFX_PATHS = {
@@ -48,7 +49,7 @@ class SoundManager:
         self._sfx_cache = {}
         self._bgm_cache = {}
 
-    def play_bgm(self, name, loop=True):
+    def play_bgm(self, name, loop=True, seek_pos=0.0):
         """เล่นเพลงประกอบพื้นหลัง (BGM) แบบวนลูป"""
         if self.current_bgm_name == name:
             return
@@ -76,6 +77,8 @@ class SoundManager:
         self.current_bgm.loop = loop
         self.current_bgm.volume = settings.music_volume
         self.current_bgm.play()
+        if seek_pos > 0.0:
+            self.current_bgm.seek(seek_pos)
         print(f"[SoundManager] Playing BGM: {name} (Volume: {settings.music_volume})")
 
     def stop_bgm(self):

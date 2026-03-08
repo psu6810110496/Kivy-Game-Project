@@ -111,7 +111,7 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 50000, 
+                "hp": 500, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),
@@ -768,6 +768,9 @@ class EnemyWidget(Widget):
             exp = FinalBossExplosion(pos=(cx, cy), radius=1200, fuse=10.0, game=self.game)
             if self.game:
                 self.game.world_layout.add_widget(exp)
+            # ปิดเพลง Boss ตอนนี้นับถอยหลัง 10 วิ ก่อนระเบิดให้เงียบวังเวง
+            from game.sound_manager import sound_manager
+            sound_manager.stop_bgm()
 
         # เอฟเฟกต์กระพริบม่วง (capture orig_color ด้วย default arg เพื่อป้องกัน closure bug)
         orig_color = tuple(self.color_inst.rgba)
