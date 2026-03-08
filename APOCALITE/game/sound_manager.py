@@ -24,7 +24,14 @@ class SoundManager:
 
     SFX_PATHS = {
         "attack": "assets/sound/attack/ninja-star-throw-joshua-chivers-1-00-00.mp3",
+        "enemy_hit": "assets/sound/attack/bullet-impacting-body-gamemaster-audio-2-2-00-00.mp3",
         "button": "assets/sound/button/computer-mouse-click-joshua-chivers-1-00-00.mp3",
+        # PTae Skills
+        "dino_circle_loop": "assets/sound/Ptae/skill1/universfield-whip-06-487886.mp3",
+        "dino_summon":      "assets/sound/Ptae/skill2/yee.mp3",
+        "dino_hit":         "assets/sound/Ptae/skill2/chicken-on-tree-screaming.mp3",
+        "dino_beam":        "assets/sound/Ptae/skill3/explosion-meme_dTCfAHs.mp3",
+        "player_death":     "assets/sound/ingame/cat-laugh-meme-1.mp3",
     }
 
     def __new__(cls):
@@ -48,6 +55,7 @@ class SoundManager:
         # Cache loaded sounds to avoid reloading
         self._sfx_cache = {}
         self._bgm_cache = {}
+        self._current_loops = {} # {name: sound_instance}
 
     def play_bgm(self, name, loop=True, seek_pos=0.0):
         """เล่นเพลงประกอบพื้นหลัง (BGM) แบบวนลูป"""
@@ -125,7 +133,7 @@ class SoundManager:
         if self.current_ambient:
             self.current_ambient.volume = settings.music_volume * self.ambient_volume_factor
 
-    def play_sfx(self, name):
+    def play_sfx(self, name, volume=None):
         """เล่นเสียงเอฟเฟกต์ (SFX) หนึ่งครั้ง"""
         path = self.SFX_PATHS.get(name)
         if not path or not os.path.exists(path):
@@ -141,8 +149,35 @@ class SoundManager:
                 return
 
         sfx = self._sfx_cache[name]
-        sfx.volume = settings.sfx_volume
+        sfx.volume = volume if volume is not None else settings.sfx_volume
         sfx.play()
+
+    def play_loop_sfx(self, name, volume=None):
+        """เล่นเสียง loop (เช่น Skill ที่ทำงานค้างไว้)"""
+        if name in self._current_loops:
+            return
+
+        path = self.SFX_PATHS.get(name)
+        if not path or not os.path.exists(path):
+            return
+
+        sound = SoundLoader.load(path)
+        if sound:
+            sound.loop = True
+            sound.volume = volume if volume is not None else settings.sfx_volume
+            sound.play()
+            self._current_loops[name] = sound
+
+    def stop_loop_sfx(self, name):
+        """หยุดเสียง loop ทันที"""
+        if name in self._current_loops:
+            self._current_loops[name].stop()
+            del self._current_loops[name]
+
+    def stop_all_loops(self):
+        """หยุดเสียง loop ทั้งหมด (ใช้ตอนตาย/จบเกม)"""
+        for name in list(self._current_loops.keys()):
+            self.stop_loop_sfx(name)
 
 # --- Global Instance ---
 sound_manager = SoundManager()

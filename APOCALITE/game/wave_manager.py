@@ -7,6 +7,7 @@ from kivy.clock import Clock
 from kivy.uix.label import Label
 
 from game.enemy_widget import EnemyWidget
+from ui.font import PIXEL_FONT
 
 
 class WaveManager:
@@ -345,7 +346,8 @@ class WaveManager:
         self._wave_label = Label(
             text=f"[b]WAVE {self.current_wave}[/b]",
             markup=True, font_size=80,
-            color=(1, 1, 1, 1), outline_width=4, outline_color=(0, 0, 0, 1),
+            font_name=PIXEL_FONT,
+            color=(1, 1, 1, 1),
             pos_hint={"center_x": 0.5, "top": 0.92},
         )
         game.root_layout.add_widget(self._wave_label)
@@ -364,7 +366,8 @@ class WaveManager:
         self._boss_overlay = Label(
             text=f"[b]{text}[/b]",
             markup=True, font_size=100,
-            color=color, outline_width=4, outline_color=(0, 0, 0, 1),
+            font_name=PIXEL_FONT,
+            color=color,
             pos_hint={"center_x": 0.5, "center_y": 0.7},
         )
         game.root_layout.add_widget(self._boss_overlay)

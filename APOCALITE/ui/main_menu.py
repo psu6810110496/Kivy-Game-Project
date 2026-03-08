@@ -9,6 +9,7 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 import random
 from game.sound_manager import sound_manager
+from ui.font import PIXEL_FONT
 
 
 # --- คลาสเอฟเฟกต์ฝนตก ---
@@ -54,15 +55,7 @@ class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-        # 🌟 ลงทะเบียน Pixel Font จาก assets
-        from kivy.core.text import LabelBase
-        try:
-            LabelBase.register(
-                name="PixelFont",
-                fn_regular="assets/fornt/Stacked pixel.ttf",
-            )
-        except Exception:
-            pass
+        # ฟ้อนต์ถูก register ไว้แล้วใน ui.font
 
         # --- [ระบบ Joy Navigation] ---
         self.selectable_buttons = [] 
@@ -99,7 +92,7 @@ class MainMenuScreen(Screen):
         title_label = Label(
             text="APOCALITE",
             font_size=140,
-            font_name="PixelFont",
+            font_name=PIXEL_FONT,
             color=(1, 1, 1, 1),
             halign="left",
             valign="middle",
@@ -118,7 +111,7 @@ class MainMenuScreen(Screen):
             lbl = Label(
                 text=text,
                 font_size=42,
-                font_name="PixelFont",
+                font_name=PIXEL_FONT,
                 size_hint=(1, None),
                 height=75,
                 color=color,
@@ -220,6 +213,7 @@ class MainMenuScreen(Screen):
             self.show_highlight = True
             self.update_highlight()
             if self.selectable_buttons:
+                lbl = self.selectable_buttons[self.selected_index]
                 # เรียก callback ของ Label โดยตรง
                 if hasattr(lbl, '_callback'):
                     sound_manager.play_sfx("button")

@@ -119,7 +119,7 @@ class GameScreen(Screen):
             try:
                 tex = CoreImage("assets/maps/map.jpg").texture
             except Exception:
-                tex = CoreImage("assets/maps/map.jpg").texture
+                tex = CoreImage("assets/maps/map3.jpg").texture
             tex.wrap = "repeat"
             scale = 3.0
             tex.uvsize = (5000 / (tex.width * scale), -5000 / (tex.height * scale))
@@ -339,6 +339,7 @@ class GameScreen(Screen):
         Clock.unschedule(self.update_frame)
         if self.attack_event:
             self.attack_event.cancel()
+        sound_manager.stop_all_loops()
         self._unbind_input()
 
     def _start_game(self):
@@ -723,12 +724,14 @@ class GameScreen(Screen):
         if self.attack_event:
             self.attack_event.cancel()
             self.attack_event = None
+        sound_manager.stop_all_loops()
         self._unbind_input()
         
         if win:
             # ถ้าชนะ ให้ไปหน้า End Credits ทันที
             self.manager.current = "credits_screen"
         else:
+            sound_manager.play_sfx("player_death")
             GameOverPopup(win=win, game_screen=self).open()
 
     # ── Input ─────────────────────────────────────────────
@@ -945,8 +948,6 @@ class GameScreen(Screen):
                 return True
             
             # 🌟 [Optimization] ใช้ความเร็วคงที่ ไม่สร้างภาระ Clock มากเกินไป
-            Clock.schedule_interval(_next_frame, 0.05)
-                
             # วนเฟรมภาพทั้งหมดให้เสร็จในระยะเวลาประมาณ 0.15 วิ
             Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
             return

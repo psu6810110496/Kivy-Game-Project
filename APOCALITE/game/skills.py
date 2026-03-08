@@ -172,6 +172,11 @@ class DinoCircle(BaseSkill):
             return
             
         self._load()
+        
+        # [Aesthetic] Play looping skill sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_loop_sfx("dino_circle_loop", volume=settings.sfx_volume * 0.4)
+        
         self._orbit_angle += self.orbit_speed * dt
         if self._orbit_angle > 2 * math.pi:
             self._orbit_angle -= 2 * math.pi
@@ -263,6 +268,11 @@ class DinoSummon(BaseSkill):
     def activate(self, game):
         if not game.enemies:
             return
+        
+        # [Aesthetic] Play summon sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("dino_summon")
+
         from game.projectile_widget import HomingDino
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -310,6 +320,10 @@ class DinoPunch(StackSkill):
         self.beam_length  = min(2000, self.beam_length + 80)
 
     def activate(self, game):
+        # [Aesthetic] Play activation sound (low volume as it's loud/meme)
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 0.35)
+
         from game.projectile_widget import DinoBeam
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
@@ -846,6 +860,13 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
 #  HELPERS
 # ═══════════════════════════════════════════════════════════
 def _hit_enemy(game, enemy, dmg: float):
+    if not enemy or enemy.is_dead:
+        return
+        
+    # [Aesthetic] Play hit sound (quieter than melee)
+    from game.sound_manager import sound_manager
+    sound_manager.play_sfx("enemy_hit", volume=settings.sfx_volume * 0.4)
+
     if hasattr(enemy, "take_damage"):
         enemy.take_damage(dmg)
     else:
@@ -860,6 +881,7 @@ def _hit_enemy(game, enemy, dmg: float):
 
     if enemy in game.enemies:
         game.enemies.remove(enemy)
+        enemy.is_dead = True
         
     # เช็คว่าเป็นบอสหรือไม่ เพื่อดรอประเบิดตัวเอง
     is_any_boss = False
@@ -1018,10 +1040,10 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
     if inner_radius > 0:
         if orbit_textures:
             # ใช้สีขาวเข้มขึ้นตาม texture (ปรับ alpha ให้เห็นชัด)
-            ig.add(Color(1, 1, 1, 0.9)) 
+            ig.add(Color(1, 1, 1, 1)) # [Fix] Revert to original bright colors
             tex = orbit_textures[orbit_frame % len(orbit_textures)]
-            # ขยายขนาด Aura จาก 2.8 เป็น 3.2 เท่าของ radius ให้ดูใหญ่ขึ้น
-            aura_size = inner_radius * 3.5
+            # [Fix] Reduce Aura size multiplier from 3.5 to 3.0
+            aura_size = inner_radius * 3.0
             ig.add(Rectangle(texture=tex, 
                              pos=(game.player_pos[0]+32 - aura_size/2, game.player_pos[1]+32 - aura_size/2), 
                              size=(aura_size, aura_size)))
@@ -1032,12 +1054,12 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
 
     # จุดไดโนรอบนอก
     if textures:
-        # สีเข้มขรึมขึ้นตามเควส (Darken: 0.85 -> 0.4)
-        ig.add(Color(0.4, 0.4, 0.4, 1))
+        # [Fix] Revert to original bright colors
+        ig.add(Color(1, 1, 1, 1))
         tex = textures[frame % len(textures)]
         for (ox, oy) in positions:
-            # ขนาดใหญ่ขึ้นจาก 65 เป็น 110 (ตัวใหญ่ขึ้นตามคำขอ)
-            sz = 110
+            # [Fix] Reduced size from 110 to 64
+            sz = 64
             ig.add(Rectangle(texture=tex, pos=(ox - sz/2, oy - sz/2), size=(sz, sz)))
     else:
         ig.add(Color(0.2, 0.6, 0.2, 0.9))

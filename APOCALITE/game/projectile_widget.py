@@ -31,7 +31,7 @@ class EnemyProjectile(_Linear):
     def _load(cls):
         if cls._TEXTURES is None:
             cls._TEXTURES = []
-            for i in range(30):
+            for i in range(4): # [Fix] Limit to 4 frames as requested
                 path = resolve_path(f"assets/effect/rangershoot/1_{i}.png")
                 if path:
                     try: cls._TEXTURES.append(CoreImage(path).texture)
@@ -45,7 +45,7 @@ class EnemyProjectile(_Linear):
             PushMatrix()
             self.tr = Translate(self.pos[0], self.pos[1])
             self.ro = Rotate(angle=angle, origin=(0,0))
-            Color(1,1,1,1)
+            Color(0.6, 0.05, 0.5, 1) # [Fix] Dark Red-Purple (Red-Purple + Black tint)
             self.br = Rectangle(pos=(-40,-40), size=(80,80),
                                  texture=self._TEXTURES[0] if self._TEXTURES else None)
             PopMatrix()
@@ -319,11 +319,11 @@ class HomingDino(_Linear):
         self._game = game  # 🌟 เก็บ reference ของเกมเพื่อหาเป้าหมายใหม่
         self._range = proj_range
         self._traveled = 0.0
-        sz = 100 # ใหญ่ขึ้นชัดเจนตามคำขอ
+        sz = 64 # [Fix] Reduced size from 100
         self.size = (sz, sz)
         offset = sz / 2
         with self.canvas:
-            Color(0.85, 0.85, 0.85, 1) # สีเข้มขึ้น
+            Color(1, 1, 1, 1) # [Fix] Revert to original bright colors
             self.dino_rect = Rectangle(
                 pos=(start_pos[0]-offset, start_pos[1]-offset), 
                 size=(sz, sz),

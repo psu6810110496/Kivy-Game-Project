@@ -9,6 +9,7 @@ from kivy.app import App
 from kivy.core.window import Window
 from kivy.clock import Clock
 from game.sound_manager import sound_manager
+from ui.font import PIXEL_FONT
 
 class CreditsScreen(Screen):
     def on_enter(self):
@@ -66,11 +67,7 @@ class CreditsScreen(Screen):
             "\n" * 10
         )
         
-        # Register Font
-        from kivy.core.text import LabelBase
-        try:
-            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
-        except: pass
+        # ฟ้อนต์ถูก register ไว้แล้วใน ui.font
 
         # Create Scrolling Label
         self.credits_label = Label(
@@ -82,7 +79,7 @@ class CreditsScreen(Screen):
             height=6500, # เพิ่มความสูงเล็กน้อย
             pos_hint={'center_x': 0.5},
             y=-6500,    # เริ่มที่ต่ำกว่าขอบล่าง
-            font_name="PixelFont",
+            font_name=PIXEL_FONT,
             color=(1, 1, 1, 1)
         )
         layout.add_widget(self.credits_label)

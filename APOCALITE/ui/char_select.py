@@ -11,6 +11,7 @@ from kivy.uix.behaviors import ButtonBehavior
 from game.player import PlayerStats
 from kivy.app import App
 from kivy.animation import Animation
+from ui.font import PIXEL_FONT
 
 
 class CharCard(ButtonBehavior, BoxLayout):
@@ -106,12 +107,7 @@ class CharacterSelectScreen(Screen):
         self.show_highlight = False
         self.joy_cooldown = False
 
-        # 🌟 Pixel Font
-        from kivy.core.text import LabelBase
-        try:
-            LabelBase.register(name="PixelFont", fn_regular="assets/fornt/Stacked pixel.ttf")
-        except Exception:
-            pass
+        # ฟ้อนต์ถูก register ไว้แล้วใน ui.font
 
         from game.skills import CHAR_SPEED_CAP
         self.char_data = {

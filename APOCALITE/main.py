@@ -1,12 +1,3 @@
-from kivy.app import App
-from kivy.uix.screenmanager import ScreenManager, NoTransition
-from kivy.core.window import Window
-from ui.main_menu import MainMenuScreen
-from ui.char_select import CharacterSelectScreen
-from game.engine import GameScreen
-from ui.credits import CreditsScreen
-from ui.settings import SettingsScreen
-from ui.leaderboard import LeaderboardScreen
 from kivy.config import Config
 
 # ตั้งค่าการปรับขนาดหน้าจอ
@@ -17,6 +8,16 @@ Config.set("graphics", "height", "720")
 Config.set("graphics", "maxfps", "60") # ล็อก FPS เพื่อความนิ่ง
 Config.set("graphics", "vsync", "1")   # เปิด VSync ลดการฉีกขาดของภาพ
 Config.set("input", "mouse", "mouse,disable_multitouch")
+
+from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, NoTransition
+from kivy.core.window import Window
+from ui.main_menu import MainMenuScreen
+from ui.char_select import CharacterSelectScreen
+from game.engine import GameScreen
+from ui.credits import CreditsScreen
+from ui.settings import SettingsScreen
+from ui.leaderboard import LeaderboardScreen
 
 class Apocalite(App):
     def build(self):
