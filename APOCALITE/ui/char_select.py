@@ -116,16 +116,16 @@ class CharacterSelectScreen(Screen):
                 idle_frames=["assets/PTae/PTIdle/PTTG1.png","assets/PTae/PTIdle/PTTG2.png"],
                 walk_frames=["assets/PTae/PTPushUp/PTaeTester1.png","assets/PTae/PTPushUp/PTaeTester2.png",
                              "assets/PTae/PTPushUp/PTaeTester3.png","assets/PTae/PTPushUp/PTaeTester4.png"],
-                heal_small_tex="assets/PTae/skill2/heal_s.png",
-                heal_large_tex="assets/PTae/skill2/heal_l.png",
+                heal_small_tex="assets/PTae/heal/food2.png",
+                heal_large_tex="assets/PTae/heal/food1.png",
             ),
             "Lostman": PlayerStats(
                 name="Lostman", hp=120, speed=4.5, damage=12,
                 idle_frames=["assets/Lostman/idle/idleman1.png","assets/Lostman/idle/idleman2.png"],
                 walk_frames=["assets/Lostman/walk/walk1.png","assets/Lostman/walk/walk2.png",
                              "assets/Lostman/walk/walk3.png","assets/Lostman/walk/walk4.png"],
-                heal_small_tex="assets/Lostman/skill3/heal_s.png",
-                heal_large_tex="assets/Lostman/skill3/heal_l.png",
+                heal_small_tex="assets/Lostman/heal/heal1.png",
+                heal_large_tex="assets/Lostman/heal/heal2.png",
             ),
             "Monkey": PlayerStats(
                 name="Monkey", hp=80, speed=6.0, damage=10,
@@ -134,6 +134,7 @@ class CharacterSelectScreen(Screen):
                              "assets/Monkey/WalkM/W03.png","assets/Monkey/WalkM/W04.png"],
                 heal_small_tex="assets/Monkey/Heal/Banana_s1.png",
                 heal_large_tex="assets/Monkey/Heal/Banana_s2.png",
+                size=(48, 48),
             ),
         }
 
@@ -221,6 +222,18 @@ class CharacterSelectScreen(Screen):
         self.bind(size=self._update_fade_rect, pos=self._update_fade_rect)
         
         root_layout.add_widget(self.fade_overlay)
+
+        # 🌟 Info Button (How to Play)
+        info_btn = Button(
+            text="?", size_hint=(None, None), size=(40, 40),
+            pos_hint={'right': 0.98, 'top': 0.98},
+            font_size=28, font_name="PixelFont",
+            background_normal="", background_color=(0.2, 0.4, 0.8, 0.8),
+            color=(1, 1, 1, 1)
+        )
+        info_btn.bind(on_press=self.show_how_to_play)
+        root_layout.add_widget(info_btn)
+
         self.add_widget(root_layout)
 
     def _update_fade_rect(self, inst, val):
@@ -257,6 +270,10 @@ class CharacterSelectScreen(Screen):
 
     def go_back(self, _): self.manager.current = "main_menu"
 
+    def show_how_to_play(self, *args):
+        self.manager.get_screen("how_to_play_screen").next_screen = "char_select_screen"
+        self.manager.current = "how_to_play_screen"
+
     def on_enter(self):
         Window.bind(on_joy_axis=self._on_joy_axis, on_joy_hat=self._on_joy_hat,
                     on_joy_button_down=self._on_joy_button_down, mouse_pos=self._on_mouse_pos,
@@ -269,10 +286,10 @@ class CharacterSelectScreen(Screen):
                       on_key_down=self._on_keyboard_down)
 
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 119 or key == 97: # W or A
+        if key in (119, 97, 273, 276): # W, A, Up, Left
             self.navigate("prev")
             return True
-        elif key == 115 or key == 100: # S or D
+        elif key in (115, 100, 274, 275): # S, D, Down, Right
             self.navigate("next")
             return True
         elif key == 32 or key == 13: # Spacebar or Enter
@@ -280,6 +297,9 @@ class CharacterSelectScreen(Screen):
             self.update_highlight()
             if self.selectable_buttons:
                 self.selectable_buttons[self.selected_index].dispatch('on_press')
+            return True
+        elif key == 27: # ESC
+            self.go_back(None)
             return True
         return False
 

@@ -15,9 +15,23 @@ def _register():
     if _registered:
         return
     try:
+        import os
+        # Robust font path searching
+        possible_paths = [
+            "assets/fornt/Stacked pixel.ttf",
+            "../assets/fornt/Stacked pixel.ttf",
+            "APOCALITE/assets/fornt/Stacked pixel.ttf",
+            "d:/Kivy-Game-Project/assets/fornt/Stacked pixel.ttf"
+        ]
+        font_path = None
+        for p in possible_paths:
+            if os.path.exists(p):
+                font_path = p
+                break
+        
         LabelBase.register(
             name="PixelFont",
-            fn_regular="assets/fornt/Stacked pixel.ttf",
+            fn_regular=font_path or "assets/fornt/Stacked pixel.ttf",
         )
         _registered = True
     except Exception:

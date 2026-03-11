@@ -24,9 +24,13 @@ class WaveManager:
         self.is_spawning = False
         self._wave_label = None
         self._boss_overlay = None
+        # 🌟 Cancel any pending victory timers
+        if hasattr(self, '_win_music_ev'): Clock.unschedule(self._win_music_ev)
+        if hasattr(self, '_win_screen_ev'): Clock.unschedule(self._win_screen_ev)
 
     def try_start_next_wave(self):
-        if self.is_spawning or self.game.is_dead or self._wave_stopped:
+        # 🌟 Guard: Don't trigger if spawning, dead, stopped, or already triggered victory (wave > 45)
+        if self.is_spawning or self.game.is_dead or self._wave_stopped or self.current_wave > 45:
             return
             
         self.current_wave += 1
@@ -39,14 +43,14 @@ class WaveManager:
                 from game.sound_manager import sound_manager
                 sound_manager.play_bgm("endcredit", loop=False, seek_pos=49.0)
             
-            Clock.schedule_once(_start_music, 3.0)
+            self._win_music_ev = Clock.schedule_once(_start_music, 3.0)
 
             # ตอนนี้เพลงเปิดช้าลง 3 วิ ดังนั้นต้องรอ 3 + 19 = 22 วินาที เพื่อให้พอดีกับท่อนฮุคนาทีที่ 1:08
             def _delayed_victory(dt):
                 if not self.game.is_dead: # Don't win if player died in the last period
                     self.game.show_game_over(win=True)
             
-            Clock.schedule_once(_delayed_victory, 22.0)
+            self._win_screen_ev = Clock.schedule_once(_delayed_victory, 22.0)
             return
 
         self.is_spawning = True
@@ -264,9 +268,9 @@ class WaveManager:
         # Special Intro
         Clock.schedule_once(lambda _: self.start_boss_intro(1, is_big=False, is_final=True), 0.1)
         # 🌟 Start spawning XP periodically for Wave 45
-        Clock.schedule_interval(self._spawn_wave_45_xp, 5.0)
+        Clock.schedule_interval(self._spawn_wave_45_xp, 3.0)
         # 🌟 Start spawning Heal periodically for Wave 45
-        Clock.schedule_interval(self._spawn_wave_45_heal, 15.0)
+        Clock.schedule_interval(self._spawn_wave_45_heal, 8.0)
 
     def _spawn_wave_45_xp(self, dt):
         """สุ่มเสก XP ให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
@@ -280,18 +284,17 @@ class WaveManager:
         return True
 
     def _spawn_wave_45_heal(self, dt):
-        """สุ่มเสกเลือดให้ผู้เล่นเก็บใน Wave 45 (Final Boss) ทุกๆ 15 วินาที"""
+        """สุ่มเสกเลือดให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
         if self.current_wave != 45 or self.game.is_dead or not self.game.game_started:
             return False # Stop interval
             
         # เสกเลือด 1-2 กล่องรอบตัวผู้เล่น
         for _ in range(random.randint(1, 2)):
             pos = self._get_valid_spawn_pos("normal", r_min=200, r_max=600)
-            # เผื่อว่า spawn_drop_item สุ่มไม่ติดเลือด เราจะบังคับเสก HealthPickup ผ่าน engine ทันที
             from game.projectile_widget import HealthPickup
             l_tex = getattr(self.game.player_stats, 'heal_large_tex', None)
-            # ปรับเป็น 30% ของเลือดสูงสุด
-            heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.30, size=(32, 32), texture_path=l_tex)
+            # ปรับเป็น 15% (Heal 2)
+            heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.15, size=(32, 32), texture_path=l_tex)
             self.game.dropped_items.append(heal)
             self.game.world_layout.add_widget(heal)
         return True
@@ -324,7 +327,7 @@ class WaveManager:
 
     def start_boss_intro(self, boss_count: int, is_big: bool, is_final: bool = False):
         game = self.game
-        game.zoom_target = 3.0
+        game.zoom_target = 2.8
         game.is_boss_intro = True
         
         if is_final:
@@ -375,7 +378,7 @@ class WaveManager:
 
     def _end_boss_intro(self, _dt):
         self.game.is_boss_intro = False
-        self.game.zoom_target = 1.8
+        self.game.zoom_target = 1.9
         if self._boss_overlay and self._boss_overlay.parent:
             self.game.root_layout.remove_widget(self._boss_overlay)
         self._boss_overlay = None

@@ -499,7 +499,7 @@ class WhirlSlash(BaseSkill):
 
     def __init__(self):
         super().__init__()
-        self.radius = 160
+        self.radius = 90
         self.damage_mult = 3.5
         self.knockback = 120
         self.anim_frames = [
@@ -514,7 +514,7 @@ class WhirlSlash(BaseSkill):
         return max(2.5, 5.0 - (self.level - 1) * 0.4)
 
     def _on_upgrade(self):
-        self.radius += 10
+        self.radius = min(120, self.radius + 10)
         self.damage_mult += 0.5
         self.knockback += 20
 
@@ -831,10 +831,12 @@ def get_upgrade_choices(player_stats, count: int = 4) -> list:
     ]
     spd_cap = CHAR_SPEED_CAP.get(player_stats.name, 10.0)
     if player_stats.speed < spd_cap:
+        spd_inc = 1.0 if player_stats.name == "PTae" else 0.5
         stat_choices.append({
             "type": "stat", "stat": "speed",
-            "label": "+0.25 SPD",
-            "description": f"เพิ่มความเร็ว 0.25 (cap {spd_cap})",
+            "val": spd_inc,
+            "label": f"+{spd_inc} SPD",
+            "description": f"เพิ่มความเร็ว {spd_inc} (cap {spd_cap})",
             "skill": None, "is_new": False,
         })
     random.shuffle(stat_choices)

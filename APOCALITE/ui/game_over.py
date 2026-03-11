@@ -59,15 +59,17 @@ class GameOverPopup(Popup):
         layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
         
         # ข้อความแจ้งเตือน
-        text = "THANKS FOR PLAYING!" if win else "YOU DIED"
-        color = (0, 1, 0, 1) if win else (1, 0, 0, 1) # Green = Win, Red = Die
+        text = "VICTORY!" if win else "YOU DIED"
+        color = (1, 0.84, 0, 1) if win else (1, 0, 0, 1) # Gold = Win, Red = Die
 
         die_label = Label(
             text=text,
-            font_size=60 if win else 50,
+            font_size=80 if win else 50, # Larger for victory
             font_name=PIXEL_FONT,
             color=color,
-            bold=True
+            bold=True,
+            size_hint_y=None,
+            height=120 if win else 80
         )
         die_label.opacity = 0  # ให้ค่อย ๆ โผล่ทีหลัง
         self.die_label = die_label
@@ -76,7 +78,16 @@ class GameOverPopup(Popup):
         mins, secs = divmod(int(self.time_survived), 60)
         time_str = f"{mins:02d}:{secs:02d}"
         score_text = f"Time: {time_str} | Kills: {self.kills} | Lvl: {self.level}\nTOTAL SCORE: {self.score}"
-        self.score_label = Label(text=score_text, font_size=24, font_name=PIXEL_FONT, color=(1,1,1,1), halign="center")
+        self.score_label = Label(
+            text=score_text, 
+            font_size=24, 
+            font_name=PIXEL_FONT, 
+            color=(1,1,1,1), 
+            halign="center",
+            size_hint_y=None,
+            height=60
+        )
+        self.score_label.bind(size=lambda i,v: setattr(i, 'text_size', (v[0], None))) # Wrap text
         self.score_label.opacity = 0
 
         # --- Name Input ---
@@ -251,10 +262,10 @@ class GameOverPopup(Popup):
         if self.name_input.focus:
             return False
 
-        if key == 119 or key == 97: # W or A
+        if key in (119, 97, 273, 276): # W, A, Up, Left
             self._navigate("prev")
             return True
-        elif key == 115 or key == 100: # S or D
+        elif key in (115, 100, 274, 275): # S, D, Down, Right
             self._navigate("next")
             return True
         elif key == 32 or key == 13: # Spacebar or Enter

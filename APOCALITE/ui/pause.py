@@ -150,10 +150,10 @@ class PausePopup(Popup):
 
     # --- [ระบบ Keyboard WASD + Space] ---
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 119 or key == 97: # W or A
+        if key in (119, 97, 273, 276): # W, A, Up, Left
             self.navigate("prev")
             return True
-        elif key == 115 or key == 100: # S or D
+        elif key in (115, 100, 274, 275): # S, D, Down, Right
             self.navigate("next")
             return True
         elif key == 32 or key == 13: # Spacebar or Enter

@@ -58,7 +58,7 @@ class PlayerWidget(Widget):
             self.color_inst = Color(1, 1, 1, 1) 
             first_frame = self.current_anim[0] if self.current_anim else None
             # ตอนนี้ทุกอย่างเป็น Texture แล้ว
-            self.rect = Rectangle(texture=first_frame, pos=start_pos, size=(64, 64))
+            self.rect = Rectangle(texture=first_frame, pos=start_pos, size=self.size)
             if first_frame:
                 self.rect.tex_coords = first_frame.tex_coords
             
@@ -159,6 +159,10 @@ class PlayerWidget(Widget):
             else:
                 self.rect.tex_coords = (tc[2], tc[3], tc[0], tc[1], tc[6], tc[7], tc[4], tc[5])
             self._initialized_uv = True
+
+    def on_size(self, *args):
+        if hasattr(self, "rect"):
+            self.rect.size = self.size
 
     def update_pos(self, new_pos):
         self.rect.pos = new_pos

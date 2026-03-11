@@ -11,9 +11,12 @@ from kivy.clock import Clock
 from game.sound_manager import sound_manager
 from ui.font import PIXEL_FONT
 
+from ui.game_over import GameOverPopup
+
 class CreditsScreen(Screen):
     def on_enter(self):
         self.clear_widgets()
+        self.returning = False # 🌟 Flag เพื่อกันการเรียก return_to_menu ซ้ำซ้อน
         
         # 1. พื้นหลังสีดำสนิท (Solid Black)
         layout = FloatLayout()
@@ -25,14 +28,13 @@ class CreditsScreen(Screen):
         
         # 2. Credits Text Content (All White + Extra Spacing)
         credits_text = (
-            "\n" * 15 +
             "[b][size=160]APOCALITE[/size][/b]\n"
             "[size=35]THE ULTIMATE SURVIVAL[/size]\n" +
             "\n" * 12 +
 
             "[size=60]DEVELOPMENT TEAM[/size]\n" +
             "\n" * 3 +
-            "[size=45]Phuminan Jivanantapravat[/size]\n"
+            "[size=45]Phuminan Jivananthapravat[/size]\n"
             "[size=30](psu6810010266)[/size]\n" +
             "\n" * 4 +
             "[size=45]Chappawit Chuchai[/size]\n"
@@ -78,26 +80,19 @@ class CreditsScreen(Screen):
             size_hint=(1, None),
             height=6500, # เพิ่มความสูงเล็กน้อย
             pos_hint={'center_x': 0.5},
-            y=-6500,    # เริ่มที่ต่ำกว่าขอบล่าง
+            y=-4500,    # เลื่อนจุดเริ่มต้นให้ใกล้ขอบจอมากขึ้น จะได้ไม่เกิดจอดำนาน
             font_name=PIXEL_FONT,
             color=(1, 1, 1, 1)
         )
         layout.add_widget(self.credits_label)
         
         # ── ANIMATION ──
-        # ส่วนที่ 1: พุ่งขึ้นมาเร็วๆ ในช่วงแรก (2 วินาที) เพื่อให้ชื่อเกมโผล่ขึ้นมาทันใจ
-        # เราจะเลื่อนขึ้นมาประมาณ 1500 pixel เพื่อให้หัวข้อแรกเริ่มปรากฏ
-        anim_fast = Animation(y=-5000, duration=2.5, t='out_quad')
+        # อนิเมชั่นเดียว: เลื่อนด้วยความเร็วเท่ากันตั้งแต่เริ่มจนจบ (50 วินาที)
+        anim_all = Animation(y=Window.height + 500, duration=50.0, t='linear')
+        anim_all.bind(on_complete=self.return_to_menu)
         
-        # ส่วนที่ 2: ค่อยๆ เลื่อนขึ้นช้าๆ แบบ Cinematic (ค่อยๆ ไหลไปเรื่อยๆ)
-        anim_slow = Animation(y=Window.height + 500, duration=70, t='linear')
-        
-        # เชื่อมอนิเมชั่นเข้าด้วยกัน
-        anim_fast.bind(on_complete=lambda *args: anim_slow.start(self.credits_label))
-        anim_slow.bind(on_complete=self.return_to_menu)
-        
-        # เริ่มเล่น!
-        anim_fast.start(self.credits_label)
+        # เริ่มเลื่อนทันทีที่เข้าหน้าจอ (0.1 วิ)
+        Clock.schedule_once(lambda dt: anim_all.start(self.credits_label), 0.1)
         
         Window.bind(on_key_down=self._on_key_down)
 
@@ -108,16 +103,22 @@ class CreditsScreen(Screen):
         return False
 
     def return_to_menu(self, *args):
+        if getattr(self, "returning", False):
+            return
+        self.returning = True
+        
+        print("[Credits] Ending credits and returning to menu...")
         Window.unbind(on_key_down=self._on_key_down)
         Animation.stop_all(self.credits_label)
         
-        from ui.game_over import GameOverPopup
-        from kivy.clock import Clock
-        
         if self.manager:
             game_screen = self.manager.get_screen("game_screen")
+            # 🌟 สลับไปหน้า Main Menu ก่อน เพื่อให้พื้นหลังดำของ Credits หายไป
+            self.manager.current = "main_menu"
+            
+            # เปิด Popup ชัยชนะทับบนหน้า Main Menu
             popup = GameOverPopup(win=True, game_screen=game_screen)
-            Clock.schedule_once(lambda dt: popup.open(), 0.1)
+            popup.open()
 
     def on_leave(self):
         Window.unbind(on_key_down=self._on_key_down)

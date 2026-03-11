@@ -396,12 +396,20 @@ class LethalHomingMissile(_Linear):
     def _update_graphics(self, i, v):
         self.rect.pos = (v[0]-32, v[1]-32)
 
+    def _explode(self):
+        """Show purely visual explosion effect"""
+        if not self.game: return
+        from game.skills import _show_aoe_vfx
+        # Use a decent radius for visual impact (200)
+        _show_aoe_vfx(self.game, self.pos[0], self.pos[1], 200)
+
     def update(self, dt) -> bool:
         if not self.game or self.game.is_dead:
             return False
             
         self._lived += dt
         if self._lived >= self._lifetime:
+            self._explode()
             return False
 
         # Homm towards player
@@ -414,8 +422,7 @@ class LethalHomingMissile(_Linear):
             # Deal 50% max HP
             max_hp = self.game.player_stats.hp if self.game.player_stats else 100
             self.game.take_damage(max_hp * 0.5)
-            from game.skills import _show_aoe_vfx
-            _show_aoe_vfx(self.game, self.pos[0], self.pos[1], 150)
+            self._explode()
             return False # Destroy self
             
         if dist > 0:
@@ -430,7 +437,12 @@ class LethalHomingMissile(_Linear):
         my = self.direction[1]*self.speed*dt
         self.pos = (self.pos[0]+mx, self.pos[1]+my)
         self._traveled += math.hypot(mx, my)
-        return self._traveled < self._range
+        
+        if self._traveled >= self._range:
+            self._explode()
+            return False
+            
+        return True
 class DinoBeam(Widget):
     """PTae Skill 3 — ลำแสงตรงไปตามทิศเมาส์ ทำดาเมจทุก enemy ที่ผ่าน"""
     DEFAULT_WIDTH = 160

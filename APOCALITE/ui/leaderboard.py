@@ -47,7 +47,11 @@ class LeaderboardScreen(Screen):
 
     def on_enter(self):
         from kivy.core.window import Window
-        Window.bind(on_joy_button_down=self._on_joy_button_down, on_joy_axis=self._on_joy_axis)
+        Window.bind(
+            on_joy_button_down=self._on_joy_button_down, 
+            on_joy_axis=self._on_joy_axis,
+            on_key_down=self._on_key_down  # 🌟 เพิ่มการดักปุ่ม Keyboard
+        )
         """Update the list every time we enter the screen"""
         self.list_layout.clear_widgets()
         scores = ScoreManager.load_scores()
@@ -84,7 +88,18 @@ class LeaderboardScreen(Screen):
 
     def on_leave(self):
         from kivy.core.window import Window
-        Window.unbind(on_joy_button_down=self._on_joy_button_down, on_joy_axis=self._on_joy_axis)
+        Window.unbind(
+            on_joy_button_down=self._on_joy_button_down, 
+            on_joy_axis=self._on_joy_axis,
+            on_key_down=self._on_key_down
+        )
+
+    def _on_key_down(self, window, key, *args):
+        # 27 = ESC key
+        if key == 27:
+            self.go_back(None)
+            return True
+        return False
 
     def _on_joy_button_down(self, win, stickid, buttonid):
         # B Button to go back

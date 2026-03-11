@@ -111,7 +111,7 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 500, 
+                "hp": 5000, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),
@@ -232,16 +232,15 @@ class EnemyWidget(Widget):
                 self.anim_frames = get_frames("assets/enemy/bomber/Bomb_Walk.png", 40, 40, 8)
             self.anim_speed = 0.12
         elif etype == "stalker":
-            # 🌟 สุ่มสีน้องหมา (Stalker) และดึงภาพแยก Run1, 2, 3, ... ตามที่ User ต้องการ
-            colors = ["Black", "Gray", "White"]
-            chosen = random.choice(colors)
+            # 🌟 ดึงภาพเฉพาะ Canine_Black_Run1-4 ตามที่ User ต้องการ
+            chosen = "Black"
             
             frames = []
-            for i in range(1, 7):
-                p = f"assets/enemy/Canine_{chosen}_Run{i}.png"
-                if os.path.exists(p):
+            for i in range(1, 5):
+                path = resolve_path(f"assets/enemy/Canine_{chosen}_Run{i}.png")
+                if path:
                     try:
-                        frames.append(CoreImage(p).texture)
+                        frames.append(CoreImage(path).texture)
                     except: pass
             
             if frames:

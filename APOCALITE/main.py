@@ -18,6 +18,7 @@ from game.engine import GameScreen
 from ui.credits import CreditsScreen
 from ui.settings import SettingsScreen
 from ui.leaderboard import LeaderboardScreen
+from ui.how_to_play import HowToPlayScreen
 
 class Apocalite(App):
     def build(self):
@@ -32,6 +33,7 @@ class Apocalite(App):
         sm.add_widget(CreditsScreen(name="credits_screen"))
         sm.add_widget(SettingsScreen(name="settings_screen"))
         sm.add_widget(LeaderboardScreen(name="leaderboard_screen"))
+        sm.add_widget(HowToPlayScreen(name="how_to_play_screen"))
         return sm
 
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):

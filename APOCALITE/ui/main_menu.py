@@ -132,7 +132,7 @@ class MainMenuScreen(Screen):
             lbl.bind(on_touch_down=on_touch)
             return lbl
 
-        btn_start      = make_menu_label("PLAY", lambda: self.change_screen("char_select_screen"))
+        btn_start      = make_menu_label("PLAY", lambda: self.change_screen("how_to_play_screen"))
         btn_leaderboard= make_menu_label("LEADERBOARD",    lambda: self.change_screen("leaderboard_screen"))
         btn_settings   = make_menu_label("SETTINGS",       lambda: self.open_settings())
         btn_quit       = make_menu_label("QUIT GAME",      lambda: App.get_running_app().stop(), is_quit=True)
@@ -203,10 +203,10 @@ class MainMenuScreen(Screen):
 
     # --- [ระบบ Keyboard WASD + Space] ---
     def _on_keyboard_down(self, window, key, scancode, codepoint, modifiers):
-        if key == 119 or key == 97: # W or A
+        if key in (119, 97, 273, 276): # W, A, Up, Left
             self.navigate("prev")
             return True
-        elif key in (115, 100, 274, 275): # S, D or Down, Right
+        elif key in (115, 100, 274, 275): # S, D, Down, Right
             self.navigate("next")
             return True
         elif key == 32 or key == 13: # Spacebar or Enter

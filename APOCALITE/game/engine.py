@@ -89,6 +89,7 @@ class GameScreen(Screen):
         self.attack_event = None
         self.slash_textures: list = []
         self._returning_from_settings = False  # flag: กลับจาก Settings ไม่ reset
+        self.victory_triggered = False        # 🌟 ป้องกันการสลับหน้า credits ซ้ำซ้อน
 
         # ── Camera ──────────────────────────────────────────
         self.zoom_target = 2.0
@@ -224,7 +225,8 @@ class GameScreen(Screen):
                 fy = focus.pos[1] + (focus.enemy_size[1] / 2 if hasattr(focus, "enemy_size") else 20)
                 self.camera_target = [rw / 2 - fx, rh / 2 - fy]
         else:
-            self.camera_target = [rw / 2 - self.player_pos[0] - 32, rh / 2 - self.player_pos[1] - 32]
+            hw, hh = self.player_stats.size[0] / 2, self.player_stats.size[1] / 2
+            self.camera_target = [rw / 2 - self.player_pos[0] - hw, rh / 2 - self.player_pos[1] - hh]
 
         if dt > 0:
             spd = self.camera_follow_speed * dt
@@ -255,8 +257,8 @@ class GameScreen(Screen):
         self.melee_timer = 0.0 # 🌟 รีเซ็ต Cooldown การตี
         self.total_kills = 0
         self.play_time = 0.0
-        self.magnet_timer = 0.0
         self.global_magnet_timer = 0.0
+        self.victory_triggered = False  # 🌟 รีเซ็ตสถานะชนะเมื่อเริ่มเกมใหม่
 
         if self.attack_event:
             self.attack_event.cancel()
@@ -483,7 +485,7 @@ class GameScreen(Screen):
         new_x = max(20, min(self.player_pos[0] + dx * speed, 4980))
         new_y = max(20, min(self.player_pos[1] + dy * speed, 4980))
         
-        pw, ph = 64, 64 # player size
+        pw, ph = self.player_stats.size # player size
 
         # เลื่อนทีละแกน กันติดกำแพง
         can_move_x = True
@@ -521,8 +523,9 @@ class GameScreen(Screen):
     # ── Combat (Melee Logic) ───────────────────────────────
     def perform_melee_attack(self):
         """ระบบโจมตีพื้นฐาน — เช็ค Hitbox ตามลักษณะตัวละคร"""
-        p_x = self.player_pos[0] + 32
-        p_y = self.player_pos[1] + 32
+        hw, hh = self.player_stats.size[0] / 2, self.player_stats.size[1] / 2
+        p_x = self.player_pos[0] + hw
+        p_y = self.player_pos[1] + hh
         m_dx, m_dy = self.mouse_dir
         mouse_angle = math.atan2(m_dy, m_dx)
 
@@ -601,26 +604,30 @@ class GameScreen(Screen):
             self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
-        """Drop HealthPickup หรือ MagnetPickup หรือ GlobalMagnet Pickup เมื่อศัตรูตาย"""
+        """Drop HealthPickup หรือ MagnetPickup เมื่อศัตรูตาย"""
         r = random.random()
-        # อัตราการดรอปเลือดอิงตาม settings
-        health_rate = getattr(settings, 'health_drop_rate', 0.12)
-        if r < health_rate:
-            # ดึง Texture จาก PlayerStats
-            s_tex = getattr(self.player_stats, 'heal_small_tex', None)
-            l_tex = getattr(self.player_stats, 'heal_large_tex', None)
+        s_tex = getattr(self.player_stats, 'heal_small_tex', None)
+        l_tex = getattr(self.player_stats, 'heal_large_tex', None)
 
-            # 🌟 สุ่มว่าจะดรอปเลือด เล็ก หรือ ใหญ่ (80% เล็ก, 20% ใหญ่)
-            if random.random() < 0.2:
-                # แบบใหญ่ (Heal 30% of Max HP)
-                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.30, size=(28, 28), texture_path=l_tex)
-            else:
-                # แบบเล็ก (Heal 15% of Max HP)
-                heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.15, size=(28, 28), texture_path=s_tex)
-            
+        # 🌟 ปรับอัตราดรอปและปริมาณฮีลตามสั่ง
+        # Heal1: 5% HP (drop 40%), Heal2: 15% HP (drop 10%)
+        # รวมโอกาสดรอปเลือดทั้งหมด = 50%
+        if r < 0.1:
+            # Heal 2: เพิ่มเลือด 15%
+            heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.15, size=(28, 28), texture_path=l_tex)
             self.dropped_items.append(heal)
             self.world_layout.add_widget(heal)
-        elif r < health_rate + 0.005:  # 0.5% chance for Global Magnet
+            return
+        elif r < 0.5:
+            # Heal 1: เพิ่มเลือด 5%
+            heal = HealthPickup(pos=(pos[0], pos[1]), heal_percent=0.05, size=(24, 24), texture_path=s_tex)
+            self.dropped_items.append(heal)
+            self.world_layout.add_widget(heal)
+            return
+
+        # ไอเทมอื่นๆ (สุ่มต่อถ้าไม่ติดเลือด)
+        health_rate = 0.5 # เราใช้ไปแล้ว 0.5
+        if r < health_rate + 0.005:  # 0.5% chance for Global Magnet
             from game.projectile_widget import GlobalMagnetPickup
             magnet = GlobalMagnetPickup(pos=(pos[0], pos[1]), duration=8.0)
             self.dropped_items.append(magnet)
@@ -646,8 +653,9 @@ class GameScreen(Screen):
             return
         
         # 🌟 โชว์ Dash VFX ด้านหลัง
-        px = self.player_pos[0] + 32
-        py = self.player_pos[1] + 32
+        hw, hh = self.player_stats.size[0] / 2, self.player_stats.size[1] / 2
+        px = self.player_pos[0] + hw
+        py = self.player_pos[1] + hh
         import math
         angle_deg = math.degrees(math.atan2(self.last_dir_y, self.last_dir_x))
         self._show_dash_vfx(px, py, angle_deg)
@@ -728,6 +736,10 @@ class GameScreen(Screen):
         self._unbind_input()
         
         if win:
+            # 🌟 ป้องกันการสลับหน้าซ้ำซ้อนถ้ากำลังเปิดอยู่แล้ว
+            if getattr(self, "victory_triggered", False):
+                return
+            self.victory_triggered = True
             # ถ้าชนะ ให้ไปหน้า End Credits ทันที
             self.manager.current = "credits_screen"
         else:

@@ -344,14 +344,23 @@ class Minimap(Widget):
 
             # Draw Enemies (Red dots)
             from kivy.graphics import Ellipse
-            Color(1, 0.2, 0.2, 0.8)
             for enemy in getattr(self.game, 'enemies', []):
+                etype = getattr(enemy, 'enemy_type', 'normal')
+                is_boss = "boss" in etype
+                
+                if is_boss:
+                    Color(1, 0, 0, 1) # Bright Red for Boss
+                    dot_size = 8
+                else:
+                    Color(1, 0.2, 0.2, 0.8) # Normal Red
+                    dot_size = 3
+                
                 ex, ey = enemy.pos
                 nx = self.x + (ex * scale_x)
                 ny = self.y + (ey * scale_y)
                 nx = max(self.x + 2, min(self.right - 2, nx))
                 ny = max(self.y + 2, min(self.top - 2, ny))
-                Ellipse(pos=(nx-1.5, ny-1.5), size=(3, 3))
+                Ellipse(pos=(nx - dot_size/2, ny - dot_size/2), size=(dot_size, dot_size))
 
             # Draw EXP Orbs (Yellow dots)
             Color(1, 1, 0.3, 0.7)

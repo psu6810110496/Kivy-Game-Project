@@ -114,7 +114,7 @@ APOCALITE/
 
 ## 🤝 เครดิต (Credits)
 - **พัฒนาโดย**: ทีมพัฒนาโปรเจกต์เกม 
-                 psu6810010266/Phuminan Jivanantapravat,
+                 psu6810010266/Phuminan Jivananthapravat,
                  psu6810110455/Chappawit Chuchai,
                  psu6810110496/Phuwadon Thapthrai
 - **Engine/Framework**: [Kivy 2.3](https://kivy.org/)
