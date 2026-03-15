@@ -206,5 +206,8 @@ class CombatManager:
                 if enemy._melee_cd <= 0:
                     g.take_damage(enemy.damage)
                     enemy._melee_cd = self.MELEE_COOLDOWN
+                    # 🌟 เล่นแอนิเมชันโจมตีเมื่อกัด/ตีโดนผู้เล่น
+                    if hasattr(enemy, "play_attack"):
+                        enemy.play_attack(0.4)
 
 

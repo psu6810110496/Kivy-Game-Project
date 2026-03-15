@@ -162,7 +162,12 @@ class EnemyWidget(Widget):
         self.frame_index = 0
         self.anim_timer = 0
         self.anim_speed = 0.15 # Default
-        self.anim_frames = []
+        self.anim_state = "walk" # "walk", "attack", "idle"
+        
+        self.walk_frames = []
+        self.attack_frames = []
+        self.idle_frames = []
+        self.anim_frames = [] # Currently active frames
         self.is_facing_right = True
 
         self._init_enemy_visuals(enemy_type)
@@ -215,11 +220,13 @@ class EnemyWidget(Widget):
                     except: pass
             
             if frames:
-                self.anim_frames = frames
+                self.walk_frames = frames
+                self.attack_frames = frames # Fallback to walk if no attack images
             else:
                 # Fallback to spritesheet if files not found
-                self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=1)
-                if not self.anim_frames: self.anim_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=0)
+                self.walk_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=1)
+                if not self.walk_frames: self.walk_frames = get_frames("assets/enemy/enemy3.png", 170, 128, 8, row=0)
+                self.attack_frames = self.walk_frames
             self.anim_speed = 0.08
         elif etype == "bomber":
             # 🌟 โหลดเฟรมระเบิดแยกไฟล์ Bomb1, 2, ...
@@ -232,10 +239,12 @@ class EnemyWidget(Widget):
                     except: pass
             
             if frames:
-                self.anim_frames = frames
+                self.walk_frames = frames
+                self.attack_frames = frames
             else:
                 # Fallback
-                self.anim_frames = get_frames("assets/enemy/bomber/Bomb_Walk.png", 40, 40, 8)
+                self.walk_frames = get_frames("assets/enemy/bomber/Bomb_Walk.png", 40, 40, 8)
+                self.attack_frames = self.walk_frames
             self.anim_speed = 0.12
         elif etype == "stalker":
             # 🌟 ดึงภาพเฉพาะ Canine_Black_Run1-4 ตามที่ User ต้องการ
@@ -250,10 +259,12 @@ class EnemyWidget(Widget):
                     except: pass
             
             if frames:
-                self.anim_frames = frames
+                self.walk_frames = frames
+                self.attack_frames = frames
             else:
                 # Fallback ถ้าหาไฟล์แยกไม่เจอ ให้ใช้ spritesheet เดิม
-                self.anim_frames = get_frames(f"assets/enemy/Canine_{chosen}_Run.png", 24, 64, 8)
+                self.walk_frames = get_frames(f"assets/enemy/Canine_{chosen}_Run.png", 24, 64, 8)
+                self.attack_frames = self.walk_frames
             
             self.anim_speed = 0.08
         elif etype == "boss" or etype == "big_boss":
@@ -267,15 +278,15 @@ class EnemyWidget(Widget):
                     except: pass
             
             if frames:
-                self.boss_idle = frames
-                self.boss_walk = frames
-                self.boss_attack = frames
+                self.idle_frames = frames[:min(3, len(frames))] # ใช้ 1-3 เป็น Idle
+                self.walk_frames = frames[:min(3, len(frames))] # ใช้ 1-3 เป็น Walk
+                self.attack_frames = frames[max(0, len(frames)-3):] # ใช้ 4-6 เป็น Attack
                 
                 def set_boss_anim(state, loop=True):
-                    # ถ้ามีไฟล์แยกหลายชุดสามารถขยายตรงนี้ได้ แต่ตอนนี้ใช้ชุด 1-6 รวมไปก่อน
-                    if state == "idle": f = self.boss_idle
-                    elif state == "walk": f = self.boss_walk
-                    elif state == "attack": f = self.boss_attack
+                    # จะถูกเรียกใช้โดย play_attack หรือ AI logic อื่นๆ
+                    if state == "idle": f = self.idle_frames
+                    elif state == "walk": f = self.walk_frames
+                    elif state == "attack": f = self.attack_frames
                     else: return
                     
                     if self.anim_frames != f:
@@ -283,26 +294,26 @@ class EnemyWidget(Widget):
                         self.frame_index = 0
                 
                 self.set_boss_anim = set_boss_anim
-                self.anim_frames = frames
                 self.anim_speed = 0.1
             else:
                 # Fallback to spritesheet (ถ้าหาไฟล์แยกไม่เจอ)
                 sheet_path = "assets/enemy/boss/minotaur_288x160_SpriteSheet.png"
-                self.boss_idle = get_frames(sheet_path, 288, 160, 10, row=2)
-                self.boss_walk = get_frames(sheet_path, 288, 160, 10, row=1)
-                self.boss_attack = get_frames(sheet_path, 288, 160, 10, row=0)
+                self.idle_frames = get_frames(sheet_path, 288, 160, 10, row=2)
+                self.walk_frames = get_frames(sheet_path, 288, 160, 10, row=1)
+                self.attack_frames = get_frames(sheet_path, 288, 160, 10, row=0)
                 
                 def set_boss_anim(state, loop=True):
-                    if state == "idle": frames = self.boss_idle
-                    elif state == "walk": frames = self.boss_walk
-                    elif state == "attack": frames = self.boss_attack
+                    if state == "idle": f = self.idle_frames
+                    elif state == "walk": f = self.walk_frames
+                    elif state == "attack": f = self.attack_frames
                     else: return
-                    if self.anim_frames != frames:
-                        self.anim_frames = frames
+                    if self.anim_frames != f:
+                        self.anim_frames = f
                         self.frame_index = 0
                 self.set_boss_anim = set_boss_anim
-                self.anim_frames = self.boss_walk
                 self.anim_speed = 0.08
+
+            self.anim_frames = self.walk_frames
         elif etype == "final_boss" or etype == "final_boss_clone":
             # 🌟 Change to Agis 1-15 animation for Wave 45 Boss
             frames = []
@@ -314,11 +325,13 @@ class EnemyWidget(Widget):
                     except: pass
             
             if frames:
-                self.anim_frames = frames
+                self.walk_frames = frames
+                self.attack_frames = frames
                 self.anim_speed = 0.05
             else:
                 # Fallback to minotaur spritesheet if files not found
-                self.anim_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
+                self.walk_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
+                self.attack_frames = self.walk_frames
                 self.anim_speed = 0.06
         else:
             # Normal / Default (enemy1, 2 Alt) - STATIC TEXTURE
@@ -327,18 +340,44 @@ class EnemyWidget(Widget):
             if path:
                 try:
                     self.texture = CoreImage(path).texture
-                    self.anim_frames = [self.texture]
+                    self.walk_frames = [self.texture]
+                    self.attack_frames = [self.texture]
                 except:
-                    self.anim_frames = []
+                    self.walk_frames = []
+                    self.attack_frames = []
             else:
-                self.anim_frames = []
+                self.walk_frames = []
+                self.attack_frames = []
             self.anim_speed = 999.0 # Don't update
+
+        self.anim_frames = self.walk_frames
 
         if self.anim_frames:
             self.texture = self.anim_frames[0]
         else:
             # Fallback
             self.texture = None
+
+    def play_attack(self, duration=0.5):
+        """เล่นแอนิเมชันโจมตีชั่วขณะ"""
+        if self.anim_state == "attack" or not self.attack_frames:
+            return
+            
+        self.anim_state = "attack"
+        self.anim_frames = self.attack_frames
+        self.frame_index = 0
+        self.anim_timer = 0
+        
+        # วางแผนกลับไปท่าเดินปกติหลังจบระยะเวลา
+        Clock.schedule_once(self._return_to_walk, duration)
+
+    def _return_to_walk(self, dt):
+        if self.hp <= 0 or not self.parent:
+            return
+        self.anim_state = "walk"
+        self.anim_frames = self.walk_frames
+        self.frame_index = 0
+        self.anim_timer = 0
 
     def animate(self, dt):
         """จัดการ Animation และ Flip ทิศทาง (optimized เพื่อกันบัคกะพริบ)"""
@@ -358,7 +397,7 @@ class EnemyWidget(Widget):
                 self.is_facing_right = new_facing_right
                 flipped = True
 
-        # 2. จัดการเปลี่ยนเฟรม Animation
+        # 2. จัดการเปลี่ยนเฟรม Animation (อิงตามสถานะ anim_state)
         frame_changed = False
         if len(self.anim_frames) > 1:
             self.anim_timer += dt
@@ -508,7 +547,7 @@ class EnemyWidget(Widget):
                     vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
                 if self.charge_timer <= 0 and dist < 700:
                     self.charge_timer = self.charge_cooldown
-                    self.color_inst.rgba = (1.0, 1.0, 0.8, 1)
+                    self.color_inst.rgba = (1.0, 0.3, 0.3, 1) # Red highlight for prep
                     if dist > 0:
                         self.charge_dir = (dx / dist, dy / dist)
                     Clock.schedule_once(lambda dt: self._start_charge_dash(), 1.0)
@@ -564,7 +603,7 @@ class EnemyWidget(Widget):
         vy += dodge_vy
         
         # --- [ Boss Animation State ] ---
-        if self.enemy_type in ["boss", "big_boss"] and not getattr(self, "is_boss_attacking", False):
+        if self.enemy_type in ["boss", "big_boss"] and self.anim_state != "attack":
             if abs(vx) > 0.1 or abs(vy) > 0.1:
                 self.set_boss_anim("walk")
             else:
@@ -740,11 +779,13 @@ class EnemyWidget(Widget):
         # Show warning highlight first (yellow/orange)
         self._show_slam_warning(ex, ey, slam_radius)
         
+        # [Fix] เล่นแอนิเมชันโจมตี (Minotaur Attack)
+        self.play_attack(0.6)
+
         # Animation
         if hasattr(self, "set_boss_anim"):
-            self.is_boss_attacking = True
             self.set_boss_anim("attack")
-            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 1.0)
+            Clock.schedule_once(lambda dt: self.set_boss_anim("walk"), 1.0)
 
         # Delay the actual damage and projectiles by 0.4 seconds
         Clock.schedule_once(
@@ -815,6 +856,9 @@ class EnemyWidget(Widget):
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         
+        # 🌟 เล่นแอนิเมชันโจมตี
+        self.play_attack(0.6)
+        
         # 🌟 สร้างกระสุน Swipe พุ่งหาผู้เล่นอย่างรวดเร็ว
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 1.2)
         proj.speed = 700
@@ -822,24 +866,26 @@ class EnemyWidget(Widget):
         self.game.enemy_projectiles.append(proj)
         
         if hasattr(self, "set_boss_anim"):
-            self.is_boss_attacking = True
             self.set_boss_anim("attack")
-            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.6)
+            Clock.schedule_once(lambda dt: self.set_boss_anim("walk"), 0.6)
 
     def do_missile(self, player_pos):
         if not hasattr(self, "game") or not self.game or not self.parent:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
+        
+        # 🌟 เล่นแอนิเมชันโจมตี
+        self.play_attack(0.6)
+        
         proj = EnemyProjectile(start_pos=(ex, ey), target_pos=(player_pos[0] + 32, player_pos[1] + 32), damage=self.damage * 0.8)
         proj.speed = 300
         self.game.world_layout.add_widget(proj)
         self.game.enemy_projectiles.append(proj)
         
         if hasattr(self, "set_boss_anim"):
-            self.is_boss_attacking = True
             self.set_boss_anim("attack")
-            Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.6)
+            Clock.schedule_once(lambda dt: self.set_boss_anim("walk"), 0.6)
 
     def _remove_effect_widget(self, widget):
         """Remove effect widget from parent"""
@@ -900,6 +946,9 @@ class EnemyWidget(Widget):
             # ถ้าหาทางยิงที่โล่งไม่ได้เลย ให้เลือกไม่ยิง (เก็บกระสุนไว้)
             if not found_clear_path:
                 return
+
+        # 🌟 เล่นแอนิเมชันโจมตี
+        self.play_attack(0.4)
 
         # ใช้ EnemyProjectile จากไฟล์ projectile_widget (เคลื่อนที่ด้วย dt)
         proj = EnemyProjectile(
@@ -1012,8 +1061,8 @@ class EnemyWidget(Widget):
             self.color_inst.rgba = (0.9, 0.2, 0.2, 1)
             return
 
-        # ช่วงชาร์จ (ตัวขาวกะพริบ)
-        self.color_inst.rgba = (1, 1, 1, 1)
+        # ช่วงชาร์จ (ตัวแดงแจ้งเตือน)
+        self.color_inst.rgba = (1, 0.2, 0.2, 1)
         
         # เล็งเป้าหมาย ณ จุดที่เริ่มพุ่ง
         if hasattr(self, "game") and self.game and self.game.player_pos:
@@ -1030,10 +1079,10 @@ class EnemyWidget(Widget):
             if self.hp <= 0 or not self.parent: return
             self.is_boss_dashing = True
             self.boss_dash_streak += 1
+            self.play_attack(0.5)
             if hasattr(self, "set_boss_anim"):
-                self.is_boss_attacking = True
                 self.set_boss_anim("attack")
-                Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.5)
+                Clock.schedule_once(lambda dt: self.set_boss_anim("walk"), 0.5)
             
             # พุ่งแดชนาน 0.4 วินาที
             Clock.schedule_once(self._end_boss_dash, 0.4)
@@ -1070,6 +1119,9 @@ class EnemyWidget(Widget):
                     break
             if not found: return
 
+        # 🌟 เล่นแอนิเมชันโจมตี
+        self.play_attack(0.5)
+
         dx, dy = target_x - ex, target_y - ey
         base_angle = math.atan2(dy, dx)
         spread_deg = math.radians(5) # Tightly (5 degrees offset)
@@ -1089,6 +1141,7 @@ class EnemyWidget(Widget):
     # --- Final Boss Specials Implementation ---
 
     def do_final_spiral(self):
+        self.play_attack(4.0) # Long attack duration for spiral
         self.final_is_acting = True
         origins = [(self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2)]
         # Also clean up dead clones
@@ -1099,6 +1152,9 @@ class EnemyWidget(Widget):
         from game.projectile_widget import BossSpiralMissile
         
         def _spiral(dt, step=0):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(lambda d: _spiral(d, step), 0.016)
+                return
             if step >= 40:
                 self.final_is_acting = False
                 return
@@ -1115,6 +1171,7 @@ class EnemyWidget(Widget):
         _spiral(0)
 
     def do_final_beam(self):
+        self.play_attack(3.0) # Duration for beam prep + fire
         self.final_is_acting = True
         origins = [(self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2)]
         self.final_clones = [c for c in self.final_clones if c.parent and c.hp > 0]
@@ -1130,11 +1187,14 @@ class EnemyWidget(Widget):
         for ox, oy in origins:
             for i in range(8):
                 a = start_angle + (i * math.pi / 4)
-                h = BossBeamHighlight(pos=(ox, oy), angle=a, duration=2.5, rotation_speed=rot_speed)
+                h = BossBeamHighlight(pos=(ox, oy), angle=a, duration=2.5, rotation_speed=rot_speed, game=self.game)
                 if self.game: self.game.world_layout.add_widget(h)
                 highlights.append(h)
 
         def _rotate_highlights(dt, elapsed=0):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(lambda d: _rotate_highlights(d, elapsed), 0.016)
+                return
             if elapsed >= 2.0: return
             for h in highlights:
                 if h.parent: h.update_rotation(dt)
@@ -1143,6 +1203,9 @@ class EnemyWidget(Widget):
         _rotate_highlights(0.016)
             
         def _fire(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_fire, 0.016)
+                return
             self.final_is_acting = False
             if not self.game: return
             px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
@@ -1159,7 +1222,12 @@ class EnemyWidget(Widget):
                     beams.append((beam, fa, ox, oy))
 
             def _update_beams(dt, elapsed=0):
+                if self.game and self.game.is_paused:
+                    Clock.schedule_once(lambda d: _update_beams(d, elapsed), 0.016)
+                    return
                 if elapsed >= 0.8: # Match BossBeam.DURATION
+                    for b, fa, ox, oy in beams:
+                        if b.parent: b.parent.remove_widget(b)
                     return
                 
                 # Check player collision during active beam
@@ -1179,17 +1247,21 @@ class EnemyWidget(Widget):
         Clock.schedule_once(_fire, 2.0)
 
     def do_final_dash(self, player_pos):
+        self.play_attack(6.0) # Covers multiple dashes
         self.final_is_acting = True
         self.final_dash_count = 0
         
         def _prep_dash(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_prep_dash, 0.016)
+                return
             if self.final_dash_count >= 2: # Reduce to 2 for better pattern flow
                 self.final_is_acting = False
                 self.final_attack_timer = 3.0
                 return
                 
-            # Highlight 3s
-            self.color_inst.rgba = (1, 1, 1, 1) # Flash white warning
+            # Highlight 3s (Red warning)
+            self.color_inst.rgba = (1, 0.1, 0.1, 1)
             px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
             cx, cy = self.pos[0]+self.enemy_size[0]/2, self.pos[1]+self.enemy_size[1]/2
             dist = math.hypot(px-cx, py-cy)
@@ -1199,10 +1271,16 @@ class EnemyWidget(Widget):
             Clock.schedule_once(_execute_dash, 3.0)
 
         def _execute_dash(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_execute_dash, 0.016)
+                return
             # Rapid dash (teleport-like movement for speed 5 enemy)
             self.speed = 15.0
             self.is_charging = True
             def _stop_dash(d):
+                if self.game and self.game.is_paused:
+                    Clock.schedule_once(_stop_dash, 0.016)
+                    return
                 self.is_charging = False
                 self.speed = 5.0
                 self.final_dash_count += 1
@@ -1214,6 +1292,7 @@ class EnemyWidget(Widget):
     def do_final_clones(self):
         """Phase 1: Spawn 2 clones that copy attacks"""
         if not self.game: return
+        self.play_attack(1.0)
         self.final_is_acting = True
         
         # Clean up old clones
@@ -1238,12 +1317,17 @@ class EnemyWidget(Widget):
         from game.skills import _show_aoe_vfx
         _show_aoe_vfx(self.game, self.pos[0]+90, self.pos[1]+90, 300)
         
-        def _done(dt): self.final_is_acting = False
+        def _done(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_done, 0.016)
+                return
+            self.final_is_acting = False
         Clock.schedule_once(_done, 2.0)
 
     def do_final_lethal_homing(self):
         """Phase 2: Fire a homing missile that deals 50% max HP damage"""
         if not self.game: return
+        self.play_attack(0.8)
         cx, cy = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
         from game.projectile_widget import LethalHomingMissile
         m = LethalHomingMissile(start_pos=(cx, cy), game=self.game)
@@ -1259,6 +1343,9 @@ class EnemyWidget(Widget):
         from game.projectile_widget import BossSpike
         
         def _spawn_spike_wave(dt, wave_num=0):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(lambda d: _spawn_spike_wave(d, wave_num), 0.016)
+                return
             if wave_num >= 3:
                 self.final_is_acting = False
                 return
@@ -1281,13 +1368,16 @@ class EnemyWidget(Widget):
         self.final_is_acting = True
         target_pos = (self.game.player_pos[0]+32, self.game.player_pos[1]+32)
         from game.projectile_widget import BossJumpHighlight
-        h = BossJumpHighlight(pos=target_pos, radius=400, duration=5.0)
+        h = BossJumpHighlight(pos=target_pos, radius=400, duration=5.0, game=self.game)
         if self.game: self.game.world_layout.add_widget(h)
         
         # Invis/Jump effect
         self.opacity = 0.3
         
         def _execute_slam(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_execute_slam, 0.016)
+                return
             self.pos = (target_pos[0] - self.enemy_size[0]/2, target_pos[1] - self.enemy_size[1]/2)
             self.opacity = 1.0
             self.final_is_acting = False

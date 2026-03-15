@@ -598,8 +598,6 @@ class BossBeam(Widget):
                 texture=self._TEXTURES[0] if self._TEXTURES else None)
             
             PopMatrix()
-            
-        Clock.schedule_once(lambda dt: self.parent.remove_widget(self) if self.parent else None, self.DURATION)
 
     def update_rotation(self, angle_deg):
         self._rot.angle = angle_deg
@@ -646,9 +644,10 @@ class BossSpiralMissile(_Linear):
 
 class BossBeamHighlight(Widget):
     """Visual warning for 8-way beam"""
-    def __init__(self, pos, angle, length=2000, width=40, duration=2.0, rotation_speed=0, **kw):
+    def __init__(self, pos, angle, length=2000, width=40, duration=2.0, rotation_speed=0, game=None, **kw):
         super().__init__(**kw)
         self.pos = pos
+        self.game = game
         self.angle = math.degrees(angle)
         self.rotation_speed = rotation_speed
         with self.canvas:
@@ -657,7 +656,13 @@ class BossBeamHighlight(Widget):
             self.rot = Rotate(angle=self.angle, origin=self.pos)
             self.rect = Rectangle(pos=(self.pos[0], self.pos[1]-width/2), size=(length, width))
             PopMatrix()
-        Clock.schedule_once(lambda dt: self.parent.remove_widget(self) if self.parent else None, duration)
+            
+        def _remove_h(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_remove_h, 0.016)
+                return
+            if self.parent: self.parent.remove_widget(self)
+        Clock.schedule_once(_remove_h, duration)
 
     def update_rotation(self, dt):
         self.angle += self.rotation_speed * dt
@@ -665,16 +670,23 @@ class BossBeamHighlight(Widget):
 
 class BossJumpHighlight(Widget):
     """Visual warning for jump slam"""
-    def __init__(self, pos, radius=300, duration=5.0, **kw):
+    def __init__(self, pos, radius=300, duration=5.0, game=None, **kw):
         super().__init__(**kw)
         self.pos = pos
         self.radius = radius
+        self.game = game
         with self.canvas:
             self.color = Color(1, 0, 0, 0.2)
             self.ell = Ellipse(pos=(pos[0]-radius, pos[1]-radius), size=(radius*2, radius*2))
             Color(1, 0, 0, 0.5)
             self.line = Ellipse(pos=(pos[0]-radius, pos[1]-radius), size=(radius*2, radius*2)) # Placeholder for visual
-        Clock.schedule_once(lambda dt: self.parent.remove_widget(self) if self.parent else None, duration)
+            
+        def _remove_j(dt):
+            if self.game and self.game.is_paused:
+                Clock.schedule_once(_remove_j, 0.016)
+                return
+            if self.parent: self.parent.remove_widget(self)
+        Clock.schedule_once(_remove_j, duration)
 
 class FinalBossExplosion(Widget):
     """Massive death explosion widget"""
@@ -695,6 +707,8 @@ class FinalBossExplosion(Widget):
         Clock.schedule_once(self._explode, fuse)
 
     def _tick(self, dt):
+        if self.game and self.game.is_paused:
+            return True
         self._elapsed += 1
         rem = int(self.fuse - self._elapsed)
         self.lbl.text = f"SELF-DESTRUCT: {rem}"
@@ -702,6 +716,9 @@ class FinalBossExplosion(Widget):
         return rem > 0
 
     def _explode(self, dt):
+        if self.game and self.game.is_paused:
+            Clock.schedule_once(self._explode, 0.016)
+            return
         if self.game:
             px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
             if math.hypot(px-self.pos[0], py-self.pos[1]) < self.radius:
@@ -714,6 +731,8 @@ class FinalBossExplosion(Widget):
 
 class BossSpike(Widget):
     """Spikes that pop up from the ground with a warning"""
+    _BH_TEX = None
+
     def __init__(self, pos, damage=45, radius=80, warning_duration=1.5, game=None, **kw):
         super().__init__(**kw)
         self.pos = pos
@@ -721,28 +740,56 @@ class BossSpike(Widget):
         self.radius = radius
         self.game = game
         self.active = False
+        self._shake_offset = [0, 0]
         
+        # Load texture for the spike phase
+        if BossSpike._BH_TEX is None:
+            path = resolve_path("assets/enemy/boss/bh11.png")
+            if path:
+                try: BossSpike._BH_TEX = CoreImage(path).texture
+                except: pass
+
         with self.canvas:
             self.warning_color = Color(1, 0, 0, 0.4)
             self.warning_ell = Ellipse(pos=(pos[0]-radius, pos[1]-radius), size=(radius*2, radius*2))
             
             self.spike_color = Color(1, 1, 1, 0) # Initially invisible
-            self.spike_rect = Rectangle(pos=(pos[0]-radius*0.7, pos[1]-radius*0.7), size=(radius*1.4, radius*1.4))
+            # Store original offset for shaking
+            self._base_rect_pos = (pos[0]-radius*0.7, pos[1]-radius*0.7)
+            self.spike_rect = Rectangle(pos=self._base_rect_pos, size=(radius*1.4, radius*1.4),
+                                         texture=self._BH_TEX)
             
         Clock.schedule_once(self._activate, warning_duration)
         Clock.schedule_once(self._remove, warning_duration + 0.5)
 
     def _activate(self, dt):
+        if self.game and self.game.is_paused:
+            Clock.schedule_once(self._activate, 0.016)
+            return
         self.active = True
         self.warning_color.a = 0
         self.spike_color.a = 1.0 # Show spike
+        # Start shaking
+        Clock.schedule_interval(self._shake_tick, 1/60.0)
         # Check damage
         if self.game:
             px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
             if math.hypot(px-self.pos[0], py-self.pos[1]) < self.radius:
                 self.game.take_damage(self.damage)
 
+    def _shake_tick(self, dt):
+        if not self.active: return False
+        if self.game and self.game.is_paused:
+            return True
+        import random
+        # Intense shake offset (-8 to +8)
+        self._shake_offset = [random.uniform(-8, 8), random.uniform(-8, 8)]
+        self.spike_rect.pos = (self._base_rect_pos[0] + self._shake_offset[0],
+                               self._base_rect_pos[1] + self._shake_offset[1])
+        return True
+
     def _remove(self, dt):
+        self.active = False
         if self.parent:
             self.parent.remove_widget(self)
 
@@ -838,12 +885,17 @@ class BossBombWidget(Widget):
         if hasattr(self, '_lbl'): self._lbl.pos = v
 
     def _tick(self, dt):
+        if self._game and self._game.is_paused:
+            return True
         self._elapsed += 1
         remaining = max(0, int(self._fuse - self._elapsed))
         if hasattr(self, '_lbl'): self._lbl.text = str(remaining)
         if remaining <= 0: return False
         
     def _explode(self, dt):
+        if self._game and self._game.is_paused:
+            Clock.schedule_once(self._explode, 0.016)
+            return
         if not self._game: return
         px = self.pos[0] + 32
         py = self.pos[1] + 32
