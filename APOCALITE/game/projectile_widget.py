@@ -136,16 +136,50 @@ class RocketBullet(_Linear):
 
 class RPGRocket(_Linear):
     """Monkey RPG — จรวดส้มระเบิด AoE เมื่อโดนศัตรู"""
+    _TEXTURE = None
+
     def __init__(self, start_pos, target_pos, speed, proj_range, damage,
                  splash_damage=60, splash_radius=150, **kw):
         super().__init__(start_pos, target_pos, speed=speed, damage=damage, **kw)
-        self._range=proj_range; self._traveled=0.0
-        self.splash_damage=splash_damage; self.splash_radius=splash_radius
-        self.exploded=False; self.size=(16,40)
+        self._range = proj_range
+        self._traveled = 0.0
+        self.splash_damage = splash_damage
+        self.splash_radius = splash_radius
+        self.exploded = False
+        self.size = (24, 60)  # Slightly larger for texture
+        
+        if RPGRocket._TEXTURE is None:
+            path = resolve_path("assets/Monkey/shoot/bullets3.png")
+            if path:
+                try:
+                    from kivy.core.image import Image as CoreImage
+                    RPGRocket._TEXTURE = CoreImage(path).texture
+                except: pass
+
+        from kivy.graphics import PushMatrix, PopMatrix, Rotate
+        angle = math.degrees(math.atan2(self.direction[1], self.direction[0]))
+        
         with self.canvas:
-            Color(1,0.4,0.0,1)
-            self.rect=Rectangle(pos=(start_pos[0]-8,start_pos[1]-20), size=(16,40))
-        self.bind(pos=lambda i,v: setattr(self.rect,'pos',(v[0]-8,v[1]-20)))
+            PushMatrix()
+            # Origin is the center of the rocket (0, 0) relative to Translate
+            from kivy.graphics import Translate
+            self.tr = Translate(*start_pos)
+            self.rot = Rotate(angle=angle, origin=(0, 0))
+            Color(1, 1, 1, 1)
+            # Center the rect relative to the translation (0, 0)
+            self.rect = Rectangle(pos=(-12, -30), size=(24, 60),
+                                  texture=RPGRocket._TEXTURE)
+            PopMatrix()
+
+        self.bind(pos=self.on_pos)
+
+    def _update_graphics(self, *args):
+        # Update translation
+        self.tr.x, self.tr.y = self.pos
+
+    def on_pos(self, *args):
+        if hasattr(self, 'tr'):
+            self._update_graphics()
 
     def explode(self, game):
         self.exploded=True

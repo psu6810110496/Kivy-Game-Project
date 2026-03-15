@@ -360,6 +360,7 @@ class PtaePunch(BaseSkill):
         self.radius = 90
         self.cone_deg = 60
         self.damage_mult = 1.0
+        self.knockback_power = 40
 
     @property
     def cooldown(self):
@@ -388,6 +389,12 @@ class PtaePunch(BaseSkill):
             # ตีได้ถ้าอยู่ในกรวย หรือถ้าอยู่ชิดตัวมาก (dist <= 45)
             if dist <= 45 or diff <= half:
                 _hit_enemy(game, enemy, dmg)
+                # Apply slight knockback to help PTae maintain distance
+                if dist > 0:
+                    enemy.pos = (
+                        enemy.pos[0] + (ex - px) / dist * self.knockback_power,
+                        enemy.pos[1] + (ey - py) / dist * self.knockback_power
+                    )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -660,7 +667,7 @@ class ShotgunSkill(BaseSkill):
 
     def _on_upgrade(self):
         self.damage_mult += 0.166
-        self.radius += 8.33
+        self.radius += 4.166
         self.knockback_power += 8.33
 
     def activate(self, game):

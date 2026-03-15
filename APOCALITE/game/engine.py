@@ -569,6 +569,14 @@ class GameScreen(Screen):
                     from game.skills import _hit_enemy
                     _hit_enemy(self, enemy, self.player_stats.damage)
 
+                    # 🌟 [Fix] PTae Melee Knockback (ช่วยเว้นระยะเพราะตัวช้า)
+                    if name == "PTae" and dist > 0:
+                        kb_power = 35
+                        enemy.pos = (
+                            enemy.pos[0] + (e_x - p_x) / dist * kb_power,
+                            enemy.pos[1] + (e_y - p_y) / dist * kb_power
+                        )
+
     def take_damage(self, amount: float):
         """ผู้เล่นรับดาเมจ (ถอดระบบ i-frames ออกแล้ว)"""
         if self.is_dead or not self.player_stats:

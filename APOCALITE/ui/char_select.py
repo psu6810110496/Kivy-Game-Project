@@ -112,7 +112,7 @@ class CharacterSelectScreen(Screen):
         from game.skills import CHAR_SPEED_CAP
         self.char_data = {
             "PTae": PlayerStats(
-                name="PTae", hp=180, speed=3.0, damage=15,
+                name="PTae", hp=180, speed=4.0, damage=15,
                 idle_frames=["assets/PTae/PTIdle/PTTG1.png","assets/PTae/PTIdle/PTTG2.png"],
                 walk_frames=["assets/PTae/PTPushUp/PTaeTester1.png","assets/PTae/PTPushUp/PTaeTester2.png",
                              "assets/PTae/PTPushUp/PTaeTester3.png","assets/PTae/PTPushUp/PTaeTester4.png"],
@@ -120,7 +120,7 @@ class CharacterSelectScreen(Screen):
                 heal_large_tex="assets/PTae/heal/food1.png",
             ),
             "Lostman": PlayerStats(
-                name="Lostman", hp=120, speed=4.5, damage=12,
+                name="Lostman", hp=120, speed=5, damage=12,
                 idle_frames=["assets/Lostman/idle/idleman1.png","assets/Lostman/idle/idleman2.png"],
                 walk_frames=["assets/Lostman/walk/walk1.png","assets/Lostman/walk/walk2.png",
                              "assets/Lostman/walk/walk3.png","assets/Lostman/walk/walk4.png"],
