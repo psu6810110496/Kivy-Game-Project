@@ -815,9 +815,9 @@ class BombWidget(Widget):
         self.pos = pos; self.damage = damage; self.radius = radius; self.size = (48, 48)
         self._fuse = fuse; self._elapsed = 0.0
         
-        # [Aesthetic] Play countdown sound (Louder)
+        # [Aesthetic] Play countdown sound (Much Louder)
         from game.sound_manager import sound_manager
-        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 1.5)
+        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 2.2)
         
         self._frame = 0; self._at = 0.0; self._fd = 0.15
         
@@ -870,9 +870,9 @@ class BossBombWidget(Widget):
         self._fuse = fuse; self._elapsed = 0.0
         self._game = game
         
-        # [Aesthetic] Play countdown sound (Louder)
+        # [Aesthetic] Play countdown sound (Much Louder)
         from game.sound_manager import sound_manager
-        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 1.5)
+        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 2.2)
         
         with self.canvas:
             Color(1, 0.2, 0.2, 0.8) # สีแดงน่ากลัว

@@ -320,9 +320,9 @@ class DinoPunch(StackSkill):
         self.beam_length  = min(2000, self.beam_length + 80)
 
     def activate(self, game):
-        # [Aesthetic] Play activation sound (low volume as it's loud/meme)
+        # [Aesthetic] Play activation sound (Increased volume as requested)
         from game.sound_manager import sound_manager
-        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 0.6)
+        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 1.5)
 
         from game.projectile_widget import DinoBeam
         px = game.player_pos[0] + 32
