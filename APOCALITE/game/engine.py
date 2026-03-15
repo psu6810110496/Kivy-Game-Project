@@ -118,7 +118,7 @@ class GameScreen(Screen):
         try:
             # 🌟 map.jpg ไม่มี → ใช้ map1.jpg แทน
             try:
-                tex = CoreImage("assets/maps/map.jpg").texture
+                tex = CoreImage("assets/maps/mapp.png").texture
             except Exception:
                 tex = CoreImage("assets/maps/map3.jpg").texture
             tex.wrap = "repeat"
@@ -151,47 +151,7 @@ class GameScreen(Screen):
 
         with self.world_layout.canvas.after:
             PopMatrix()
-            
-        import random
-        from game.obstacle_widget import ObstacleWidget
-        
-        # 🌟 วางรถตามขอบๆ แมพ และเช็คไม่ให้เกิดซ้อนกัน
-        def is_overlapping(new_pos, new_size, others):
-            nx, ny = new_pos
-            nw, nh = new_size
-            padding = 15 # ระยะห่างระหว่างรถ
-            for other in others:
-                ox, oy = other.pos
-                ow, oh = other.size
-                if not (nx + nw + padding < ox or
-                        nx > ox + ow + padding or
-                        ny + nh + padding < oy or
-                        ny > oy + oh + padding):
-                    return True
-            return False
-
-        # กำหนดโซนขอบแมพ (Margin 450px จากขอบ 5000x5000)
-        zones = [
-            ((50, 450), (50, 4950)),    # ซ้าย
-            ((4550, 4950), (50, 4950)), # ขวา
-            ((50, 4950), (50, 450)),    # ล่าง
-            ((50, 4950), (4550, 4950))  # บน
-        ]
-
-        total_cars = 60
-        attempts = 0
-        while len(self.obstacles) < total_cars and attempts < 1000:
-            attempts += 1
-            zx, zy = random.choice(zones)
-            w, h = random.choice([(140, 80), (80, 90)])
-            x = random.randint(zx[0], zx[1] - w)
-            y = random.randint(zy[0], zy[1] - h)
-            
-            if not is_overlapping((x, y), (w, h), self.obstacles):
-                obs = ObstacleWidget(pos=(x, y), size=(w, h))
-                self.obstacles.append(obs)
-                self.world_layout.add_widget(obs)
-
+        # 🌟 รถและ obstacles ถูกนำออกชั่วคราวตามที่ขอ
         self.root_layout.add_widget(self.world_layout)
 
     # ── Layout ────────────────────────────────────────────

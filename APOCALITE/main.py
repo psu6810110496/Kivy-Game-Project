@@ -1,3 +1,14 @@
+import os
+import sys
+
+# บังคับให้ Working Directory อยู่ที่โฟลเดอร์นอกสุด (Kivy-Game-Project) เสมอ
+# เพื่อให้โหลด assets/ ได้ถูกต้องไม่ว่าจะรันจากโฟลเดอร์ไหน
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if os.path.basename(project_root) == "Kivy-Game-Project" or os.path.exists(os.path.join(project_root, 'assets')):
+    os.chdir(project_root)
+    # เพิ่ม APOCALITE ลงใน sys.path เผื่อ import ภายในหาไม่เจอ
+    sys.path.insert(0, os.path.join(project_root, 'APOCALITE'))
+
 from kivy.config import Config
 
 # ตั้งค่าการปรับขนาดหน้าจอ

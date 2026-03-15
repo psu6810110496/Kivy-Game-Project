@@ -87,14 +87,45 @@ class CreditsScreen(Screen):
         layout.add_widget(self.credits_label)
         
         # ── ANIMATION ──
-        # อนิเมชั่นเดียว: เลื่อนด้วยความเร็วเท่ากันตั้งแต่เริ่มจนจบ (50 วินาที)
-        anim_all = Animation(y=Window.height + 500, duration=50.0, t='linear')
+        # อนิเมชั่นเดียว: เลื่อนด้วยความเร็วเท่ากันตั้งแต่เริ่มจนจบ (เพิ่มเวลาเป็น 90 วินาทีเพื่อให้เลื่อนช้าลง)
+        anim_all = Animation(y=Window.height + 500, duration=90.0, t='linear')
         anim_all.bind(on_complete=self.return_to_menu)
         
         # เริ่มเลื่อนทันทีที่เข้าหน้าจอ (0.1 วิ)
         Clock.schedule_once(lambda dt: anim_all.start(self.credits_label), 0.1)
         
+        # 3. Label "ESC to skip this"
+        self.skip_label = Label(
+            text="ESC to skip this",
+            font_size=24,
+            font_name=PIXEL_FONT,
+            color=(1, 1, 0, 0),  # สีเหลือง ซ่อนไว้ก่อน
+            pos_hint={'right': 0.98, 'y': 0.02},
+            size_hint=(None, None),
+            size=(200, 40)
+        )
+        layout.add_widget(self.skip_label)
+        self.hide_label_event = None
+        
         Window.bind(on_key_down=self._on_key_down)
+        Window.bind(mouse_pos=self._on_mouse_move)
+
+    def _on_mouse_move(self, window, pos):
+        if not getattr(self, "returning", False) and hasattr(self, "skip_label"):
+            # 🌟 เมื่อขยับเมาส์ ให้แสงปรากฏขึ้นมาเป็นสีเหลือง
+            self.skip_label.color = (1, 1, 0, 1)
+            
+            # ถ้ายกเลิกคำสั่งซ่อนเดิมที่มีอยู่
+            if self.hide_label_event:
+                self.hide_label_event.cancel()
+                
+            # ตั้งเวลาให้หายไปหลังไม่ได้ขยับเมาส์ 2 วินาที
+            self.hide_label_event = Clock.schedule_once(self._hide_skip_label, 2.0)
+
+    def _hide_skip_label(self, dt):
+        if hasattr(self, "skip_label"):
+            # 🌟 ปรับสีกลับเป็นโปร่งใสเมื่อไม่ได้ขยับเมาส์
+            self.skip_label.color = (1, 1, 0, 0)
 
     def _on_key_down(self, _win, key, *args):
         if key in (27, 32): # Esc or Space
@@ -109,6 +140,9 @@ class CreditsScreen(Screen):
         
         print("[Credits] Ending credits and returning to menu...")
         Window.unbind(on_key_down=self._on_key_down)
+        Window.unbind(mouse_pos=self._on_mouse_move)
+        if hasattr(self, "hide_label_event") and self.hide_label_event:
+            self.hide_label_event.cancel()
         Animation.stop_all(self.credits_label)
         
         if self.manager:
@@ -122,4 +156,7 @@ class CreditsScreen(Screen):
 
     def on_leave(self):
         Window.unbind(on_key_down=self._on_key_down)
+        Window.unbind(mouse_pos=self._on_mouse_move)
+        if hasattr(self, "hide_label_event") and self.hide_label_event:
+            self.hide_label_event.cancel()
         Animation.stop_all(self.credits_label)
