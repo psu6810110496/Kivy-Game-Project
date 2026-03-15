@@ -7,6 +7,7 @@ from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
+from game.game_settings import settings
 from game.utils import resolve_path, get_frames
 
 class _Linear(Widget):
@@ -291,7 +292,7 @@ class DinoProjectile(_Linear):
 
 class HomingDino(_Linear):
     """PTae Skill 2 — ไดโนเสาร์ติดตามศัตรู (homing)"""
-    TURN_SPEED = 4.0   # rad/s
+    TURN_SPEED = 12.0   # rad/s (Increased from 4.0 to fix circling bug)
     _TEXTURES = None
 
     @classmethod
@@ -813,6 +814,11 @@ class BombWidget(Widget):
         self._load()
         self.pos = pos; self.damage = damage; self.radius = radius; self.size = (48, 48)
         self._fuse = fuse; self._elapsed = 0.0
+        
+        # [Aesthetic] Play countdown sound (Louder)
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 1.5)
+        
         self._frame = 0; self._at = 0.0; self._fd = 0.15
         
         with self.canvas:
@@ -863,6 +869,10 @@ class BossBombWidget(Widget):
         self.pos = pos; self.damage = damage; self.radius = radius; self.size = (64, 64)
         self._fuse = fuse; self._elapsed = 0.0
         self._game = game
+        
+        # [Aesthetic] Play countdown sound (Louder)
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("lostman_bomb_countdown", volume=settings.sfx_volume * 1.5)
         
         with self.canvas:
             Color(1, 0.2, 0.2, 0.8) # สีแดงน่ากลัว
