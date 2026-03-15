@@ -320,9 +320,9 @@ class DinoPunch(StackSkill):
         self.beam_length  = min(2000, self.beam_length + 80)
 
     def activate(self, game):
-        # [Aesthetic] Play activation sound (low volume as it's loud/meme)
+        # [Aesthetic] Play activation sound (Increased volume as requested)
         from game.sound_manager import sound_manager
-        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 0.35)
+        sound_manager.play_sfx("dino_beam", volume=settings.sfx_volume * 1.5)
 
         from game.projectile_widget import DinoBeam
         px = game.player_pos[0] + 32
@@ -428,6 +428,11 @@ class AxeThrow(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
+        
+        # [Aesthetic] Play throw sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("lostman_throw")
+        
         count = self.level  # ยิง level ลูก
         sorted_e = sorted(
             game.enemies,
@@ -523,6 +528,10 @@ class WhirlSlash(BaseSkill):
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
 
+        # [Aesthetic] Play axe sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("lostman_axe")
+
         _show_slash_vfx(game, px, py, self.radius, 0, 360, self.anim_frames)
 
         for enemy in list(game.enemies):
@@ -564,6 +573,11 @@ class LostmanAxe(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
+
+        # [Aesthetic] Play axe sound
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("lostman_axe")
+
         aim = math.atan2(game.mouse_dir[1], game.mouse_dir[0])
         half = math.radians(self.cone_deg / 2)
         _show_slash_vfx(game, px, py, self.radius,
@@ -888,7 +902,8 @@ def _hit_enemy(game, enemy, dmg: float):
         
     # [Aesthetic] Play hit sound (quieter than melee)
     from game.sound_manager import sound_manager
-    sound_manager.play_sfx("enemy_hit", volume=settings.sfx_volume * 0.4)
+    sfx_name = "lostman_hit" if game.player_stats.name == "Lostman" else "enemy_hit"
+    sound_manager.play_sfx(sfx_name, volume=settings.sfx_volume * 0.4)
 
     if hasattr(enemy, "take_damage"):
         enemy.take_damage(dmg)
@@ -985,6 +1000,11 @@ def _explode_bomb(game, bomb):
         return
     px = bomb.pos[0] + 16
     py = bomb.pos[1] + 16
+    
+    # [Aesthetic] Play explosion sound
+    from game.sound_manager import sound_manager
+    sound_manager.play_sfx("lostman_bomb_explosion")
+    
     _show_aoe_vfx(game, px, py, bomb.radius)
     for enemy in list(game.enemies):
         ex = enemy.pos[0] + 20

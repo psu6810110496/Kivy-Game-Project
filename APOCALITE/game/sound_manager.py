@@ -16,7 +16,7 @@ class SoundManager:
     # --- Assets Mapping ---
     BGM_PATHS = {
         "main_menu": "assets/sound/mainmenu/nothing-like-home-luminbird-main-version-36601-02-03.mp3",
-        "ingame":    "assets/sound/ingame/dodgin-bullets-bosnow-main-version-45830-02-32.mp3",
+        "ingame":    "assets/sound/ingame/JAM_HSIAO_-_Theme_Soul_land_Douluo_Dalu_OP_(mp3.pm).mp3",
         "bossfight": "assets/sound/bossfight/speed-demon-abbynoise-main-version-18766-02-24.mp3",
         "rain":      "assets/sound/mainmenu/rain.wav",
         "endcredit": "assets/sound/endcredit/endc1.mp3",
@@ -28,10 +28,16 @@ class SoundManager:
         "button": "assets/sound/button/computer-mouse-click-joshua-chivers-1-00-00.mp3",
         # PTae Skills
         "dino_circle_loop": "assets/sound/Ptae/skill1/universfield-whip-06-487886.mp3",
-        "dino_summon":      "assets/sound/Ptae/skill2/yee.mp3",
-        "dino_hit":         "assets/sound/Ptae/skill2/chicken-on-tree-screaming.mp3",
+        "dino_summon":      "assets/sound/Ptae/skill2/bongo-feet.mp3",
+        "dino_hit":         "assets/sound/Ptae/skill3/snore-mimimimimimi.mp3",
         "dino_beam":        "assets/sound/Ptae/skill3/explosion-meme_dTCfAHs.mp3",
         "player_death":     "assets/sound/ingame/cat-laugh-meme-1.mp3",
+        # Lostman Skills
+        "lostman_axe":      "assets/sound/lostman/musicholder-hitting-stalactites-with-axe-212652.mp3",
+        "lostman_throw":    "assets/sound/lostman/mixkit-air-in-a-hit-2161.wav",
+        "lostman_hit":      "assets/sound/lostman/mixkit-impact-of-a-strong-punch-2155.mp3",
+        "lostman_bomb_countdown": "assets/sound/lostman/freesound_community-bomb-countdown-beeps-6868.mp3",
+        "lostman_bomb_explosion": "assets/sound/lostman/dragon-studio-explosion-with-debris-494320.mp3",
     }
 
     def __new__(cls):
