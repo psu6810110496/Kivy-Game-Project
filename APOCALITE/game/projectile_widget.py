@@ -31,11 +31,10 @@ class EnemyProjectile(_Linear):
     def _load(cls):
         if cls._TEXTURES is None:
             cls._TEXTURES = []
-            for i in range(4): # [Fix] Limit to 4 frames as requested
-                path = resolve_path(f"assets/effect/rangershoot/1_{i}.png")
-                if path:
-                    try: cls._TEXTURES.append(CoreImage(path).texture)
-                    except: pass
+            path = resolve_path("assets/effect/rangershoot/shoot.png")
+            if path:
+                try: cls._TEXTURES.append(CoreImage(path).texture)
+                except: pass
 
     def __init__(self, start_pos, target_pos, damage=10, **kw):
         super().__init__(start_pos, target_pos, speed=400.0, damage=damage, **kw)
@@ -45,7 +44,8 @@ class EnemyProjectile(_Linear):
             PushMatrix()
             self.tr = Translate(self.pos[0], self.pos[1])
             self.ro = Rotate(angle=angle, origin=(0,0))
-            Color(0.6, 0.05, 0.5, 1) # [Fix] Dark Red-Purple (Red-Purple + Black tint)
+            # 🌟 [Fix] ลดความเข้มสีแดงลงอีก และตั้งค่าความจาง (Alpha) เป็น 0.35
+            Color(1, 0.4, 0.4, 1) 
             self.br = Rectangle(pos=(-40,-40), size=(80,80),
                                  texture=self._TEXTURES[0] if self._TEXTURES else None)
             PopMatrix()

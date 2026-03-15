@@ -31,7 +31,7 @@ class PlayerStats:
         self.current_hp = self.hp
         self.level = 1
         self.exp = 0.0
-        self.max_exp = 200.0
+        self.update_max_exp()
 
         # ไม่มีสกิลเริ่มต้น — ได้จาก Level Up เท่านั้น
         self.skills = []    # auto skills (S1, S2)
@@ -44,3 +44,8 @@ class PlayerStats:
 
     def heal(self, amount: float):
         self.current_hp = min(self.hp, self.current_hp + amount)
+
+    def update_max_exp(self):
+        """คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป: เก็บง่ายทั้งเกม"""
+        # เริ่มต้นที่ 50 และเพิ่มขึ้นเพียงทีละ 20 ต่อเลเวล เพื่อให้เก็บเลเวลได้ไวตลอดทั้งเกม
+        self.max_exp = 50.0 + (self.level - 1) * 20.0

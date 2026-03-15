@@ -117,24 +117,8 @@ class WaveManager:
 
         w = self.current_wave
 
-        # EXP scaling ตามช่วง wave
+        # EXP scaling ตอนนี้ถูกจัดการโดย PlayerStats ตามเลเวลแล้ว
         if game.player_stats:
-            if 1 <= w <= 5:
-                game.player_stats.max_exp = 200
-            elif 6 <= w <= 8:
-                game.player_stats.max_exp = 350
-            elif 9 <= w <= 12:
-                game.player_stats.max_exp = 500
-            elif 13 <= w <= 18:
-                game.player_stats.max_exp = 600
-            elif 19 <= w <= 25:
-                game.player_stats.max_exp = 750
-            elif 26 <= w <= 30:
-                game.player_stats.max_exp = 1000
-            elif w > 30:
-                # หลังจาก wave 30 เพิ่มขึ้นเรื่อยๆ
-                game.player_stats.max_exp = 1000 + (w - 30) * 50
-                
             game.hud.update_ui(game.player_stats)
 
         if w == 45:

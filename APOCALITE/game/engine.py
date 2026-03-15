@@ -21,7 +21,7 @@ from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 from kivy.core.window import Window
 from kivy.graphics import (
-    Color, Ellipse, PushMatrix, PopMatrix,
+    Color, Ellipse, Line, PushMatrix, PopMatrix,
     Rectangle, Scale, Translate,
 )
 from kivy.uix.floatlayout import FloatLayout
@@ -123,7 +123,8 @@ class GameScreen(Screen):
                 tex = CoreImage("assets/maps/map3.jpg").texture
             tex.wrap = "repeat"
             scale = 3.0
-            tex.uvsize = (5000 / (tex.width * scale), -5000 / (tex.height * scale))
+            # ขยาย UV ให้ครอบคลุมพื้นที่ 8000x8000 (-1500 ถึง 6500)
+            tex.uvsize = (8000 / (tex.width * scale), -8000 / (tex.height * scale))
         except Exception:
             tex = None
 
@@ -135,23 +136,64 @@ class GameScreen(Screen):
             self.camera = Translate(0, 0)
             if tex:
                 Color(1, 1, 1, 1)
-                Rectangle(pos=(0, 0), size=(5000, 5000), texture=tex)
+                # วาดแมพขยายออกไปเพื่อให้ไม่เห็นขอบดำ (ประมาณ 1 log)
+                Rectangle(pos=(-1500, -1500), size=(8000, 8000), texture=tex)
             else:
                 Color(0.15, 0.15, 0.15, 1)
-                Rectangle(pos=(0, 0), size=(5000, 5000))
-            # Border darkness
+                Rectangle(pos=(-1500, -1500), size=(8000, 8000))
+            
+            # วาดเส้นสีแดงเพื่อเช็คขอบแมพเดิม (Testing)
+            Color(1, 0, 0, 1)
+            Line(rectangle=(0, 0, 5000, 5000), width=3)
+            # Border darkness (เลื่อนออกไปนอกแมพใหม่เพื่อให้เห็น Texture ที่ gen เพิ่ม)
             Color(0, 0, 0, 0.85)
             for pos, size in [
-                ((-3000, -3000), (3000, 11000)),
-                ((5000, -3000), (3000, 11000)),
-                ((0, -3000),    (5000, 3000)),
-                ((0, 5000),     (5000, 3000)),
+                ((-5000, -5000), (3500, 15000)), # ซ้าย
+                ((6500, -5000), (3000, 15000)),  # ขวา
+                ((-1500, -5000), (8000, 3500)),  # ล่าง
+                ((-1500, 6500), (8000, 3000)),   # บน
             ]:
                 Rectangle(pos=pos, size=size)
 
         with self.world_layout.canvas.after:
             PopMatrix()
-        # 🌟 รถและ obstacles ถูกนำออกชั่วคราวตามที่ขอ
+
+        # 🌟 สุ่มวางรถฝั่งซ้ายให้เต็มตามแนวขอบแมพ
+        import random
+        from game.obstacle_widget import ObstacleWidget
+
+        def is_overlapping(new_pos, new_size, others):
+            nx, ny = new_pos
+            nw, nh = new_size
+            padding = 10 
+            for other in others:
+                ox, oy = other.pos
+                ow, oh = other.size
+                if not (nx + nw + padding < ox or
+                        nx > ox + ow + padding or
+                        ny + nh + padding < oy or
+                        ny > oy + oh + padding):
+                    return True
+            return False
+
+        # กำหนดโซนเน้นฝั่งซ้าย (x: 20 ถึง 300, y: 50 ถึง 4950)
+        left_zone_x = (20, 300)
+        left_zone_y = (50, 4950)
+
+        total_left_cars = 50 # ปรับจำนวนให้หนาแน่น
+        attempts = 0
+        while len(self.obstacles) < total_left_cars and attempts < 1000:
+            attempts += 1
+            # สุ่มขนาดรถ (แนวนอน หรือ แนวตั้ง)
+            w, h = random.choice([(140, 80), (80, 90)])
+            x = random.randint(left_zone_x[0], left_zone_x[1] - w)
+            y = random.randint(left_zone_y[0], left_zone_y[1] - h)
+            
+            if not is_overlapping((x, y), (w, h), self.obstacles):
+                obs = ObstacleWidget(pos=(x, y), size=(w, h))
+                self.obstacles.append(obs)
+                self.world_layout.add_widget(obs)
+
         self.root_layout.add_widget(self.world_layout)
 
     # ── Layout ────────────────────────────────────────────
@@ -555,6 +597,7 @@ class GameScreen(Screen):
         if self.player_stats.exp >= self.player_stats.max_exp:
             self.player_stats.exp -= self.player_stats.max_exp
             self.player_stats.level += 1
+            self.player_stats.update_max_exp() # 🌟 อัปเดตเพดาน EXP ใหม่ตามเลเวล
             self.is_paused = True
             from game.skills import get_upgrade_choices
             choices = get_upgrade_choices(self.player_stats)

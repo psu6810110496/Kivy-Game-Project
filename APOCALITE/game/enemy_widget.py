@@ -42,6 +42,12 @@ class EnemyWidget(Widget):
         self.sniper_cooldown = random.uniform(1.0, 2.0)
         self.time_counter = random.uniform(0, 5.0) # 🌟 สำหรับ Zigzag หรือ AI อื่นๆ
 
+        # ระบบบอสแดช (Dash 3 ครั้ง)
+        self.boss_dash_streak = 0
+        self.boss_dash_timer = random.uniform(5.0, 8.0)
+        self.is_boss_dashing = False
+        self.boss_dash_dir = (0, 0)
+
 
         # --- [ Enemy Stats ] ---
         stats = {
@@ -251,29 +257,52 @@ class EnemyWidget(Widget):
             
             self.anim_speed = 0.08
         elif etype == "boss" or etype == "big_boss":
-            # Minotaur sheet: row 0=attack, row 1=walk, row 2=idle (ตามเดิมที่เดาไว้)
-            # แต่ถ้าเป็น top-down indexing: row 0 คือบนสุด
-            row_attack = 0
-            row_walk = 1
-            row_idle = 2
-            sheet_path = "assets/enemy/boss/minotaur_288x160_SpriteSheet.png"
-            # [Fix] Boss frames count reduced from 12 to 10 for safety
-            self.boss_idle = get_frames(sheet_path, 288, 160, 10, row=row_idle)
-            self.boss_walk = get_frames(sheet_path, 288, 160, 10, row=row_walk)
-            self.boss_attack = get_frames(sheet_path, 288, 160, 10, row=row_attack)
+            # [Fix] แทนที่จะใช้ spritesheet ให้ใช้ไฟล์แยก minotaur1-6.png ตามคำขอ
+            frames = []
+            for i in range(1, 7):
+                p = resolve_path(f"assets/enemy/boss/minotaur{i}.png")
+                if p:
+                    try:
+                        frames.append(CoreImage(p).texture)
+                    except: pass
             
-            def set_boss_anim(state, loop=True):
-                if state == "idle": frames = self.boss_idle
-                elif state == "walk": frames = self.boss_walk
-                elif state == "attack": frames = self.boss_attack
-                else: return
-                if self.anim_frames != frames:
-                    self.anim_frames = frames
-                    self.frame_index = 0
-            
-            self.set_boss_anim = set_boss_anim
-            self.anim_frames = self.boss_walk
-            self.anim_speed = 0.08
+            if frames:
+                self.boss_idle = frames
+                self.boss_walk = frames
+                self.boss_attack = frames
+                
+                def set_boss_anim(state, loop=True):
+                    # ถ้ามีไฟล์แยกหลายชุดสามารถขยายตรงนี้ได้ แต่ตอนนี้ใช้ชุด 1-6 รวมไปก่อน
+                    if state == "idle": f = self.boss_idle
+                    elif state == "walk": f = self.boss_walk
+                    elif state == "attack": f = self.boss_attack
+                    else: return
+                    
+                    if self.anim_frames != f:
+                        self.anim_frames = f
+                        self.frame_index = 0
+                
+                self.set_boss_anim = set_boss_anim
+                self.anim_frames = frames
+                self.anim_speed = 0.1
+            else:
+                # Fallback to spritesheet (ถ้าหาไฟล์แยกไม่เจอ)
+                sheet_path = "assets/enemy/boss/minotaur_288x160_SpriteSheet.png"
+                self.boss_idle = get_frames(sheet_path, 288, 160, 10, row=2)
+                self.boss_walk = get_frames(sheet_path, 288, 160, 10, row=1)
+                self.boss_attack = get_frames(sheet_path, 288, 160, 10, row=0)
+                
+                def set_boss_anim(state, loop=True):
+                    if state == "idle": frames = self.boss_idle
+                    elif state == "walk": frames = self.boss_walk
+                    elif state == "attack": frames = self.boss_attack
+                    else: return
+                    if self.anim_frames != frames:
+                        self.anim_frames = frames
+                        self.frame_index = 0
+                self.set_boss_anim = set_boss_anim
+                self.anim_frames = self.boss_walk
+                self.anim_speed = 0.08
         elif etype == "final_boss" or etype == "final_boss_clone":
             # 🌟 Change to Agis 1-15 animation for Wave 45 Boss
             frames = []
@@ -483,6 +512,19 @@ class EnemyWidget(Widget):
                     if dist > 0:
                         self.charge_dir = (dx / dist, dy / dist)
                     Clock.schedule_once(lambda dt: self._start_charge_dash(), 1.0)
+        
+        elif self.enemy_type == "boss":
+            if self.is_boss_dashing:
+                # พุ่งแดชด้วยความเร็วสูง
+                vx, vy = self.boss_dash_dir[0] * self.speed * 6, self.boss_dash_dir[1] * self.speed * 6
+            else:
+                if dist > 0:
+                    vx, vy = (dx / dist) * self.speed, (dy / dist) * self.speed
+                
+                self.boss_dash_timer -= dt
+                if self.boss_dash_timer <= 0 and dist < 800:
+                    self.start_boss_dash_streak()
+                    self.boss_dash_timer = 12.0 # คูลดาวน์หลังจบชุดแดช
 
         elif self.enemy_type == "shielder":
             if not self.has_shield:
@@ -620,21 +662,71 @@ class EnemyWidget(Widget):
                     sep_x += (ex - ox) * 0.15
                     sep_y += (ey - oy) * 0.15
 
+        # --- [ Obstacle Avoidance (หลบรถ/สิ่งกีดขวาง) ] ---
+        # 🌟 เพิ่มแรงเบี่ยงเบน (Steering) เมื่อเจอสิ่งกีดขวางข้างหน้า
+        avoid_vx, avoid_vy = 0, 0
+        if hasattr(self, "game") and getattr(self.game, "obstacles", []):
+            look_ahead = 60 # ระยะมองล่วงหน้า
+            hit_padding = 10
+            ew, eh = self.enemy_size
+            
+            # เวกเตอร์ความเร็วปัจจุบัน
+            cur_vx = vx + sep_x
+            cur_vy = vy + sep_y
+            cur_mag = math.hypot(cur_vx, cur_vy)
+            
+            if cur_mag > 0:
+                # ลองพยากรณ์ตำแหน่งในอนาคต
+                future_x = self.pos[0] + (cur_vx / cur_mag) * look_ahead
+                future_y = self.pos[1] + (cur_vy / cur_mag) * look_ahead
+                
+                for obs in self.game.obstacles:
+                    if obs.collides_with(future_x + hit_padding, future_y + hit_padding, ew - hit_padding*2, eh - hit_padding*2):
+                        # เจอสิ่งกีดขวาง! คำนวณแรงผลักออกด้านข้าง (Steer Away)
+                        ox, oy = obs.pos[0] + obs.size[0]/2, obs.pos[1] + obs.size[1]/2
+                        side_x = -(future_y - oy) # เวกเตอร์ตั้งฉาก
+                        side_y = (future_x - ox)
+                        
+                        # ดูว่าทางไหนใกล้กว่า/สะดวกกว่า
+                        side_mag = math.hypot(side_x, side_y)
+                        if side_mag > 0:
+                            avoid_vx += (side_x / side_mag) * self.speed * 1.5
+                            avoid_vy += (side_y / side_mag) * self.speed * 1.5
+                        break # หลบอันที่ใกล้ที่สุดอันเดียวพอ
+
         ew, eh = self.enemy_size
-        new_x = max(0, min(self.pos[0] + vx + sep_x, 5000 - ew))
-        new_y = max(0, min(self.pos[1] + vy + sep_y, 5000 - eh))
+        vx_total = vx + sep_x + avoid_vx
+        vy_total = vy + sep_y + avoid_vy
+
+        # คำนวณตำแหน่งใหม่แยกแกน
+        new_x = max(0, min(self.pos[0] + vx_total, 5000 - ew))
+        new_y = max(0, min(self.pos[1] + vy_total, 5000 - eh))
         
         can_move_x = True
         can_move_y = True
         
-        # ถอยเข้าหากำแพงหรือไม่ตอนกั้นอยู่
+        # เช็คสิ่งกีดขวาง (รถ) - ใช้ Hitbox ที่เล็กลงกว่าตัวจริง (Padding) เพื่อไม่ให้ติดขอบง่ายเกินไป
         if hasattr(self, "game") and getattr(self.game, "obstacles", []):
+            hit_padding = 15 # ระยะเผื่อขอบเพื่อให้ AI ไถลได้สะดวกขึ้น
+            check_ew = ew - hit_padding
+            check_eh = eh - hit_padding
+            check_x = new_x + hit_padding/2
+            check_y = new_y + hit_padding/2
+            
             for obs in self.game.obstacles:
-                if obs.collides_with(new_x, self.pos[1], ew, eh): can_move_x = False
-                if obs.collides_with(self.pos[0], new_y, ew, eh): can_move_y = False
+                # เช็คแกน X (ใช้ y เดิม)
+                if obs.collides_with(check_x, self.pos[1] + hit_padding/2, check_ew, check_eh):
+                    can_move_x = False
+                # เช็คแกน Y (ใช้ x เดิม)
+                if obs.collides_with(self.pos[0] + hit_padding/2, check_y, check_ew, check_eh):
+                    can_move_y = False
+                if not can_move_x and not can_move_y:
+                    break
                 
-        if can_move_x: self.pos = (new_x, self.pos[1])
-        if can_move_y: self.pos = (self.pos[0], new_y)
+        if can_move_x:
+            self.pos = (new_x, self.pos[1])
+        if can_move_y:
+            self.pos = (self.pos[0], new_y)
 
     # --- Big boss attacks helpers ---
     def do_slam(self):
@@ -754,26 +846,68 @@ class EnemyWidget(Widget):
         if widget.parent:
             widget.parent.remove_widget(widget)
 
+    def _is_line_blocked(self, start, end):
+        """ตรวจสอบว่าเส้นตรงจากจุดเริ่มไปจุดจบมีสิ่งกีดขวาง (รถ) ขวางอยู่หรือไม่"""
+        if not hasattr(self, "game") or not getattr(self.game, "obstacles", []):
+            return False
+        
+        sx, sy = start
+        ex, ey = end
+        dist = math.hypot(ex - sx, ey - sy)
+        if dist < 10: return False
+        
+        # สุ่มเช็คจุดบนเส้นตรง (Sampling) ทุกๆ 30 พิกเซล
+        steps = max(2, int(dist / 30))
+        for i in range(1, steps):
+            t = i / steps
+            px = sx + (ex - sx) * t
+            py = sy + (ey - sy) * t
+            for obs in self.game.obstacles:
+                if obs.collides_with(px - 5, py - 5, 10, 10):
+                    return True
+        return False
+
     def shoot(self, player_pos):
-        if not self.parent:
+        if not self.parent or not hasattr(self, "game") or not self.game:
             return
 
         # ตำแหน่งจุดเริ่มกระสุน (กึ่งกลางตัว Ranger)
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
 
-        # หาจุดกึ่งกลางของผู้เล่นเพื่อใช้เป็นเป้าหมายกระสุน
+        # เป้าหมายหลัก (ตัวผู้เล่น)
         target_x = player_pos[0] + 32
         target_y = player_pos[1] + 32
+
+        # 🌟 ระบบเล็งข้ามสิ่งกีดขวาง (Smart Aiming)
+        if self._is_line_blocked((ex, ey), (target_x, target_y)):
+            # ถ้ามีอะไรขวาง ให้ลองสุ่มยิงเบี่ยงซ้าย/ขวา เพื่อหาช่องว่างที่เข้าใกล้ผู้เล่นได้
+            found_clear_path = False
+            base_angle = math.atan2(target_y - ey, target_x - ex)
+            dist = math.hypot(target_x - ex, target_y - ey)
+            
+            # ลองเบี่ยงมุมทีละ 10 ไปจนถึง 40 องศา
+            for angle_offset in [10, -10, 20, -20, 30, -30, 40, -40]:
+                rad = math.radians(angle_offset)
+                test_tx = ex + math.cos(base_angle + rad) * dist
+                test_ty = ey + math.sin(base_angle + rad) * dist
+                
+                if not self._is_line_blocked((ex, ey), (test_tx, test_ty)):
+                    target_x, target_y = test_tx, test_ty
+                    found_clear_path = True
+                    break
+            
+            # ถ้าหาทางยิงที่โล่งไม่ได้เลย ให้เลือกไม่ยิง (เก็บกระสุนไว้)
+            if not found_clear_path:
+                return
 
         # ใช้ EnemyProjectile จากไฟล์ projectile_widget (เคลื่อนที่ด้วย dt)
         proj = EnemyProjectile(
             start_pos=(ex, ey), target_pos=(target_x, target_y), damage=self.damage
         )
 
-        if hasattr(self, "game") and self.game is not None:
-            self.game.world_layout.add_widget(proj)
-            self.game.enemy_projectiles.append(proj)
+        self.game.world_layout.add_widget(proj)
+        self.game.enemy_projectiles.append(proj)
 
     def take_damage(self, amount, knockback_dir=(0, 0)):
         """รับดาเมจและแสดงเอฟเฟกต์กระพริบม่วงชั่วขณะ พร้อมเขย่าตัว"""
@@ -865,17 +999,78 @@ class EnemyWidget(Widget):
         if self.parent:
             self.parent.remove_widget(self)
 
+    # --- Boss Dash Streak Ability ---
+    def start_boss_dash_streak(self):
+        self.boss_dash_streak = 0
+        self.is_boss_dashing = False
+        self._next_boss_dash()
+
+    def _next_boss_dash(self, dt=0):
+        if self.boss_dash_streak >= 3 or self.hp <= 0 or not self.parent:
+            self.is_boss_dashing = False
+            # คืนสีปกติ (สีแดงบอส)
+            self.color_inst.rgba = (0.9, 0.2, 0.2, 1)
+            return
+
+        # ช่วงชาร์จ (ตัวขาวกะพริบ)
+        self.color_inst.rgba = (1, 1, 1, 1)
+        
+        # เล็งเป้าหมาย ณ จุดที่เริ่มพุ่ง
+        if hasattr(self, "game") and self.game and self.game.player_pos:
+            px, py = self.game.player_pos[0]+32, self.game.player_pos[1]+32
+            ex, ey = self.pos[0] + self.enemy_size[0]/2, self.pos[1] + self.enemy_size[1]/2
+            dx, dy = px - ex, py - ey
+            d = math.hypot(dx, dy)
+            if d > 0:
+                self.boss_dash_dir = (dx/d, dy/d)
+            else:
+                self.boss_dash_dir = (1, 0)
+        
+        def _exec_dash(dt):
+            if self.hp <= 0 or not self.parent: return
+            self.is_boss_dashing = True
+            self.boss_dash_streak += 1
+            if hasattr(self, "set_boss_anim"):
+                self.is_boss_attacking = True
+                self.set_boss_anim("attack")
+                Clock.schedule_once(lambda dt: setattr(self, "is_boss_attacking", False), 0.5)
+            
+            # พุ่งแดชนาน 0.4 วินาที
+            Clock.schedule_once(self._end_boss_dash, 0.4)
+
+        Clock.schedule_once(_exec_dash, 0.6) # รอชาร์จนิดนึงก่อนพุ่ง
+
+    def _end_boss_dash(self, dt):
+        self.is_boss_dashing = False
+        self.color_inst.rgba = (1, 0.5, 0.5, 1) # พักเหนื่อยเล็กน้อย (สีชมพู)
+        # หยุดพัก 0.5 วินาทีก่อนพุ่งครั้งต่อไป
+        Clock.schedule_once(self._next_boss_dash, 0.5)
+
     def shoot_sniper(self, player_pos):
-        if not self.parent:
+        if not self.parent or not hasattr(self, "game") or not self.game:
             return
         ex = self.pos[0] + self.enemy_size[0] / 2
         ey = self.pos[1] + self.enemy_size[1] / 2
         
         target_x = player_pos[0] + 32
         target_y = player_pos[1] + 32
+
+        # 🌟 Sniper Smart Aiming (ตรวจสอบ LOS ก่อนยิงชุด)
+        if self._is_line_blocked((ex, ey), (target_x, target_y)):
+            # ถ้าเป้าหมายหลักถูกบัง ให้ลองมองหาทางเลี่ยง
+            base_angle = math.atan2(target_y - ey, target_x - ex)
+            dist = math.hypot(target_x - ex, target_y - ey)
+            found = False
+            for off in [15, -15, 30, -30]:
+                rad = math.radians(off)
+                tx, ty = ex + math.cos(base_angle + rad) * dist, ey + math.sin(base_angle + rad) * dist
+                if not self._is_line_blocked((ex, ey), (tx, ty)):
+                    target_x, target_y = tx, ty
+                    found = True
+                    break
+            if not found: return
+
         dx, dy = target_x - ex, target_y - ey
-        dist = max(1, math.hypot(dx, dy))
-        
         base_angle = math.atan2(dy, dx)
         spread_deg = math.radians(5) # Tightly (5 degrees offset)
         
@@ -888,9 +1083,8 @@ class EnemyWidget(Widget):
                 start_pos=(ex, ey), target_pos=(tx, ty), damage=self.damage
             )
             proj.speed = 550
-            if hasattr(self, "game") and self.game is not None:
-                self.game.world_layout.add_widget(proj)
-                self.game.enemy_projectiles.append(proj)
+            self.game.world_layout.add_widget(proj)
+            self.game.enemy_projectiles.append(proj)
 
     # --- Final Boss Specials Implementation ---
 
