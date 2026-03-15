@@ -603,6 +603,35 @@ class GameScreen(Screen):
             choices = get_upgrade_choices(self.player_stats)
             LevelUpPopup(self, choices=choices).open()
 
+    def _debug_direct_upgrade(self, slot):
+        """Debug helper to directly upgrade or add S1, S2, or S3"""
+        if not self.player_stats: return
+        from game.skills import CHAR_DEFAULT_SKILLS, CHAR_SKILL3
+        char_name = self.player_stats.name
+        
+        if slot in [1, 2]: # S1 or S2
+            defaults = CHAR_DEFAULT_SKILLS.get(char_name, [])
+            if len(defaults) < slot: return
+            skill_cls = defaults[slot-1]
+            
+            # Find if player already has this skill
+            existing = next((s for s in self.player_stats.skills if isinstance(s, skill_cls)), None)
+            if existing:
+                existing.upgrade()
+            else:
+                new_skill = skill_cls()
+                self.player_stats.skills.append(new_skill)
+        elif slot == 3: # S3
+            skill_cls = CHAR_SKILL3.get(char_name)
+            if not skill_cls: return
+            if self.player_stats.skill3:
+                self.player_stats.skill3.upgrade()
+            else:
+                self.player_stats.skill3 = skill_cls()
+        
+        if hasattr(self, "hud") and self.hud:
+            self.hud.update_ui(self.player_stats)
+
         if hasattr(self, "hud") and self.hud:
             self.hud.update_ui(self.player_stats)
 
@@ -803,6 +832,14 @@ class GameScreen(Screen):
                 return True
 
             self.keys_pressed.add(cp)
+
+        # -- Debug Tools --
+        if key == 282: # F1 -> Upgrade Skill 1
+            self._debug_direct_upgrade(1)
+        elif key == 283: # F2 -> Upgrade Skill 2
+            self._debug_direct_upgrade(2)
+        elif key == 284: # F3 -> Upgrade Skill 3
+            self._debug_direct_upgrade(3)
         return False
 
     def _on_key_up(self, _win, key, _scan):

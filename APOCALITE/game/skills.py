@@ -599,7 +599,6 @@ class PistolSkill(BaseSkill):
         self.bullet_range = 720
         self.anim_frames = [
             "assets/Monkey/shoot/bullets1.png",
-            "assets/Monkey/shoot/bullets2.png",
         ]
 
     @property
@@ -630,45 +629,67 @@ class PistolSkill(BaseSkill):
 
 
 class ShotgunSkill(BaseSkill):
-    """Monkey Skill 2 — Shotgun ยิงกระจายตามเมาส์ (auto)"""
+    """Monkey Skill 2 — Shotgun ยัดเยียดดาเมจระยะประชิด (auto)"""
     name = "Shotgun"
-    description = "ยิงกระสุนกระจาย 5 นัดตามทิศที่เล็ง"
+    description = "ระเบิดลูกซองยัดระยะใกล้ ทำดาเมจหนักและผลักศัตรูออกไป"
 
     def __init__(self):
         super().__init__()
-        self.damage_mult = 0.6
-        self.pellet_count = 5
-        self.spread_deg = 22
-        self.bullet_speed = 460
-        self.bullet_range = 420
-        self.anim_frames = [
-            "assets/Monkey/shoot/bullets1.png",
-            "assets/Monkey/shoot/bullets2.png",
-        ]
+        self.damage_mult = 1.0 # ดาเมจเริ่มต้น 1 เท่า
+        self.radius = 200
+        self.spread_deg = 70
+        self.knockback_power = 50
 
     @property
     def cooldown(self):
-        return max(0.7, 1.5 - (self.level - 1) * 0.2)
+        return max(1.2, 2.5 - (self.level - 1) * 0.15)
 
     def _on_upgrade(self):
-        self.damage_mult += 0.15
-        if self.level % 2 == 0:
-            self.pellet_count += 1
+        self.damage_mult += 0.166
+        self.radius += 8.33
+        self.knockback_power += 8.33
 
     def activate(self, game):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
-        base_angle = math.atan2(game.mouse_dir[1], game.mouse_dir[0])
-        spread = math.radians(self.spread_deg)
-        half = (self.pellet_count - 1) / 2
-        for i in range(self.pellet_count):
-            offset = (i - half) / max(1, self.pellet_count - 1) * spread * 2
-            ang = base_angle + offset
-            tx = px + math.cos(ang) * 600
-            ty = py + math.sin(ang) * 600
-            _spawn_bullet(game, px, py, tx, ty,
-                          self.bullet_speed, self.bullet_range, dmg, self.anim_frames)
+        
+        # ค้นหาเป้าหมาย (ใช้ Mouse Direction)
+        aim_angle = math.atan2(game.mouse_dir[1], game.mouse_dir[0])
+        half_spread = math.radians(self.spread_deg / 2)
+
+        # VFX: ประกายปลายกระบอก (ใช้ texture shoot/bullets2.png)
+        from game.skills import _play_vfx_sprite, _hit_enemy
+        # ขยับห่างออกมา 70 unit และหมุนตามทิศทางเมาส์
+        _play_vfx_sprite(game, px + game.mouse_dir[0]*70, py + game.mouse_dir[1]*70, 
+                         120, 120, ["assets/Monkey/shoot/bullets2.png"], 0.1, 
+                         angle=math.degrees(aim_angle))
+        
+        # SFX (ใช้เสียงโจมตีพื้นฐานถ้าไม่มีเสียงลูกซองเฉพาะ)
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("attack", volume=settings.sfx_volume * 1.2)
+
+        # ทำดาเมจและผลักศัตรูในระยะ
+        for enemy in list(game.enemies):
+            ex = enemy.pos[0] + enemy.enemy_size[0]/2
+            ey = enemy.pos[1] + enemy.enemy_size[1]/2
+            dx, dy = ex - px, ey - py
+            dist = math.hypot(dx, dy)
+            
+            if dist <= self.radius:
+                ang = math.atan2(dy, dx)
+                diff = abs((ang - aim_angle + math.pi) % (2*math.pi) - math.pi)
+                
+                # ถ้าอยู่ในกรวย หรืออยู่ประชิดตัวมาก (dist < 50)
+                if diff <= half_spread or dist < 50:
+                    _hit_enemy(game, enemy, dmg)
+                    
+                    # Knockback: ผลักศัตรูออกไปตามทิศทางที่โดนยิง
+                    if dist > 0:
+                        enemy.pos = (
+                            enemy.pos[0] + (dx/dist) * self.knockback_power,
+                            enemy.pos[1] + (dy/dist) * self.knockback_power
+                        )
 
 
 class RPGSkill(StackSkill):
@@ -1088,7 +1109,7 @@ def _draw_orbit_indicators(game, positions, angle, inner_radius=0, textures=None
     Clock.schedule_once(lambda dt: game.world_layout.canvas.remove(ig), 0.032)
 
 
-def _play_vfx_sprite(game, cx, cy, w, h, frames, duration=0.25):
+def _play_vfx_sprite(game, cx, cy, w, h, frames, duration=0.25, angle=0):
     textures = []
     for item in frames:
         # Check if item is already a texture (e.g. from engine.py self.slash_textures)
@@ -1104,9 +1125,14 @@ def _play_vfx_sprite(game, cx, cy, w, h, frames, duration=0.25):
         return
     ft = duration / len(textures)
     ig = InstructionGroup()
+    from kivy.graphics import PushMatrix, PopMatrix, Rotate
     ig.add(Color(1, 1, 1, 1))
+    ig.add(PushMatrix())
+    rot = Rotate(angle=angle, origin=(cx, cy))
+    ig.add(rot)
     rect = Rectangle(texture=textures[0], pos=(cx - w / 2, cy - h / 2), size=(w, h))
     ig.add(rect)
+    ig.add(PopMatrix())
     game.world_layout.canvas.add(ig)
     idx = [1]
 

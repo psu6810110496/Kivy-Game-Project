@@ -557,17 +557,15 @@ class HUD(FloatLayout):
         self.hp_label.text = f"{int(stats.current_hp)} / {int(stats.hp)}"
 
         if hasattr(stats, "skills"):
-            skills = list(stats.skills)
+            from game.skills import CHAR_DEFAULT_SKILLS
+            defaults = CHAR_DEFAULT_SKILLS.get(stats.name, [])
+            s1, s2 = None, None
+            for skill in stats.skills:
+                if len(defaults) > 0 and isinstance(skill, defaults[0]): s1 = skill
+                elif len(defaults) > 1 and isinstance(skill, defaults[1]): s2 = skill
+            
             s3 = getattr(stats, 'skill3', None)
-            if s3 is not None:
-                while len(skills) < 2:
-                    skills.append(None)
-                skills_with_s3 = [skills[0] if len(skills) > 0 else None,
-                                   skills[1] if len(skills) > 1 else None,
-                                   s3]
-                self.skill_slot_box.update(skills_with_s3, stats.name)
-            else:
-                self.skill_slot_box.update(skills, stats.name)
+            self.skill_slot_box.update([s1, s2, s3], stats.name)
 
     def update_wave(self, wave_num: int):
         self.lbl_wave.text = f"WAVE {wave_num}"
@@ -612,11 +610,15 @@ class HUD(FloatLayout):
                 self._skill_frame_tick = 0
             self._skill_frame_tick += 1
             if self._skill_frame_tick % 2 == 0 and hasattr(s, "skills"):
-                auto_skills = list(s.skills)
-                while len(auto_skills) < 2:
-                    auto_skills.append(None)
+                from game.skills import CHAR_DEFAULT_SKILLS
+                defaults = CHAR_DEFAULT_SKILLS.get(s.name, [])
+                s1, s2 = None, None
+                for skill in s.skills:
+                    if len(defaults) > 0 and isinstance(skill, defaults[0]): s1 = skill
+                    elif len(defaults) > 1 and isinstance(skill, defaults[1]): s2 = skill
+                
                 s3 = getattr(s, 'skill3', None)
-                self.skill_slot_box.update([auto_skills[0], auto_skills[1], s3], s.name)
+                self.skill_slot_box.update([s1, s2, s3], s.name)
 
             # อัปเดตเวลา (ทุก 30 frame = ~0.5s)
             if self._skill_frame_tick % 30 == 0 and hasattr(gs, "play_time"):

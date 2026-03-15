@@ -27,8 +27,8 @@ SKILL_ICONS = {
     "BombTrap":    "assets/Lostman/skill3/c4_trap1.png",
     "LostmanAxe":  "assets/Lostman/skill1/axe_hit1.png",
     # Monkey
-    "PistolSkill":   "assets/Monkey/shoot/bullets1.png",
-    "ShotgunSkill":  "assets/Monkey/shoot/bullets1.png",
+    "PistolSkill":   "assets/Monkey/shoot/pistol.png",
+    "ShotgunSkill":  "assets/Monkey/shoot/shotgun.png",
     "RPGSkill":      "assets/Monkey/Weapon/RPG.png",
     "MonkeyCombo":   "assets/Monkey/M/m1.png",
 }
@@ -233,14 +233,20 @@ class LevelUpPopup(ModalView):
         if ctype == "stat":
             stat_key = choice.get("stat", "hp")
             icon_path = STAT_ICON_PATHS.get(stat_key)
+        
         if icon_path:
+            # 🌟 พิเศษ: ทำให้ขนาดไอคอนของลูกซองใหญ่ขึ้น
+            skill = choice.get("skill")
+            cls_name = type(skill).__name__ if skill else ""
+            sz = 90 if cls_name == "ShotgunSkill" else 56
+            
             import os
             if os.path.isfile(icon_path):
                 try:
                     icon_img = Image(
                         source=icon_path,
                         size_hint=(None, None),
-                        size=(56, 56),
+                        size=(sz, sz),
                         pos_hint={"center_x": 0.5, "top": 0.88},
                         allow_stretch=True,
                     )
