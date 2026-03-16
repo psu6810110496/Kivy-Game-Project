@@ -784,7 +784,113 @@ class GameScreen(Screen):
 
     def _on_key_down(self, _win, key, _scan, codepoint, _mods):
         kb = settings.key_bindings
-        
+
+        # ── Debug Keys (F2–F6) ────────────────────────────────
+        def _get_or_unlock_skill(idx):
+            """ดึงหรือ unlock Sup Skill ตาม index (0=S1, 1=S2) จาก CHAR_DEFAULT_SKILLS"""
+            from game.skills import CHAR_DEFAULT_SKILLS
+            s = self.player_stats
+            defaults = CHAR_DEFAULT_SKILLS.get(s.name, [])
+            if idx >= len(defaults):
+                return None
+            cls = defaults[idx]
+            for sk in s.skills:
+                if isinstance(sk, cls):
+                    return sk
+            new_sk = cls()  # unlock ใหม่
+            s.skills.append(new_sk)
+            return new_sk
+
+        # F2 (283) — Upgrade Sup Skill 1 (+1 Lv, auto-unlock ถ้ายังไม่มี)
+        if key == 283:
+            if self.player_stats:
+                sk = _get_or_unlock_skill(0)
+                if sk:
+                    sk.upgrade()
+                    if hasattr(self, 'hud') and self.hud:
+                        self.hud.update_ui(self.player_stats)
+                    print(f"[DEBUG] F2: Sup Skill 1 ({sk.name}) → Lv.{sk.level}")
+            return True
+
+        # F3 (284) — Upgrade Sup Skill 2 (+1 Lv, auto-unlock ถ้ายังไม่มี)
+        if key == 284:
+            if self.player_stats:
+                sk = _get_or_unlock_skill(1)
+                if sk:
+                    sk.upgrade()
+                    if hasattr(self, 'hud') and self.hud:
+                        self.hud.update_ui(self.player_stats)
+                    print(f"[DEBUG] F3: Sup Skill 2 ({sk.name}) → Lv.{sk.level}")
+            return True
+
+        # F4 (285) — Upgrade Sup Skill 3 (+1 Lv, auto-unlock ถ้ายังไม่มี)
+        if key == 285:
+            if self.player_stats:
+                from game.skills import CHAR_SKILL3
+                s = self.player_stats
+                if s.skill3 is None:
+                    s3_cls = CHAR_SKILL3.get(s.name)
+                    if s3_cls:
+                        s.skill3 = s3_cls()
+                if s.skill3:
+                    s.skill3.upgrade()
+                    if hasattr(self, 'hud') and self.hud:
+                        self.hud.update_ui(s)
+                    print(f"[DEBUG] F4: Sup Skill 3 ({s.skill3.name}) → Lv.{s.skill3.level}")
+            return True
+
+        # F5 (286) — Max Level: unlock + upgrade สกิลทุกตัวเป็น Lv.MAX, บูสต์สถานะ
+        if key == 286:
+            if self.player_stats:
+                from game.skills import CHAR_DEFAULT_SKILLS, CHAR_SKILL3
+                s = self.player_stats
+                # upgrade auto skills ที่มีอยู่
+                for skill in list(getattr(s, 'skills', [])):
+                    while skill.level < skill.max_level:
+                        skill.upgrade()
+                # unlock + upgrade auto skills ที่ยังไม่มี
+                defaults = CHAR_DEFAULT_SKILLS.get(s.name, [])
+                owned_types = {type(sk) for sk in s.skills}
+                for cls in defaults:
+                    if cls not in owned_types:
+                        new_sk = cls()
+                        while new_sk.level < new_sk.max_level:
+                            new_sk.upgrade()
+                        s.skills.append(new_sk)
+                # upgrade skill3
+                if s.skill3 is None:
+                    s3_cls = CHAR_SKILL3.get(s.name)
+                    if s3_cls:
+                        s.skill3 = s3_cls()
+                if s.skill3:
+                    while s.skill3.level < s.skill3.max_level:
+                        s.skill3.upgrade()
+                # บูสต์ stats
+                s.level = 50
+                s.hp = s.max_hp + 50 * 20
+                s.current_hp = s.hp
+                s.damage += 50 * 2
+                s.update_max_exp()
+                if hasattr(self, 'hud') and self.hud:
+                    self.hud.update_ui(s)
+                print(f"[DEBUG] F5: Max Level → Lv.{s.level}, HP:{s.hp:.0f}, DMG:{s.damage:.0f}")
+            return True
+
+        # F6 (287) — Skip to Wave 21 (Final Boss)
+        if key == 287:
+            if self.game_started and not self.is_dead:
+                for enemy in list(self.enemies):
+                    if enemy.parent:
+                        self.world_layout.remove_widget(enemy)
+                self.enemies.clear()
+                self.hud.update_enemy_count(0)
+                self.wave_manager.current_wave = 20
+                self.wave_manager.is_spawning = False
+                self.wave_manager._wave_stopped = False
+                self.wave_manager.try_start_next_wave()
+                print("[DEBUG] F6: Skipped to Wave 21 (Final Boss)")
+            return True
+
         # Pause key
         if kb['pause'] == "escape" and key == 27:
             self.toggle_pause()
@@ -818,6 +924,7 @@ class GameScreen(Screen):
             self.keys_pressed.add(cp)
 
         return False
+
 
     def _on_key_up(self, _win, key, _scan):
         try:
@@ -981,6 +1088,30 @@ class GameScreen(Screen):
             Clock.schedule_interval(_next_frame, 0.15 / max(1, len(self.slash_textures)))
             return
 
+        # ---------------- ปกติ (Arc) ----------------
+        highlight = Widget(size_hint=(None, None), size=(radius * 2, radius * 2), pos=(cx - radius, cy - radius))
+        
+        # 🌟 แก้ไขมุมให้หมุนตามเมาส์ 🌟
+        # แปลงจากมุมคณิตศาสตร์ ให้เป็นมุมของ Kivy (สูตร: 90 - มุมเดิม)
+        spread_deg = math.degrees(spread_angle)
+        kivy_center_deg = 90 - math.degrees(center_angle)
+        
+        start_deg = kivy_center_deg - spread_deg
+        end_deg = kivy_center_deg + spread_deg
+        
+        with highlight.canvas:
+            # เปลี่ยนสี Highlight ตามตัวละคร
+            if name == "PTae":
+                Color(1, 0.1, 0.1, 0.5)  # สีแดงโปร่งแสง (เข้มขึ้นเล็กน้อย)
+            elif name == "Monkey":
+                Color(1, 0.8, 0.2, 0.4)  # สีเหลืองโปร่งแสง
+            else:
+                Color(1, 1, 1, 0.4)      # สีขาวโปร่งแสง
+                
+            Ellipse(pos=highlight.pos, size=highlight.size, angle_start=start_deg, angle_end=end_deg)
+            
+        self.world_layout.add_widget(highlight)
+        Clock.schedule_once(lambda dt: self.world_layout.remove_widget(highlight) if highlight.parent else None, 0.15)
         # ---------------- ปกติ (Arc) ----------------
         highlight = Widget(size_hint=(None, None), size=(radius * 2, radius * 2), pos=(cx - radius, cy - radius))
         

@@ -1,7 +1,7 @@
 {
-  "music_volume": 0.09,
-  "sfx_volume": 0.09,
-  "fullscreen": false,
+  "music_volume": 0.06,
+  "sfx_volume": 0.05,
+  "fullscreen": true,
   "camera_shake": true,
   "show_damage_numbers": true,
   "show_enemy_hp": true,

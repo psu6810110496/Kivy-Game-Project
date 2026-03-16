@@ -1,0 +1,26 @@
+[
+    {
+        "name": "Prin",
+        "score": 17013,
+        "character": "Lostman",
+        "time_survived": "13:37",
+        "level": 25,
+        "kills": 517
+    },
+    {
+        "name": "Player (1)",
+        "score": 2583,
+        "character": "PTae",
+        "time_survived": "03:16",
+        "level": 8,
+        "kills": 43
+    },
+    {
+        "name": "Player",
+        "score": 721,
+        "character": "Lostman",
+        "time_survived": "00:30",
+        "level": 2,
+        "kills": 63
+    }
+]
