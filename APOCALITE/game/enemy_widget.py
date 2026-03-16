@@ -77,7 +77,7 @@ class EnemyWidget(Widget):
                 "speed": 1.5,
                 "damage": 25,
                 "color": (1.0, 0.5, 0.0, 1), # 🟠 ส้ม
-                "size": (80, 80),
+                "size": (120, 120),
             },
             "shielder": {
                 "hp": 300,
@@ -117,7 +117,7 @@ class EnemyWidget(Widget):
             },
             # Final Boss: Wave 45 Exclusive
             "final_boss": {
-                "hp": 5000, 
+                "hp": 10000, 
                 "speed": 0.4,
                 "damage": 60,
                 "color": (0.2, 0.0, 0.5, 1),
@@ -174,7 +174,7 @@ class EnemyWidget(Widget):
 
         # 🌟 ลดขนาด Texture แสดงผล (Visual) ลงอีกให้ดูพอดีช่อง (Hitbox เท่าเดิม)
         # ปรับเหลือ 0.5 (50%) สำหรับมอนทั่วไป และ 1.0 (100%) สำหรับศัตรูตัวใหญ่ที่ขยายมาแล้ว
-        visual_scale = 1.0 if enemy_type in ["boss", "big_boss", "final_boss", "ranger"] else 0.5
+        visual_scale = 1.0 if enemy_type in ["boss", "big_boss", "final_boss", "ranger", "charger"] else 0.5
         self.render_size = (self.enemy_size[0] * visual_scale, self.enemy_size[1] * visual_scale)
 
         with self.canvas:
@@ -333,6 +333,17 @@ class EnemyWidget(Widget):
                 self.walk_frames = get_frames("assets/enemy/boss/minotaur_288x160_SpriteSheet.png", 288, 160, 10, row=1)
                 self.attack_frames = self.walk_frames
                 self.anim_speed = 0.06
+        elif etype == "charger":
+            # 🌟 Special texture for Charger
+            path = resolve_path("assets/enemy/nonuse/enemy2no.png")
+            if path:
+                try:
+                    self.texture = CoreImage(path).texture
+                    self.walk_frames = [self.texture]
+                    self.attack_frames = [self.texture]
+                except:
+                    self.walk_frames = []
+                    self.attack_frames = []
         else:
             # Normal / Default (enemy1, 2 Alt) - STATIC TEXTURE
             chosen = random.choice(["enemy1.png", "enemy2.png"])

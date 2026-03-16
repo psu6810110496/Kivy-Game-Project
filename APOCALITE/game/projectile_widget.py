@@ -184,6 +184,12 @@ class RPGRocket(_Linear):
     def explode(self, game):
         self.exploded=True
         px,py=self.pos[0],self.pos[1]
+        
+        # [Aesthetic] Play explosion sound at reduced volume
+        from game.sound_manager import sound_manager
+        from game.game_settings import settings
+        sound_manager.play_sfx("lostman_bomb_explosion", volume=settings.sfx_volume * 0.6)
+        
         from game.skills import _hit_enemy, _show_aoe_vfx
         _show_aoe_vfx(game, px, py, self.splash_radius)
         for enemy in list(game.enemies):

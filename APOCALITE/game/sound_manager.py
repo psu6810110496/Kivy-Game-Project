@@ -8,6 +8,8 @@ SoundManager — จัดการระบบเสียงทั้งหม
 """
 from kivy.core.audio import SoundLoader
 from game.game_settings import settings
+from kivy.animation import Animation
+from kivy.clock import Clock
 import os
 
 class SoundManager:
@@ -16,7 +18,7 @@ class SoundManager:
     # --- Assets Mapping ---
     BGM_PATHS = {
         "main_menu": "assets/sound/mainmenu/nothing-like-home-luminbird-main-version-36601-02-03.mp3",
-        "ingame":    "assets/sound/ingame/JAM_HSIAO_-_Theme_Soul_land_Douluo_Dalu_OP_(mp3.pm).mp3",
+        "ingame":    "assets/sound/ingame/dodgin-bullets-bosnow-main-version-45830-02-32.mp3",
         "bossfight": "assets/sound/bossfight/speed-demon-abbynoise-main-version-18766-02-24.mp3",
         "rain":      "assets/sound/mainmenu/rain.wav",
         "endcredit": "assets/sound/endcredit/endc1.mp3",
@@ -38,6 +40,11 @@ class SoundManager:
         "lostman_hit":      "assets/sound/lostman/mixkit-impact-of-a-strong-punch-2155.mp3",
         "lostman_bomb_countdown": "assets/sound/lostman/freesound_community-bomb-countdown-beeps-6868.mp3",
         "lostman_bomb_explosion": "assets/sound/lostman/dragon-studio-explosion-with-debris-494320.mp3",
+        # Monkey Skills
+        "monkey_pistol":    "assets/sound/monkey/pistols.mp3",
+        "monkey_shotgun":   "assets/sound/monkey/shotguns.mp3",
+        "monkey_rpg":       "assets/sound/monkey/rpgs.mp3",
+        "monkey_knockback": "assets/sound/monkey/monkeys.mp3",
     }
 
     def __new__(cls):
@@ -93,7 +100,44 @@ class SoundManager:
         self.current_bgm.play()
         if seek_pos > 0.0:
             self.current_bgm.seek(seek_pos)
-        print(f"[SoundManager] Playing BGM: {name} (Volume: {settings.music_volume})")
+
+    def crossfade_to_bgm(self, name, duration=2.5):
+        """Transition จากเพลงเดิมไปเพลงใหม่แบบนุ่มนวล (Crossfade)"""
+        if self.current_bgm_name == name:
+            return
+
+        old_bgm = self.current_bgm
+        old_name = self.current_bgm_name
+        path = self.BGM_PATHS.get(name)
+        if not path or not os.path.exists(path):
+            return
+
+        # Load new BGM
+        if name not in self._bgm_cache:
+            sound = SoundLoader.load(path)
+            if sound: self._bgm_cache[name] = sound
+            else: return
+        
+        new_bgm = self._bgm_cache[name]
+        
+        # 🐛 [Fix] Stop and reset new_bgm before playing (prevents volume bug on re-play)
+        new_bgm.stop()
+        new_bgm.loop = True
+        new_bgm.volume = 0
+        new_bgm.play()
+
+        # Animate Fade Out old
+        if old_bgm and old_bgm is not new_bgm:
+            anim_out = Animation(volume=0, duration=duration)
+            anim_out.bind(on_complete=lambda *args: old_bgm.stop())
+            anim_out.start(old_bgm)
+
+        # Animate Fade In new
+        anim_in = Animation(volume=settings.music_volume, duration=duration)
+        anim_in.start(new_bgm)
+
+        self.current_bgm = new_bgm
+        self.current_bgm_name = name
 
     def stop_bgm(self):
         """หยุดเพลงประกอบทั้งหมด"""

@@ -18,7 +18,7 @@ from ui.font import PIXEL_FONT
 SKILL_ICONS = {
     # PTae
     "DinoCircle":  "assets/PTae/skill1/aoeptae01.png",
-    "DinoSummon":  "assets/PTae/skill2/F0.png",
+    "DinoSummon":  "assets/PTae/skill2/frame_17_delay-0.05s.png",
     "DinoPunch":   "assets/PTae/PTPushUp/PTaeTester1.png",
     "PtaePunch":   "assets/PTae/PTPushUp/PTaeTester1.png",
     # Lostman

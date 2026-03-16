@@ -29,25 +29,24 @@ class WaveManager:
         if hasattr(self, '_win_screen_ev'): Clock.unschedule(self._win_screen_ev)
 
     def try_start_next_wave(self):
-        # 🌟 Guard: Don't trigger if spawning, dead, stopped, or already triggered victory (wave > 45)
-        if self.is_spawning or self.game.is_dead or self._wave_stopped or self.current_wave > 45:
+        # Guard: Don't trigger if spawning, dead, stopped, or already won
+        if self.is_spawning or self.game.is_dead or self._wave_stopped or self.current_wave > 21:
             return
             
         self.current_wave += 1
         
-        # Check Win Condition: Just finished Wave 45
-        if self.current_wave > 45:
-            # เมื่อเคลียร์ Wave 45 และลูกน้อง(ศัตรูตัวสุดท้าย)ตายหมดแล้ว
-            # ทิ้งความเงียบไว้ 3 วินาทีก่อนเริ่มเพลงเพื่อให้ดูดราม่าขึ้น
+        # Check Win Condition: All 21 waves cleared
+        if self.current_wave > 21:
+            # ทิ้งความเงียบ 3 วินาทีก่อนเริ่มเพลง End Credit
             def _start_music(dt):
                 from game.sound_manager import sound_manager
+                sound_manager.stop_bgm()  # สรุปเพลงที่เปิดอยู่แล้วถ้ามี
                 sound_manager.play_bgm("endcredit", loop=False, seek_pos=49.0)
             
             self._win_music_ev = Clock.schedule_once(_start_music, 3.0)
 
-            # ตอนนี้เพลงเปิดช้าลง 3 วิ ดังนั้นต้องรอ 3 + 19 = 22 วินาที เพื่อให้พอดีกับท่อนฮุคนาทีที่ 1:08
             def _delayed_victory(dt):
-                if not self.game.is_dead: # Don't win if player died in the last period
+                if not self.game.is_dead:
                     self.game.show_game_over(win=True)
             
             self._win_screen_ev = Clock.schedule_once(_delayed_victory, 22.0)
@@ -117,12 +116,9 @@ class WaveManager:
 
         w = self.current_wave
 
-        # EXP scaling ตอนนี้ถูกจัดการโดย PlayerStats ตามเลเวลแล้ว
-        if game.player_stats:
-            game.hud.update_ui(game.player_stats)
-
-        if w == 45:
-            # Final Boss Wave: Spawn only the Final Boss
+        if w == 21:
+            # Final Boss Wave
+            sound_manager.crossfade_to_bgm("bossfight")
             self._spawn_final_boss()
             self.is_spawning = False
             return
@@ -140,7 +136,7 @@ class WaveManager:
             for _ in range(8):
                 self._spawn_single()
             self.is_spawning = False
-            sound_manager.play_bgm("bossfight")
+            sound_manager.crossfade_to_bgm("bossfight")
             Clock.schedule_once(lambda _: self.start_boss_intro(bb_count, is_big=True), 0.1)
         elif is_boss:
             count = self._boss_count(w)
@@ -149,9 +145,13 @@ class WaveManager:
             for _ in range(5):
                 self._spawn_single()
             self.is_spawning = False
-            sound_manager.play_bgm("bossfight")
+            sound_manager.crossfade_to_bgm("bossfight")
             Clock.schedule_once(lambda _: self.start_boss_intro(count, is_big=False), 0.1)
         else:
+            # 🌟 เมื่อกลับมาเป็น Wave ปกติ ให้เปลี่ยนเพลงกลับเป็น In-Game แบบ Smooth
+            if sound_manager.current_bgm_name == "bossfight":
+                sound_manager.crossfade_to_bgm("ingame")
+                
             # 🌟 [Optimization] Cap total enemies at 100 to prevent extreme lag
             if len(game.enemies) < 100: 
                 for _ in range(5 + w):
@@ -251,14 +251,14 @@ class WaveManager:
         game.hud.update_enemy_count(len(game.enemies))
         # Special Intro
         Clock.schedule_once(lambda _: self.start_boss_intro(1, is_big=False, is_final=True), 0.1)
-        # 🌟 Start spawning XP periodically for Wave 45
-        Clock.schedule_interval(self._spawn_wave_45_xp, 3.0)
-        # 🌟 Start spawning Heal periodically for Wave 45
-        Clock.schedule_interval(self._spawn_wave_45_heal, 8.0)
+        # 🌟 Start spawning XP periodically for Wave 21
+        Clock.schedule_interval(self._spawn_wave_21_xp, 3.0)
+        # 🌟 Start spawning Heal periodically for Wave 21
+        Clock.schedule_interval(self._spawn_wave_21_heal, 8.0)
 
-    def _spawn_wave_45_xp(self, dt):
-        """สุ่มเสก XP ให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
-        if self.current_wave != 45 or self.game.is_dead or not self.game.game_started:
+    def _spawn_wave_21_xp(self, dt):
+        """สุ่มเสก XP ให้ผู้เล่นเก็บใน Wave 21 (Final Boss)"""
+        if self.current_wave != 21 or self.game.is_dead or not self.game.game_started:
             return False # Stop interval
             
         # เสก XP 8-12 เม็ด กระจายรอบตัวผู้เล่น (รัศมี 300-900)
@@ -267,9 +267,9 @@ class WaveManager:
             self.game.spawn_exp_orb(pos)
         return True
 
-    def _spawn_wave_45_heal(self, dt):
-        """สุ่มเสกเลือดให้ผู้เล่นเก็บใน Wave 45 (Final Boss)"""
-        if self.current_wave != 45 or self.game.is_dead or not self.game.game_started:
+    def _spawn_wave_21_heal(self, dt):
+        """สุ่มเสกเลือดให้ผู้เล่นเก็บใน Wave 21 (Final Boss)"""
+        if self.current_wave != 21 or self.game.is_dead or not self.game.game_started:
             return False # Stop interval
             
         # เสกเลือด 1-2 กล่องรอบตัวผู้เล่น
@@ -288,24 +288,23 @@ class WaveManager:
         w = self.current_wave
         
         if enemy.enemy_type == "boss":
-            # บอส: เลือดเพิ่มขึ้นทีละ +100 ทุก 5 wave
             mult = w // 5
             enemy.hp += mult * 100
+            if w > 5:
+                enemy.hp *= 2  # 2x ตั้งแต่ครั้งที่ 2 เป็นต้นไป (wave 10+)
         elif enemy.enemy_type == "big_boss":
-            # มหาบอส: เลือดเพิ่มขึ้นทีละ +400 ทุก 10 wave
             mult10 = w // 10
             enemy.hp += mult10 * 400
-            # Play in-game music when big boss is deconstructed/defeated logic usually happens in skills or enemy_widget, 
-            # but we can hook it here if this is where the death cleanup is triggered or similar.
-            # Actually, let's keep it simple for now as requested.
-        elif enemy.enemy_type == "final_boss" or enemy.enemy_type == "final_boss_clone":
+            if w > 10:
+                enemy.hp *= 2  # 2x ตั้งแต่ครั้งที่ 2 เป็นต้นไป (wave 20+)
+        elif enemy.enemy_type in ("final_boss", "final_boss_clone"):
             # Final Boss มีค่าคงที่แล้ว ไม่ต้องบวกเพิ่ม
             pass
         else:
-            # มอนปกติ: ดาเมจ +10, เลือด +15 ทุก 5 wave
+            # มอนปกติ: เลือด +5 ทุก wave, ดาเมจ +10 ทุก 5 wave
+            enemy.hp += w * 5
             mult = w // 5
             enemy.damage += mult * 10
-            enemy.hp += mult * 15
         
         enemy.max_hp = enemy.hp
 
@@ -321,7 +320,7 @@ class WaveManager:
             tag = "BIG BOSS" if is_big else "BOSS"
             color = (0.8, 0.1, 0.8, 1) if is_big else (0.9, 0.2, 0.2, 1)
             
-        multiplier = f"  ×{boss_count}" if boss_count > 1 else ""
+        multiplier = f"  x{boss_count}" if boss_count > 1 else ""
         self._show_boss_overlay(f"{tag}{multiplier}", color)
 
     # ── UI helpers ─────────────────────────────────────────

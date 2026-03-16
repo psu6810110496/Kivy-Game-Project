@@ -11,7 +11,7 @@ class CombatManager:
     MELEE_COOLDOWN = 0.8
     PLAYER_HIT_RADIUS = 20.0
     PROJ_MAX_DIST = 900.0   # ลดระยะ cleanup กระสุนที่หลงไปไกล
-    EXP_ORB_MAX = 150       # จำนวน EXP orb สูงสุด เพื่อป้องกันเกมกระตุก
+    EXP_ORB_MAX = 100       # ลดเหลือ 100 เพื่อไม่ให้วิดเจตเยอเกินไป
 
     def __init__(self, game):
         self.game = game
@@ -94,14 +94,16 @@ class CombatManager:
                 self._rm_proj(proj)
                 continue
             
-            # Check Obstacle Collision
+            # 🌟 [Optimization] Skip obstacle check for enemy projectiles if far from all obstacles
             hit_obs = False
             prj_x, prj_y = proj.pos[0], proj.pos[1]
             for obs in getattr(g, "obstacles", []):
-                if obs.collides_with(prj_x - 5, prj_y - 5, 10, 10):
-                    self._rm_proj(proj)
-                    hit_obs = True
-                    break
+                ox, oy = obs.pos[0] + 48, obs.pos[1] + 24
+                if abs(prj_x - ox) < 80 and abs(prj_y - oy) < 80:
+                    if obs.collides_with(prj_x - 5, prj_y - 5, 10, 10):
+                        self._rm_proj(proj)
+                        hit_obs = True
+                        break
             if hit_obs: continue
 
             dist = math.hypot(proj.pos[0]-p_cx, proj.pos[1]-p_cy)
@@ -135,7 +137,8 @@ class CombatManager:
                         heal = getattr(item, 'heal_amount', 25)
                     g.player_stats.current_hp = min(g.player_stats.hp,
                                                      g.player_stats.current_hp + heal)
-                    g.hud.update_ui(g.player_stats)
+                    if hasattr(g, 'hud') and g.hud:
+                        g.hud.update_ui(g.player_stats)
                 g.dropped_items.remove(item)
                 if item.parent: g.world_layout.remove_widget(item)
 
@@ -145,9 +148,10 @@ class CombatManager:
         from kivy.clock import Clock
         t = Clock.get_time()
         
-        # 🌟 [Optimization] อัปเดตสีรุ้งจากศูนย์กลาง (ทำทีเดียวให้ทุกลูก)
-        for orb in g.exp_orbs:
-            if hasattr(orb, 'update_visual'):
+        # 🌟 [Optimization] อัปเดตเพียง 1/4 ของ orb ทุกเฟรม (staggered) เพื่อลด CPU
+        update_slot = int(t * 4) % 4
+        for i, orb in enumerate(g.exp_orbs):
+            if i % 4 == update_slot and hasattr(orb, 'update_visual'):
                 orb.update_visual(t)
         
         # 🌟 Cap EXP orbs: ถ้าเกิน limit ให้ลบ orb เก่าสุดที่ตั้งไว้นาน

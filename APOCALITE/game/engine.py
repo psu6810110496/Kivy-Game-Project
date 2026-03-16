@@ -142,8 +142,8 @@ class GameScreen(Screen):
                 Color(0.15, 0.15, 0.15, 1)
                 Rectangle(pos=(-1500, -1500), size=(8000, 8000))
             
-            # วาดเส้นสีแดงเพื่อเช็คขอบแมพเดิม (Testing)
-            Color(1, 0, 0, 1)
+            # เส้นขอบแมพสีดำ
+            Color(0, 0, 0, 1)
             Line(rectangle=(0, 0, 5000, 5000), width=3)
             # Border darkness (เลื่อนออกไปนอกแมพใหม่เพื่อให้เห็น Texture ที่ gen เพิ่ม)
             Color(0, 0, 0, 0.85)
@@ -158,7 +158,7 @@ class GameScreen(Screen):
         with self.world_layout.canvas.after:
             PopMatrix()
 
-        # 🌟 สุ่มวางรถฝั่งซ้ายให้เต็มตามแนวขอบแมพ
+        # 🌟 สุ่มวางรถให้เต็มขอบทั้ง 4 ด้าน
         import random
         from game.obstacle_widget import ObstacleWidget
 
@@ -176,23 +176,33 @@ class GameScreen(Screen):
                     return True
             return False
 
-        # กำหนดโซนเน้นฝั่งซ้าย (x: 20 ถึง 300, y: 50 ถึง 4950)
-        left_zone_x = (20, 300)
-        left_zone_y = (50, 4950)
+        # กำหนดโซนขอบทั้ง 4 ด้าน (ขอบหนาประมาณ 250-300 หน่วย)
+        zones = [
+            # Left: (x_min, x_max, y_min, y_max)
+            (20, 250, 50, 4950),
+            # Right:
+            (4750, 4980, 50, 4950),
+            # Bottom:
+            (250, 4750, 20, 200),
+            # Top:
+            (250, 4750, 4800, 4980)
+        ]
 
-        total_left_cars = 50 # ปรับจำนวนให้หนาแน่น
-        attempts = 0
-        while len(self.obstacles) < total_left_cars and attempts < 1000:
-            attempts += 1
-            # สุ่มขนาดรถ (แนวนอน หรือ แนวตั้ง)
-            w, h = random.choice([(140, 80), (80, 90)])
-            x = random.randint(left_zone_x[0], left_zone_x[1] - w)
-            y = random.randint(left_zone_y[0], left_zone_y[1] - h)
-            
-            if not is_overlapping((x, y), (w, h), self.obstacles):
-                obs = ObstacleWidget(pos=(x, y), size=(w, h))
-                self.obstacles.append(obs)
-                self.world_layout.add_widget(obs)
+        cars_per_side = 45 
+        for zx1, zx2, zy1, zy2 in zones:
+            side_attempts = 0
+            cars_count = 0
+            while cars_count < cars_per_side and side_attempts < 500:
+                side_attempts += 1
+                w, h = random.choice([(140, 80), (80, 90)])
+                x = random.randint(zx1, zx2 - w)
+                y = random.randint(zy1, zy2 - h)
+                
+                if not is_overlapping((x, y), (w, h), self.obstacles):
+                    obs = ObstacleWidget(pos=(x, y), size=(w, h))
+                    self.obstacles.append(obs)
+                    self.world_layout.add_widget(obs)
+                    cars_count += 1
 
         self.root_layout.add_widget(self.world_layout)
 
@@ -403,6 +413,9 @@ class GameScreen(Screen):
         if not self.player_stats or self.is_paused or not self.player_widget or self.is_dead:
             return
 
+        # 🌟 [Optimization] Clamp dt เพื่อกัน frame spike ทำให้ศัตรูทะลุกำแพง
+        dt = min(dt, 0.05)
+
         if self.game_started:
             self.play_time += dt
             if getattr(self, "magnet_timer", 0.0) > 0:
@@ -419,15 +432,12 @@ class GameScreen(Screen):
             self.melee_timer -= dt
             if self.melee_timer <= 0:
                 self.perform_melee_attack()
-                # ดึงค่า Cooldown ของการโจมตีจาก player_stats
-                # ถ้ายังไม่ได้ใส่ค่า melee_cooldown ใน player.py จะใช้ 0.5 วินาทีแทน
                 self.melee_timer = getattr(self.player_stats, "melee_cooldown", 0.5)
 
-        # Skills tick
+        # Skills tick (เฉพาะตอนมีศัตรู)
         if self.game_started and hasattr(self.player_stats, "skills"):
             for skill in self.player_stats.skills:
                 skill.tick(dt, self)
-            # skill3 stack recharge only (no auto-fire)
             s3 = getattr(self.player_stats, 'skill3', None)
             if s3 is not None:
                 s3.tick(dt, self)
@@ -438,12 +448,7 @@ class GameScreen(Screen):
         # Player movement
         self._update_player_movement(dt)
 
-        # Apply Screen Shake intensity from settings
-        if settings.camera_shake and hasattr(self, '_shake_timer') and self._shake_timer > 0:
-            # ของเดิมอาจจะมี logic shake อยู่แล้ว เราแค่คูณ intensity เข้าไป
-            pass
-
-        # Beam update (DinoBeam ติดตามเวลา)
+        # Beam update (DinoBeam)
         if hasattr(self, 'active_beams'):
             for beam in list(self.active_beams):
                 alive = beam.update(dt, self)
@@ -452,8 +457,9 @@ class GameScreen(Screen):
                     if beam.parent:
                         self.world_layout.remove_widget(beam)
 
-        # Enemy AI
-        for enemy in list(self.enemies):
+        # 🌟 [Optimization] Enemy AI — update ศัตรูสูงสุด 80 ตัว/เฟรม (กัน lag)
+        enemies_to_update = self.enemies[:80]
+        for enemy in enemies_to_update:
             enemy.update_movement(self.player_pos, self.enemies, dt)
 
         self.update_camera(dt)
@@ -606,42 +612,12 @@ class GameScreen(Screen):
             self.player_stats.exp -= self.player_stats.max_exp
             self.player_stats.level += 1
             self.player_stats.update_max_exp() # 🌟 อัปเดตเพดาน EXP ใหม่ตามเลเวล
+            self.player_stats.apply_level_up_bonus() # 🌟 เพิ่ม Stat อัตโนมัติ
+            self.hud.update_ui(self.player_stats) # 🌟 อัปเดต HUD ทันที (ให้เห็นเลือดเพิ่ม/เลเวลขยับ)
             self.is_paused = True
             from game.skills import get_upgrade_choices
             choices = get_upgrade_choices(self.player_stats)
             LevelUpPopup(self, choices=choices).open()
-
-    def _debug_direct_upgrade(self, slot):
-        """Debug helper to directly upgrade or add S1, S2, or S3"""
-        if not self.player_stats: return
-        from game.skills import CHAR_DEFAULT_SKILLS, CHAR_SKILL3
-        char_name = self.player_stats.name
-        
-        if slot in [1, 2]: # S1 or S2
-            defaults = CHAR_DEFAULT_SKILLS.get(char_name, [])
-            if len(defaults) < slot: return
-            skill_cls = defaults[slot-1]
-            
-            # Find if player already has this skill
-            existing = next((s for s in self.player_stats.skills if isinstance(s, skill_cls)), None)
-            if existing:
-                existing.upgrade()
-            else:
-                new_skill = skill_cls()
-                self.player_stats.skills.append(new_skill)
-        elif slot == 3: # S3
-            skill_cls = CHAR_SKILL3.get(char_name)
-            if not skill_cls: return
-            if self.player_stats.skill3:
-                self.player_stats.skill3.upgrade()
-            else:
-                self.player_stats.skill3 = skill_cls()
-        
-        if hasattr(self, "hud") and self.hud:
-            self.hud.update_ui(self.player_stats)
-
-        if hasattr(self, "hud") and self.hud:
-            self.hud.update_ui(self.player_stats)
 
     def spawn_drop_item(self, pos):
         """Drop HealthPickup หรือ MagnetPickup เมื่อศัตรูตาย"""
@@ -841,13 +817,6 @@ class GameScreen(Screen):
 
             self.keys_pressed.add(cp)
 
-        # -- Debug Tools --
-        if key == 282: # F1 -> Upgrade Skill 1
-            self._debug_direct_upgrade(1)
-        elif key == 283: # F2 -> Upgrade Skill 2
-            self._debug_direct_upgrade(2)
-        elif key == 284: # F3 -> Upgrade Skill 3
-            self._debug_direct_upgrade(3)
         return False
 
     def _on_key_up(self, _win, key, _scan):

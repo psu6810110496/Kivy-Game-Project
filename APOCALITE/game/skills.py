@@ -639,6 +639,11 @@ class PistolSkill(BaseSkill):
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
         dmg = game.player_stats.damage * self.damage_mult
+
+        # [Aesthetic] Play Pistol SFX
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("monkey_pistol", volume=settings.sfx_volume * 0.4)
+
         sorted_e = sorted(
             game.enemies,
             key=lambda e: math.hypot(px - (e.pos[0] + 20), py - (e.pos[1] + 20))
@@ -686,9 +691,9 @@ class ShotgunSkill(BaseSkill):
                          120, 120, ["assets/Monkey/shoot/bullets2.png"], 0.1, 
                          angle=math.degrees(aim_angle))
         
-        # SFX (ใช้เสียงโจมตีพื้นฐานถ้าไม่มีเสียงลูกซองเฉพาะ)
+        # SFX
         from game.sound_manager import sound_manager
-        sound_manager.play_sfx("attack", volume=settings.sfx_volume * 1.2)
+        sound_manager.play_sfx("monkey_shotgun", volume=settings.sfx_volume * 0.5)
 
         # ทำดาเมจและผลักศัตรูในระยะ
         for enemy in list(game.enemies):
@@ -711,6 +716,8 @@ class ShotgunSkill(BaseSkill):
                             enemy.pos[0] + (dx/dist) * self.knockback_power,
                             enemy.pos[1] + (dy/dist) * self.knockback_power
                         )
+                        # [Aesthetic] Play Knockback SFX
+                        sound_manager.play_sfx("monkey_knockback", volume=settings.sfx_volume * 1.5)
 
 
 class RPGSkill(StackSkill):
@@ -738,6 +745,10 @@ class RPGSkill(StackSkill):
         self.splash_radius += 15
 
     def activate(self, game):
+        # [Aesthetic] Play RPG SFX
+        from game.sound_manager import sound_manager
+        sound_manager.play_sfx("monkey_rpg")
+
         from game.projectile_widget import RPGRocket
         px = game.player_pos[0] + 32
         py = game.player_pos[1] + 32
