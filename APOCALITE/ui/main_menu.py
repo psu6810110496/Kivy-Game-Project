@@ -153,6 +153,21 @@ class MainMenuScreen(Screen):
         menu_group.add_widget(btn_layout)
 
         main_layout.add_widget(menu_group)
+
+        # 5. เพิ่มเลขเวอร์ชันที่มุมขวาล่าง
+        version_label = Label(
+            text="version 1.0",
+            font_size=24,
+            font_name=PIXEL_FONT,
+            color=(1, 1, 1, 0.7),
+            size_hint=(None, None),
+            size=(200, 50),
+            pos_hint={"right": 0.98, "y": 0.02},
+            halign="right",
+            valign="bottom"
+        )
+        main_layout.add_widget(version_label)
+
         self.add_widget(main_layout)
 
     # 5. ฟังก์ชันอัปเดตขนาดพื้นหลังให้ติดหนึบกับหน้าจอ

@@ -288,15 +288,17 @@ class WaveManager:
         w = self.current_wave
         
         if enemy.enemy_type == "boss":
-            mult = w // 5
-            enemy.hp += mult * 100
             if w > 5:
-                enemy.hp *= 2  # 2x ตั้งแต่ครั้งที่ 2 เป็นต้นไป (wave 10+)
+                # ตั้งแต่ครั้งที่ 2 เป็นต้นไป (Wave 15+) ให้บวกโบนัสและคูณ 2
+                mult = w // 5
+                enemy.hp += mult * 100
+                enemy.hp *= 2
         elif enemy.enemy_type == "big_boss":
-            mult10 = w // 10
-            enemy.hp += mult10 * 400
             if w > 10:
-                enemy.hp *= 2  # 2x ตั้งแต่ครั้งที่ 2 เป็นต้นไป (wave 20+)
+                # ตั้งแต่ครั้งที่ 2 เป็นต้นไป (Wave 20+) ให้บวกโบนัสและคูณ 2
+                mult10 = w // 10
+                enemy.hp += mult10 * 400
+                enemy.hp *= 2
         elif enemy.enemy_type in ("final_boss", "final_boss_clone"):
             # Final Boss มีค่าคงที่แล้ว ไม่ต้องบวกเพิ่ม
             pass

@@ -107,7 +107,6 @@ class SoundManager:
             return
 
         old_bgm = self.current_bgm
-        old_name = self.current_bgm_name
         path = self.BGM_PATHS.get(name)
         if not path or not os.path.exists(path):
             return
@@ -133,8 +132,7 @@ class SoundManager:
             anim_out.start(old_bgm)
 
         # Animate Fade In new
-        anim_in = Animation(volume=settings.music_volume, duration=duration)
-        anim_in.start(new_bgm)
+        Animation(volume=settings.music_volume, duration=duration).start(new_bgm)
 
         self.current_bgm = new_bgm
         self.current_bgm_name = name
